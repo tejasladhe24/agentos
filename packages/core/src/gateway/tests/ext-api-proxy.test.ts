@@ -69,9 +69,7 @@ describe('createExtApiProxyHandler', () => {
       }),
     );
     expect(ok?.status).toBe(200);
-    expect(calls[0]!.url).toBe(
-      'http://127.0.0.1:6101/tools/search?limit=2',
-    );
+    expect(calls[0]!.url).toBe('http://127.0.0.1:6101/tools/search?limit=2');
     const fwd = calls[0]!.init?.headers as Headers;
     expect(fwd.get('cookie')).toBe('session=abc');
     expect(fwd.get('authorization')).toBe('Bearer tok');
@@ -88,9 +86,7 @@ describe('createExtApiProxyHandler', () => {
     );
     expect(noPort?.status).toBe(502);
 
-    expect(
-      await handler(new Request('http://localhost/api/other')),
-    ).toBeNull();
+    expect(await handler(new Request('http://localhost/api/other'))).toBeNull();
   });
 
   test('parseExtApiPath keeps query', () => {

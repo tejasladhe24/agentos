@@ -33,10 +33,7 @@ function modelOf(...extensions: ScannedExtension[]): RegistryModel {
   return { extensions, scannedAt: 42 };
 }
 
-function req(
-  path: string,
-  init: RequestInit = {},
-): Request {
+function req(path: string, init: RequestInit = {}): Request {
   return new Request(`http://localhost${path}`, init);
 }
 

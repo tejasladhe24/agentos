@@ -39,12 +39,12 @@ Browser:  Shell (mountShell) + extension UI iframes
 
 ## SPA paths vs gateway prefixes
 
-| Kind                | Examples                                 | Who answers                                                            |
-| ------------------- | ---------------------------------------- | ---------------------------------------------------------------------- |
-| Known SPA workspace | `/`                                      | AuthGate → Shell (session required)                                    |
-| Public auth         | `/login`, `/register`, …                 | AuthGate → auth pages (outside Shell chrome)                           |
-| Unknown SPA path    | `/totally-missing`, `/__public/…` (typo) | AuthGate → **Not Found** UI (no session)                               |
-| Reserved gateway    | `/_public/…`, `/__agentos/…`, `/api/…`   | Gateway handlers (HTTP status); **not** claimed as Shell routes        |
+| Kind                | Examples                                 | Who answers                                                     |
+| ------------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| Known SPA workspace | `/`                                      | AuthGate → Shell (session required)                             |
+| Public auth         | `/login`, `/register`, …                 | AuthGate → auth pages (outside Shell chrome)                    |
+| Unknown SPA path    | `/totally-missing`, `/__public/…` (typo) | AuthGate → **Not Found** UI (no session)                        |
+| Reserved gateway    | `/_public/…`, `/__agentos/…`, `/api/…`   | Gateway handlers (HTTP status); **not** claimed as Shell routes |
 
 Correct public assets use a **single** underscore: `/_public/<path>`. A double-underscore typo (`/__public/…`) is an unknown SPA path and shows the client Not Found page.
 
