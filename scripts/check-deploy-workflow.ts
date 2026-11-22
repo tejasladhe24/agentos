@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 /** pnpm CLI verbs that are not `pnpm run <script>` and must not be used for package scripts. */
 const PNPM_SCRIPT_SHADOWS = new Set([
@@ -175,8 +174,8 @@ export function checkDeployWorkflowCommands(
   return issues;
 }
 
-export function repoRootFromHere(metaUrl: string = import.meta.url): string {
-  return join(dirname(fileURLToPath(metaUrl)), '../../..');
+export function repoRootFromHere(): string {
+  return join(import.meta.dir, '..');
 }
 
 /** Load workflow + root package.json and return issues (empty = ok). */

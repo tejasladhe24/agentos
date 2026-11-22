@@ -60,7 +60,7 @@ Workflow: [`.github/workflows/deploy-cloudflare.yml`](../../.github/workflows/de
 | **`workflow_dispatch`** | Choose `production` or `dev`                                                                                         |
 | Pull requests           | **No** Cloudflare deploy; PR CI runs deploy-workflow smoke (catches `pnpm ci` vs `pnpm run ci`, missing scripts)     |
 
-Always use `pnpm run <script>` in the deploy workflow — bare `pnpm ci` is a pnpm builtin and does **not** run the repo `ci` script (`ERR_PNPM_CI_NOT_IMPLEMENTED`). Local check: `bun ./deploy/cloudflare/lib/check-deploy-workflow.ts`.
+Always use `pnpm run <script>` in the deploy workflow — bare `pnpm ci` is a pnpm builtin and does **not** run the repo `ci` script (`ERR_PNPM_CI_NOT_IMPLEMENTED`). Local check: `bun ./scripts/check-deploy-workflow.ts`.
 
 ### Preview / staging policy
 

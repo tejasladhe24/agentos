@@ -49,7 +49,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Deploy workflow smoke
-        run: bun ./deploy/cloudflare/lib/check-deploy-workflow.ts
+        run: bun ./scripts/check-deploy-workflow.ts
 
       - name: CI
         # Must be `pnpm run ci` — bare `pnpm ci` is a pnpm builtin (unimplemented).

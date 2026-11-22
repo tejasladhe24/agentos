@@ -92,5 +92,5 @@ jobs:
         with:
           bun-version: latest
       # No install needed — static check of workflow YAML vs package.json scripts.
-      - run: bun ./deploy/cloudflare/lib/check-deploy-workflow.ts
-      - run: bun test deploy/cloudflare/lib/check-deploy-workflow.test.ts
+      - run: bun ./scripts/check-deploy-workflow.ts
+      - run: bun test scripts/check-deploy-workflow.test.ts
