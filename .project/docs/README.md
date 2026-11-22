@@ -6,6 +6,7 @@
 | ---------------------------------------------------------------- | ---------------------------------------------------- |
 | [concepts.md](./concepts.md)                                     | Glossary: extension vs service vs package boundaries |
 | [architecture.md](./architecture.md)                             | System design, gateway, builtins, Comlink            |
+| [deploy runbook](../../deploy/README.md)                         | Portable image + env contract; per-cloud adapters    |
 | [prd.md](./prd.md)                                               | Product intent for this experiment                   |
 | [roadmap.md](./roadmap.md)                                       | Delivery phases ↔ tickets                            |
 | [packages.md](./packages.md)                                     | `@agentos/core` exports and Python `agentos`         |
