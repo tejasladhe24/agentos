@@ -5,16 +5,28 @@
  * Uses the default Containers scheduling policy so max_instances is enforced.
  * Worker code uses the Durable Object Container API (ctx.container) — not the
  * deprecated @cloudflare/containers package.
+ *
+ * Environments:
+ * - top-level → production Worker `agentos-demo` — custom domain agentos-demo.thatlad.dev (`main`)
+ * - `env.dev` → staging Worker `agentos` — https://agentos.thatlad.workers.dev (`dev`)
  */
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "agentos",
+  "name": "agentos-demo",
   "main": "worker.ts",
   "compatibility_date": "2026-11-22",
   "upload_source_maps": true,
+  // Production is the custom domain only (not *.workers.dev).
+  "workers_dev": false,
   "observability": {
     "enabled": true,
   },
+  "routes": [
+    {
+      "pattern": "agentos-demo.thatlad.dev",
+      "custom_domain": true,
+    },
+  ],
   "containers": [
     {
       "class_name": "AgentOsContainer",
@@ -45,11 +57,50 @@
     "PORT": "8080",
     "NODE_ENV": "production",
     "AGENT_OS_GLOBAL_NODE_ENV": "production",
-    // Set these to your public HTTPS origin after attaching a custom domain:
-    // "AGENT_OS_GLOBAL_APP_ORIGIN": "https://app.example.com",
-    // "AGENT_OS_EXT_AUTH_BASE_URL": "https://app.example.com",
+    "AGENT_OS_GLOBAL_APP_ORIGIN": "https://agentos-demo.thatlad.dev",
+    "AGENT_OS_EXT_AUTH_BASE_URL": "https://agentos-demo.thatlad.dev",
+    // R2 not enabled on this account yet — files stay on ephemeral local FS until ticket 65/R2.
     // "AGENT_OS_EXT_FILES_S3_BUCKET": "agentos-files",
     // "AGENT_OS_EXT_FILES_S3_ENDPOINT": "https://<accountid>.r2.cloudflarestorage.com",
     // "AGENT_OS_EXT_FILES_S3_REGION": "auto",
+  },
+  "env": {
+    // Staging Worker owns https://agentos.thatlad.workers.dev (Worker name `agentos`).
+    "dev": {
+      "name": "agentos",
+      "workers_dev": true,
+      // Do not inherit production custom domain (agentos-demo.thatlad.dev).
+      "routes": [],
+      "containers": [
+        {
+          "class_name": "AgentOsContainer",
+          "image": "../../Dockerfile",
+          "image_build_context": "../..",
+          "max_instances": 1,
+          "instance_type": "standard-1",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "AGENT_OS_CONTAINER",
+            "class_name": "AgentOsContainer",
+          },
+        ],
+      },
+      "exports": {
+        "AgentOsContainer": {
+          "type": "durable-object",
+          "storage": "sqlite",
+        },
+      },
+      "vars": {
+        "PORT": "8080",
+        "NODE_ENV": "development",
+        "AGENT_OS_GLOBAL_NODE_ENV": "development",
+        "AGENT_OS_GLOBAL_APP_ORIGIN": "https://agentos.thatlad.workers.dev",
+        "AGENT_OS_EXT_AUTH_BASE_URL": "https://agentos.thatlad.workers.dev",
+      },
+    },
   },
 }

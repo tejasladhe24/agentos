@@ -17,3 +17,5 @@ Prove the experiment flows work together.
 ## Notes
 
 Capture any gaps as follow-up tickets in `todo/`.
+
+Deploy-path smoke (healthz, auth session, crm-helper, invoice-bot, files/R2) is ticket **64** — see [`deploy/cloudflare/README.md`](../../../deploy/cloudflare/README.md) Smoke checks.

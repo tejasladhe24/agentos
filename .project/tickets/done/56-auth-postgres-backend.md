@@ -1,6 +1,6 @@
 # 56 — Auth Postgres backend
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

@@ -38,6 +38,9 @@ dist-ssr
 # AgentOS local stores (repo-relative; user store is ~/.agentos/store)
 .agentos/
 
+# Wrangler local state
+**/.wrangler/
+
 # Python (packages/python, services/)
 .venv/
 __pycache__/

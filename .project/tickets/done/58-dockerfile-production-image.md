@@ -1,6 +1,6 @@
 # 58 — Root Dockerfile + `.dockerignore`
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

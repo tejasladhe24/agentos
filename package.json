@@ -24,7 +24,8 @@
     "ci": "turbo run //#lint //#format:check typecheck build //#test",
     "postinstall": "bun ./scripts/uv-sync.ts",
     "python:sync": "bun ./scripts/uv-sync.ts",
-    "deploy:cloudflare": "pnpm --filter @agentos/deploy-cloudflare deploy",
+    "deploy:cloudflare": "pnpm --filter @agentos/deploy-cloudflare run deploy",
+    "deploy:cloudflare:dev": "pnpm --filter @agentos/deploy-cloudflare run deploy:dev",
     "clean": "turbo run clean && bun ./scripts/clean.ts"
   },
   "devDependencies": {
