@@ -41,4 +41,4 @@ Never open SQL/Redis from the service; call builtins via the kit.
 
 ## Process
 
-Started by `agentos dev` with uvicorn/uv alongside Bun APIs and the Vite Shell.
+Started by `agentos dev` (with Vite) and `agentos start` (production, no Vite) with uvicorn/uv alongside Bun APIs.

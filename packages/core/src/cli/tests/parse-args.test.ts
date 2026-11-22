@@ -62,10 +62,20 @@ describe('parseArgs', () => {
     expect(parsed.unknown).toEqual(['--foo']);
   });
 
-  test('usage mentions create, dev, and build', () => {
+  test('parses start with --cwd', () => {
+    const parsed = parseArgs(['bun', 'agentos', 'start', '--cwd', '/tmp/app']);
+    expect(parsed.command).toBe('start');
+    expect(parsed.cwd).toBe('/tmp/app');
+    expect(parsed.unknown).toEqual([]);
+  });
+
+  test('usage mentions create, dev, build, and start', () => {
     expect(usage()).toContain('create');
     expect(usage()).toContain('dev');
     expect(usage()).toContain('build');
+    expect(usage()).toContain('start');
     expect(usage()).toContain('minimal');
+    expect(usage()).toContain('Production');
+    expect(usage()).toContain('/healthz');
   });
 });

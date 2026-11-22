@@ -4,28 +4,28 @@
 
 Framework package. Parent exports:
 
-| Export                     | Who                 | Responsibility                                                |
-| -------------------------- | ------------------- | ------------------------------------------------------------- |
-| `@agentos/core`            | App `main.tsx`      | `mountShell()`, shared types                                  |
-| `@agentos/core/config`     | `agentos.config.ts` | `defineConfig` — auth, branding, builtins (not secrets)       |
-| `@agentos/core/client`     | `ui/*.tsx` only     | `HostProvider` + `useHost*` (never `api/routes`)              |
-| `@agentos/core/api`        | `api/routes/**`     | `createApp`, `loadRoutes`                                     |
-| `@agentos/core/api/env`    | App / Bun APIs      | `platformKeys` + naming helpers (`AGENT_OS_GLOBAL_*`)         |
-| `@agentos/core/api/auth`   | API routes          | Session + RBAC (Better Auth)                                  |
-| `@agentos/core/api/store`  | API routes          | `dbStore`, `cacheStore` clients                               |
-| `@agentos/core/api/ai`     | API routes          | AI client                                                     |
-| `@agentos/core/api/hitl` … | API routes          | Other builtin clients                                         |
-| `@agentos/core/gateway`    | Hosts / CLI         | Portable fetch handlers (`/_public`, `/api/ext`, agent, HTML) |
-| `@agentos/core/gateway/*`  | Framework           | Deep gateway modules                                          |
-| `@agentos/core/vite`       | `vite.config.ts`    | Scanner, virtual modules, Connect adapter over gateway        |
-| `@agentos/core/vite/*`     | Framework           | Deep vite modules (`lib/types`, …)                            |
-| `@agentos/core/sdk`        | Advanced            | Low-level Comlink                                             |
-| `@agentos/core/shell`      | Framework           | `mountShell`                                                  |
-| `@agentos/core/shell/*`    | Framework           | Shell `lib` / `hooks` / `components`                          |
-| `@agentos/core/client/*`   | Framework           | Deep client modules                                           |
-| `@agentos/core/agent`      | Framework           | Agent registry helpers                                        |
-| `@agentos/core/builtins/*` | Framework           | Builtin APIs / env (`auth/env`, `auth/api/lib/…`)             |
-| `agentos` CLI              | Scripts             | `dev` / `build` (starts Shell + APIs via Bun)                 |
+| Export                     | Who                 | Responsibility                                                          |
+| -------------------------- | ------------------- | ----------------------------------------------------------------------- |
+| `@agentos/core`            | App `main.tsx`      | `mountShell()`, shared types                                            |
+| `@agentos/core/config`     | `agentos.config.ts` | `defineConfig` — auth, branding, builtins (not secrets)                 |
+| `@agentos/core/client`     | `ui/*.tsx` only     | `HostProvider` + `useHost*` (never `api/routes`)                        |
+| `@agentos/core/api`        | `api/routes/**`     | `createApp`, `loadRoutes`                                               |
+| `@agentos/core/api/env`    | App / Bun APIs      | `platformKeys` + naming helpers (`AGENT_OS_GLOBAL_*`)                   |
+| `@agentos/core/api/auth`   | API routes          | Session + RBAC (Better Auth)                                            |
+| `@agentos/core/api/store`  | API routes          | `dbStore`, `cacheStore` clients                                         |
+| `@agentos/core/api/ai`     | API routes          | AI client                                                               |
+| `@agentos/core/api/hitl` … | API routes          | Other builtin clients                                                   |
+| `@agentos/core/gateway`    | Hosts / CLI         | Portable fetch handlers (`/_public`, `/api/ext`, agent, HTML)           |
+| `@agentos/core/gateway/*`  | Framework           | Deep gateway modules                                                    |
+| `@agentos/core/vite`       | `vite.config.ts`    | Scanner, virtual modules, Connect adapter over gateway                  |
+| `@agentos/core/vite/*`     | Framework           | Deep vite modules (`lib/types`, …)                                      |
+| `@agentos/core/sdk`        | Advanced            | Low-level Comlink                                                       |
+| `@agentos/core/shell`      | Framework           | `mountShell`                                                            |
+| `@agentos/core/shell/*`    | Framework           | Shell `lib` / `hooks` / `components`                                    |
+| `@agentos/core/client/*`   | Framework           | Deep client modules                                                     |
+| `@agentos/core/agent`      | Framework           | Agent registry helpers                                                  |
+| `@agentos/core/builtins/*` | Framework           | Builtin APIs / env (`auth/env`, `auth/api/lib/…`)                       |
+| `agentos` CLI              | Scripts             | `dev` / `build` / `start` (prod: static `dist/` + gateway on PORT/8080) |
 
 Prefer `@agentos/core/...` aliases over `../` relative imports inside the core package.
 

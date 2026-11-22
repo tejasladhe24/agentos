@@ -2,6 +2,7 @@ import { formatCreateNextSteps, runCreate } from './create';
 import { runBuild } from './build';
 import { runDev } from './dev';
 import { parseArgs, usage } from './parse-args';
+import { runStart } from './start';
 
 export async function main(argv: string[] = Bun.argv): Promise<number> {
   const parsed = parseArgs(argv);
@@ -44,6 +45,10 @@ export async function main(argv: string[] = Bun.argv): Promise<number> {
     }
     if (parsed.command === 'build') {
       await runBuild({ cwd: parsed.cwd });
+      return 0;
+    }
+    if (parsed.command === 'start') {
+      await runStart({ cwd: parsed.cwd });
       return 0;
     }
   } catch (err) {

@@ -1,6 +1,6 @@
 # 54 — CLI `agentos start` (production process + static shell)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,13 +15,13 @@ This is the **image CMD** for Cloudflare Containers, Cloud Run, ECS, and EKS —
 
 ## Done when
 
-- [ ] `agentos start` registered in CLI (`parse-args` / `run.ts`)
-- [ ] Spawns builtins, customer Bun `api/server.ts`, and Python services like `dev` (without Vite)
-- [ ] `Bun.serve` on `PORT` / `8080`: gateway handlers → static `dist/` (incl. iframe HTML) → SPA `index.html` fallback
-- [ ] `GET /healthz` reports overall readiness (gateway up; document child-process policy)
-- [ ] Sets / documents `AGENT_OS_GLOBAL_GATEWAY_URL` default for production (`http://127.0.0.1:8080` in-process)
-- [ ] Local verify: `agentos build` then `agentos start` serves Shell + `/api/ext/*`
-- [ ] Help / docs mention `start` as the production entrypoint
+- [x] `agentos start` registered in CLI (`parse-args` / `run.ts`)
+- [x] Spawns builtins, customer Bun `api/server.ts`, and Python services like `dev` (without Vite)
+- [x] `Bun.serve` on `PORT` / `8080`: gateway handlers → static `dist/` (incl. iframe HTML) → SPA `index.html` fallback
+- [x] `GET /healthz` reports overall readiness (gateway up; document child-process policy)
+- [x] Sets / documents `AGENT_OS_GLOBAL_GATEWAY_URL` default for production (`http://127.0.0.1:8080` in-process)
+- [x] Local verify: `agentos build` then `agentos start` serves Shell + `/api/ext/*`
+- [x] Help / docs mention `start` as the production entrypoint
 
 ## Notes
 

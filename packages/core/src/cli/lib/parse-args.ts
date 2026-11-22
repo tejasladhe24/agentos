@@ -2,7 +2,7 @@
 
 import { DEFAULT_TEMPLATE, TEMPLATE_IDS } from './template-paths';
 
-export type CliCommand = 'dev' | 'build' | 'create' | 'help';
+export type CliCommand = 'dev' | 'build' | 'start' | 'create' | 'help';
 
 export type ParsedArgs = {
   command: CliCommand | null;
@@ -59,6 +59,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     if (
       arg === 'dev' ||
       arg === 'build' ||
+      arg === 'start' ||
       arg === 'create' ||
       arg === 'help'
     ) {
@@ -102,14 +103,22 @@ Commands:
   create  Scaffold a consumer app from templates/ (copy + rename)
   dev     Start Vite Shell, builtin APIs, customer Bun APIs, and Python services
   build   Build the consumer app and required workspace packages
+  start   Production entrypoint: builtins + APIs + services + static dist/ gateway
   help    Show this message
 
 Create:
   agentos create <dir> [--template ${DEFAULT_TEMPLATE}]
   Templates: ${templateList}
 
+Start:
+  agentos start [--cwd <path>]
+  Serves dist/ + gateway on PORT (default 8080). Run agentos build first.
+  Sets AGENT_OS_GLOBAL_GATEWAY_URL to http://127.0.0.1:<port> for children.
+  GET /healthz reports gateway up (does not probe child processes; fatal
+  builtin exits kill the process via ProcessManager).
+
 Options:
-  --cwd <path>        Consumer app root for dev/build (default: cwd)
+  --cwd <path>        Consumer app root for dev/build/start (default: cwd)
   --template <id>     Template for create (default: ${DEFAULT_TEMPLATE})
   -h, --help          Show this message
 `;

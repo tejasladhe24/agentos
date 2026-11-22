@@ -154,6 +154,26 @@ describe('createGateway', () => {
     expect(await gateway(req('/spa'))).toBeNull();
   });
 
+  test('serveExtHtml: false omits dynamic iframe HTML', async () => {
+    const registry = modelOf(
+      ext({
+        id: 'crm',
+        kind: 'customer',
+        toggleable: true,
+        ui: { page: '/tmp/crm/ui/page.tsx' },
+      }),
+    );
+    const gateway = createGateway({
+      getModel: () => registry,
+      enableState: createExtensionEnableState(),
+      getPublicRoot: () => '/tmp',
+      resolveHtmlScriptSrc: () => '/built/crm/page.js',
+      serveExtHtml: false,
+    });
+
+    expect(await gateway(req('/__agentos/ext/crm/page.html'))).toBeNull();
+  });
+
   test('rejects disable of locked extensions at fetch layer', async () => {
     const registry = modelOf(
       ext({ id: 'auth', kind: 'builtin', toggleable: false, driven: true }),
