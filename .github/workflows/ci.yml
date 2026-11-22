@@ -21,7 +21,7 @@ jobs:
           version: 9.15.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - uses: oven-sh/setup-bun@v2
         with:
@@ -39,7 +39,7 @@ jobs:
           version: 9.15.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - uses: oven-sh/setup-bun@v2
         with:
@@ -57,7 +57,7 @@ jobs:
           version: 9.15.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - uses: oven-sh/setup-bun@v2
         with:
@@ -75,10 +75,22 @@ jobs:
           version: 9.15.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - run: pnpm install --frozen-lockfile
       - run: bun run build
+
+  deploy-workflow:
+    name: Deploy workflow smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      # No install needed — static check of workflow YAML vs package.json scripts.
+      - run: bun ./scripts/check-deploy-workflow.ts
+      - run: bun test scripts/check-deploy-workflow.test.ts
