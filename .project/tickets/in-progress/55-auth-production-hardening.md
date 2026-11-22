@@ -1,6 +1,6 @@
 # 55 — Auth production hardening
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -13,12 +13,12 @@ Make builtin auth safe for HTTPS deployments: no default secret in production, s
 
 ## Done when
 
-- [ ] Production refuses to start (or hard-fails) without `AGENT_OS_EXT_AUTH_SECRET`
-- [ ] Cookies: `secure` + `useSecureCookies` when `AGENT_OS_GLOBAL_APP_ORIGIN` (or base URL) is `https`
-- [ ] `trustedOrigins` includes production app origin (not only localhost)
-- [ ] Demo admin/viewer seed disabled when `NODE_ENV=production` (or explicit flag)
-- [ ] Tests cover secure-cookie / missing-secret behavior
-- [ ] Env docs list required production auth vars
+- [x] Production refuses to start (or hard-fails) without `AGENT_OS_EXT_AUTH_SECRET`
+- [x] Cookies: `secure` + `useSecureCookies` when `AGENT_OS_GLOBAL_APP_ORIGIN` (or base URL) is `https`
+- [x] `trustedOrigins` includes production app origin (not only localhost)
+- [x] Demo admin/viewer seed disabled when `NODE_ENV=production` (or explicit flag)
+- [x] Tests cover secure-cookie / missing-secret behavior
+- [x] Env docs list required production auth vars
 
 ## Notes
 

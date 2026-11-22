@@ -77,6 +77,7 @@ describe('createEnv extends keys()', () => {
     expect(env.AGENT_OS_EXT_AUTH_SECRET).toBe(
       'agentos-dev-auth-secret-min-32-chars!!',
     );
+    expect(env.AGENT_OS_GLOBAL_APP_ORIGIN).toBeUndefined();
     expect(env.AGENT_OS_EXT_AUTH_PORT).toBe(6110);
     expect(env.AGENT_OS_EXT_DB_STORE_PORT).toBe(6111);
     expect(env.AGENT_OS_EXT_CACHE_STORE_PORT).toBe(6112);
@@ -94,9 +95,11 @@ describe('createEnv extends keys()', () => {
   test('loads values from runtimeEnv via keys()', () => {
     const runtimeEnv = {
       AGENT_OS_GLOBAL_NODE_ENV: 'test',
+      AGENT_OS_GLOBAL_APP_ORIGIN: 'https://app.example.com',
       AGENT_OS_EXT_AUTH_SECRET: 'custom-secret-at-least-32-characters!!',
       AGENT_OS_EXT_AUTH_PORT: '6120',
       AGENT_OS_EXT_AUTH_DB: '/tmp/auth.sqlite',
+      AGENT_OS_EXT_AUTH_SEED_DEMO: 'false',
     };
     const env = createEnv({
       extends: [platformKeys(runtimeEnv), authKeys(runtimeEnv)],
@@ -108,11 +111,35 @@ describe('createEnv extends keys()', () => {
     });
 
     expect(env.AGENT_OS_GLOBAL_NODE_ENV).toBe('test');
+    expect(env.AGENT_OS_GLOBAL_APP_ORIGIN).toBe('https://app.example.com');
     expect(env.AGENT_OS_EXT_AUTH_SECRET).toBe(
       'custom-secret-at-least-32-characters!!',
     );
     expect(env.AGENT_OS_EXT_AUTH_PORT).toBe(6120);
     expect(env.AGENT_OS_EXT_AUTH_DB).toBe('/tmp/auth.sqlite');
+    expect(env.AGENT_OS_EXT_AUTH_SEED_DEMO).toBe('false');
+  });
+
+  test('production auth keys require AGENT_OS_EXT_AUTH_SECRET', () => {
+    const prevError = console.error;
+    console.error = () => {};
+    try {
+      expect(() =>
+        authKeys({
+          AGENT_OS_GLOBAL_NODE_ENV: 'production',
+        }),
+      ).toThrow();
+    } finally {
+      console.error = prevError;
+    }
+
+    const env = authKeys({
+      NODE_ENV: 'production',
+      AGENT_OS_EXT_AUTH_SECRET: 'production-secret-at-least-32-characters!!',
+    });
+    expect(env.AGENT_OS_EXT_AUTH_SECRET).toBe(
+      'production-secret-at-least-32-characters!!',
+    );
   });
 
   test('treats empty string as undefined (defaults apply)', () => {
