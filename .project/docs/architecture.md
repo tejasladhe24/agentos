@@ -38,6 +38,19 @@ Browser:  Shell (mountShell) + extension UI iframes
 - Disabled **customer** extensions → 403 + UI unmounted. **Builtins** cannot be disabled.
 - **Production:** `agentos start` (after `agentos build`) spawns builtins + customer Bun/Python like `dev` (no Vite), then `Bun.serve` on `PORT` (default **8080**): gateway → static `dist/` (incl. built iframe HTML) → SPA `index.html` fallback. Sets `AGENT_OS_GLOBAL_GATEWAY_URL` to `http://127.0.0.1:<port>`. `GET /healthz` means the gateway process is up (does not probe children; fatal builtin exit shuts down via ProcessManager). Vite preview is not the production server.
 
+## Container image
+
+Root [`Dockerfile`](../../Dockerfile) builds a portable production image (Bun + pnpm + uv/Python): `pnpm install --frozen-lockfile`, `agentos build` for `examples/client-app` (override with `--build-arg CONSUMER_PATH=…`), then `CMD` → `agentos start` on **8080**. No Cloudflare/Wrangler tooling is baked in — cloud adapters live under `deploy/` (see ticket 59+).
+
+```bash
+# Match --platform to the target cloud CPU (amd64 vs arm64).
+docker build --platform linux/amd64 -t agentos:local .
+docker run --rm -p 8080:8080 --env-file .env.docker agentos:local
+curl -sS http://127.0.0.1:8080/healthz
+```
+
+Pass secrets via `--env-file` (never bake `.env` into the image). Minimum production auth vars: see [builtins.md](./builtins.md) (`AGENT_OS_EXT_AUTH_SECRET`, app origin / auth base URL). Full env checklist lands in the deploy runbook (ticket 59).
+
 ## SPA paths vs gateway prefixes
 
 | Kind                | Examples                                 | Who answers                                                     |

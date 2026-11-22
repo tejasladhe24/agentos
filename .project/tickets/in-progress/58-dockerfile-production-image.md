@@ -1,6 +1,6 @@
 # 58 — Root Dockerfile + `.dockerignore`
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -13,12 +13,12 @@ Ship a single production container image that installs the monorepo, builds the 
 
 ## Done when
 
-- [ ] Root `Dockerfile` based on Bun image; installs pnpm + uv/Python as needed
-- [ ] `pnpm install --frozen-lockfile` + consumer `agentos build` (or equivalent)
-- [ ] `CMD` runs `agentos start`; `EXPOSE 8080`
-- [ ] `.dockerignore` excludes `node_modules`, `dist`, `.venv`, `.git`, caches
-- [ ] Documented local verify: `docker build` + `docker run -p 8080:8080 --env-file …`
-- [ ] No Cloudflare/Wrangler tooling baked into the image
+- [x] Root `Dockerfile` based on Bun image; installs pnpm + uv/Python as needed
+- [x] `pnpm install --frozen-lockfile` + consumer `agentos build` (or equivalent)
+- [x] `CMD` runs `agentos start`; `EXPOSE 8080`
+- [x] `.dockerignore` excludes `node_modules`, `dist`, `.venv`, `.git`, caches
+- [x] Documented local verify: `docker build` + `docker run -p 8080:8080 --env-file …`
+- [x] No Cloudflare/Wrangler tooling baked into the image
 
 ## Notes
 

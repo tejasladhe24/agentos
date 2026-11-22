@@ -27,6 +27,8 @@ Framework package. Parent exports:
 | `@agentos/core/builtins/*` | Framework           | Builtin APIs / env (`auth/env`, `auth/api/lib/…`)                       |
 | `agentos` CLI              | Scripts             | `dev` / `build` / `start` (prod: static `dist/` + gateway on PORT/8080) |
 
+**Container:** root [`Dockerfile`](../../Dockerfile) runs `agentos build` then `agentos start` for `examples/client-app` on port 8080. Local verify and `--platform` notes: [architecture.md — Container image](./architecture.md#container-image).
+
 Prefer `@agentos/core/...` aliases over `../` relative imports inside the core package.
 
 Module layout (every `packages/core/src/<module>/` and app packages):
