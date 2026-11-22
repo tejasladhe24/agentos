@@ -13,7 +13,7 @@
 #   docker run --rm -p 8080:8080 --env-file .env.docker agentos:local
 #   curl -sS http://127.0.0.1:8080/healthz
 #
-# Minimal production env (see .project/docs/builtins.md; full checklist in ticket 59):
+# Minimal production env (see .project/docs/builtins.md; full checklist in deploy/README.md):
 #   AGENT_OS_EXT_AUTH_SECRET (>=32 chars, not the local dev secret)
 #   AGENT_OS_GLOBAL_APP_ORIGIN / AGENT_OS_EXT_AUTH_BASE_URL
 

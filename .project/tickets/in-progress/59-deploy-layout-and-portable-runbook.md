@@ -1,6 +1,6 @@
 # 59 — Deploy layout + portable runbook
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -13,12 +13,12 @@ Establish a host-agnostic `deploy/` convention and docs so Cloudflare is an **ad
 
 ## Done when
 
-- [ ] `deploy/README.md` explains: portable core vs per-cloud adapters
-- [ ] Env checklist: gateway/app origin, auth secret + DB, db-store URL, files S3, AI keys
-- [ ] Explicit non-goals: no D1/KV/DO for app state; no `@cloudflare/*` in `packages/core`
-- [ ] Short “migrate off Cloudflare” section (reuse image → ALB/Ingress/Cloud Run)
-- [ ] Pointers from `.project/docs/` (architecture or cookbook) to the runbook
-- [ ] Placeholder note for future `deploy/k8s/` / `deploy/gcp/` (out of scope to implement here)
+- [x] `deploy/README.md` explains: portable core vs per-cloud adapters
+- [x] Env checklist: gateway/app origin, auth secret + DB, db-store URL, files S3, AI keys
+- [x] Explicit non-goals: no D1/KV/DO for app state; no `@cloudflare/*` in `packages/core`
+- [x] Short “migrate off Cloudflare” section (reuse image → ALB/Ingress/Cloud Run)
+- [x] Pointers from `.project/docs/` (architecture or cookbook) to the runbook
+- [x] Placeholder note for future `deploy/k8s/` / `deploy/gcp/` (out of scope to implement here)
 
 ## Notes
 

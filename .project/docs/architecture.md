@@ -40,7 +40,7 @@ Browser:  Shell (mountShell) + extension UI iframes
 
 ## Container image
 
-Root [`Dockerfile`](../../Dockerfile) builds a portable production image (Bun + pnpm + uv/Python): `pnpm install --frozen-lockfile`, `agentos build` for `examples/client-app` (override with `--build-arg CONSUMER_PATH=…`), then `CMD` → `agentos start` on **8080**. No Cloudflare/Wrangler tooling is baked in — cloud adapters live under `deploy/` (see ticket 59+).
+Root [`Dockerfile`](../../Dockerfile) builds a portable production image (Bun + pnpm + uv/Python): `pnpm install --frozen-lockfile`, `agentos build` for `examples/client-app` (override with `--build-arg CONSUMER_PATH=…`), then `CMD` → `agentos start` on **8080**. No Cloudflare/Wrangler tooling is baked in — cloud adapters live under [`deploy/`](../../deploy/README.md).
 
 ```bash
 # Match --platform to the target cloud CPU (amd64 vs arm64).
@@ -49,7 +49,7 @@ docker run --rm -p 8080:8080 --env-file .env.docker agentos:local
 curl -sS http://127.0.0.1:8080/healthz
 ```
 
-Pass secrets via `--env-file` (never bake `.env` into the image). Minimum production auth vars: see [builtins.md](./builtins.md) (`AGENT_OS_EXT_AUTH_SECRET`, app origin / auth base URL). Full env checklist lands in the deploy runbook (ticket 59).
+Pass secrets via `--env-file` (never bake `.env` into the image). Minimum production auth vars: see [builtins.md](./builtins.md) (`AGENT_OS_EXT_AUTH_SECRET`, app origin / auth base URL). Full env checklist: [deploy runbook](../../deploy/README.md).
 
 ## SPA paths vs gateway prefixes
 
