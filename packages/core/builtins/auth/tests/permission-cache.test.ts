@@ -170,11 +170,11 @@ describe('auth permission check + cache-store', () => {
       permission: PERMISSION_ADMIN_ONLY,
     });
 
-    downCtx.db.close();
+    await downCtx.close();
   });
 
-  afterAll(() => {
-    ctx?.db.close();
+  afterAll(async () => {
+    await ctx?.close();
     rmSync(dir, { recursive: true, force: true });
   });
 });

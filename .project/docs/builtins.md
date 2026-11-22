@@ -33,13 +33,15 @@ Extension Manager shows builtins as **locked**.
 
 Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`.
 
-| Variable                                 | Production                       | Notes                                                                          |
-| ---------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------ |
-| `AGENT_OS_EXT_AUTH_SECRET`               | **Required** (≥32 chars)         | No default; must not be the local dev secret                                   |
-| `AGENT_OS_GLOBAL_APP_ORIGIN`             | **Required** for HTTPS Shell     | e.g. `https://app.example.com` — trustedOrigins + secure cookies + reset links |
-| `AGENT_OS_EXT_AUTH_BASE_URL`             | **Required** for public auth URL | Better Auth `baseURL` as seen by the browser / gateway                         |
-| `AGENT_OS_GLOBAL_NODE_ENV` or `NODE_ENV` | `production`                     | Disables demo admin/viewer seed; requires real secret                          |
-| `AGENT_OS_EXT_AUTH_SEED_DEMO`            | Optional `true`/`false`          | Override seed default (`false` in production, `true` otherwise)                |
-| `AGENT_OS_EXT_AUTH_DB`                   | Optional                         | SQLite path (Postgres URL is ticket **56**)                                    |
+| Variable                                 | Production                       | Notes                                                                                           |
+| ---------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `AGENT_OS_EXT_AUTH_SECRET`               | **Required** (≥32 chars)         | No default; must not be the local dev secret                                                    |
+| `AGENT_OS_GLOBAL_APP_ORIGIN`             | **Required** for HTTPS Shell     | e.g. `https://app.example.com` — trustedOrigins + secure cookies + reset links                  |
+| `AGENT_OS_EXT_AUTH_BASE_URL`             | **Required** for public auth URL | Better Auth `baseURL` as seen by the browser / gateway                                          |
+| `AGENT_OS_GLOBAL_NODE_ENV` or `NODE_ENV` | `production`                     | Disables demo admin/viewer seed; requires real secret                                           |
+| `AGENT_OS_EXT_AUTH_SEED_DEMO`            | Optional `true`/`false`          | Override seed default (`false` in production, `true` otherwise)                                 |
+| `AGENT_OS_EXT_AUTH_DB`                   | Optional                         | SQLite path (default `~/.agentos/store/auth.sqlite`) **or** `postgres://` / `postgresql://` URL |
 
 When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, auth sets `useSecureCookies` and `Secure` cookie attributes.
+
+**Production storage:** prefer managed Postgres (Neon / RDS / Cloud SQL) via `AGENT_OS_EXT_AUTH_DB`. Same single env key as local SQLite — do not set a customer `DATABASE_URL`. Auth (like db-store’s `AGENT_OS_EXT_DB_STORE_DATABASE_URL`) is one of the only builtins allowed to hold SQL credentials ([ADR 004](./adr/004-db-store-sole-sql-owner.md)). On Neon, prefer the **direct** (non-pooler) host for startup migrations.

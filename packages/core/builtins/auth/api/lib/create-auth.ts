@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { betterAuth, type Auth, type BetterAuthOptions } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
 import { Database } from 'bun:sqlite';
+import { Pool } from 'pg';
 
 import {
   AUTH_PORT,
@@ -22,8 +23,11 @@ import {
   assignUserRole,
   ensureRbacSchema,
   seedRolePermissions,
+  type AuthDb,
+  type AuthDialect,
 } from './rbac-store';
 
+/** @deprecated Prefer AuthDb; kept for callers that typed the old SQLite handle. */
 export type AuthSqlite = Database;
 
 type BetterAuthSendResetPassword = NonNullable<
@@ -31,7 +35,10 @@ type BetterAuthSendResetPassword = NonNullable<
 >;
 
 export type CreateAuthOptions = {
-  /** SQLite path, or `:memory:` for tests. */
+  /**
+   * SQLite path, `:memory:` for tests, or a `postgres://` / `postgresql://` URL.
+   * Override for `AGENT_OS_EXT_AUTH_DB`.
+   */
   databasePath?: string;
   baseURL?: string;
   secret?: string;
@@ -55,35 +62,53 @@ export type CreateAuthOptions = {
 
 export type AuthContext = {
   auth: Auth;
-  db: AuthSqlite;
+  dialect: AuthDialect;
+  db: AuthDb;
+  close: () => Promise<void>;
   permissionCache?: PermissionCacheConfig;
 };
+
+/** True when the value is a Postgres connection URL. */
+export function isPostgresUrl(url: string): boolean {
+  return url.startsWith('postgres://') || url.startsWith('postgresql://');
+}
 
 /** Default local store: `~/.agentos/store/auth.sqlite` (override with AGENT_OS_EXT_AUTH_DB). */
 function defaultDatabasePath(): string {
   return join(homedir(), '.agentos', 'store', 'auth.sqlite');
 }
 
-function openDatabase(databasePath: string): AuthSqlite {
+function openSqlite(databasePath: string): Database {
   if (databasePath !== ':memory:') {
     mkdirSync(join(databasePath, '..'), { recursive: true });
   }
   return new Database(databasePath);
 }
 
-function findUserIdByEmail(db: AuthSqlite, email: string): string | null {
-  const row = db
-    .prepare(`SELECT id FROM user WHERE email = ? LIMIT 1`)
-    .get(email) as { id: string } | null;
-  return row?.id ?? null;
+async function findUserIdByEmail(
+  db: AuthDb,
+  email: string,
+): Promise<string | null> {
+  if (db.dialect === 'sqlite') {
+    const row = db.client
+      .prepare(`SELECT id FROM user WHERE email = ? LIMIT 1`)
+      .get(email) as { id: string } | null;
+    return row?.id ?? null;
+  }
+
+  const result = await db.client.query<{ id: string }>(
+    `SELECT id FROM "user" WHERE email = $1 LIMIT 1`,
+    [email],
+  );
+  return result.rows[0]?.id ?? null;
 }
 
 async function seedDemoUser(
   auth: Auth,
-  db: AuthSqlite,
+  db: AuthDb,
   demo: typeof DEMO_ADMIN | typeof DEMO_VIEWER,
 ): Promise<void> {
-  let userId = findUserIdByEmail(db, demo.email);
+  let userId = await findUserIdByEmail(db, demo.email);
   if (!userId) {
     try {
       const created = await auth.api.signUpEmail({
@@ -93,18 +118,18 @@ async function seedDemoUser(
           name: demo.name,
         },
       });
-      userId = created?.user?.id ?? findUserIdByEmail(db, demo.email);
+      userId = created?.user?.id ?? (await findUserIdByEmail(db, demo.email));
     } catch {
-      userId = findUserIdByEmail(db, demo.email);
+      userId = await findUserIdByEmail(db, demo.email);
     }
   }
   if (userId) {
-    assignUserRole(db, userId, demo.role);
+    await assignUserRole(db, userId, demo.role);
   }
 }
 
 /**
- * Build Better Auth + local RBAC store (temp SQLite until ticket 16 / db-store).
+ * Build Better Auth + local RBAC store (SQLite default; Postgres via URL).
  */
 export async function createAuth(
   options: CreateAuthOptions = {},
@@ -119,7 +144,31 @@ export async function createAuth(
   }
 
   const databasePath = options.databasePath ?? defaultDatabasePath();
-  const db = openDatabase(databasePath);
+  const postgres = isPostgresUrl(databasePath);
+
+  let database: BetterAuthOptions['database'];
+  let db: AuthDb;
+  let dialect: AuthDialect;
+  let close: () => Promise<void>;
+
+  if (postgres) {
+    const pool = new Pool({ connectionString: databasePath, max: 4 });
+    database = pool;
+    db = { dialect: 'postgres', client: pool };
+    dialect = 'postgres';
+    close = async () => {
+      await pool.end();
+    };
+  } else {
+    const sqlite = openSqlite(databasePath);
+    database = sqlite;
+    db = { dialect: 'sqlite', client: sqlite };
+    dialect = 'sqlite';
+    close = async () => {
+      sqlite.close();
+    };
+  }
+
   const baseURL = options.baseURL ?? `http://127.0.0.1:${AUTH_PORT}`;
   const appOrigin =
     options.appOrigin ??
@@ -141,7 +190,7 @@ export async function createAuth(
   };
 
   const betterAuthOptions: BetterAuthOptions = {
-    database: db,
+    database,
     baseURL,
     secret: resolvedSecret,
     emailAndPassword: {
@@ -163,8 +212,8 @@ export async function createAuth(
   const { runMigrations } = await getMigrations(betterAuthOptions);
   await runMigrations();
 
-  ensureRbacSchema(db);
-  seedRolePermissions(db);
+  await ensureRbacSchema(db);
+  await seedRolePermissions(db);
 
   const auth = betterAuth(betterAuthOptions) as Auth;
 
@@ -173,5 +222,5 @@ export async function createAuth(
     await seedDemoUser(auth, db, DEMO_VIEWER);
   }
 
-  return { auth, db, permissionCache: options.permissionCache };
+  return { auth, dialect, db, close, permissionCache: options.permissionCache };
 }

@@ -30,6 +30,7 @@ describe('builtin auth server', () => {
       baseURL: 'http://127.0.0.1:6110',
       secret: 'test-secret-at-least-32-characters-long!!',
     });
+    expect(ctx.dialect).toBe('sqlite');
     const health = await handleAuthRequest(
       ctx,
       new Request('http://127.0.0.1:6110/health'),
@@ -377,12 +378,12 @@ describe('builtin auth server', () => {
     );
     expect(signIn.status).toBe(200);
 
-    resetCtx.db.close();
+    await resetCtx.close();
     rmSync(resetDir, { recursive: true, force: true });
   });
 
-  afterAll(() => {
-    ctx?.db.close();
+  afterAll(async () => {
+    await ctx?.close();
     rmSync(dir, { recursive: true, force: true });
   });
 });
