@@ -1,31 +1,37 @@
 import { NOTIFICATIONS_MAX } from './constants';
+import type {
+  DbStoreClient,
+  NotificationEntry,
+  NotificationType,
+} from './db-store-client';
 
-export type NotificationType = 'info' | 'success' | 'error';
+export type { NotificationEntry, NotificationType };
 
-export type NotificationEntry = {
-  id: string;
-  message: string;
-  type: NotificationType;
-  at: string;
-};
-
-export function createNotifyStore(max = NOTIFICATIONS_MAX) {
-  const entries: NotificationEntry[] = [];
-
+/** Durable notifications inbox backed by db-store (ticket 61). */
+export function createNotifyStore(db: DbStoreClient, max = NOTIFICATIONS_MAX) {
   return {
-    add(message: string, type: NotificationType = 'info'): NotificationEntry {
+    async add(
+      message: string,
+      type: NotificationType = 'info',
+    ): Promise<NotificationEntry> {
       const entry: NotificationEntry = {
         id: crypto.randomUUID(),
         message,
         type,
         at: new Date().toISOString(),
       };
-      entries.unshift(entry);
-      if (entries.length > max) entries.length = max;
+      await db.insert(entry);
+      const all = await db.query();
+      if (all.length > max) {
+        const overflow = all.slice(max);
+        await db.delete(overflow.map((e) => e.id));
+      }
       return entry;
     },
-    list(): NotificationEntry[] {
-      return [...entries];
+
+    async list(): Promise<NotificationEntry[]> {
+      const all = await db.query();
+      return all.slice(0, max);
     },
   };
 }

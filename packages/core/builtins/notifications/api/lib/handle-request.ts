@@ -22,8 +22,17 @@ async function readJsonBody(
   }
 }
 
+function unavailable(error: unknown): Response {
+  const message = error instanceof Error ? error.message : String(error);
+  return json(
+    { error: 'db-store unavailable', detail: message },
+    { status: 502 },
+  );
+}
+
 /**
  * Thin Bun request router for `/api/ext/notifications/*` upstream paths.
+ * Persistence goes through db-store only (ADR 004).
  */
 export async function handleNotificationsRequest(
   store: NotifyStore,
@@ -34,11 +43,15 @@ export async function handleNotificationsRequest(
   const method = request.method.toUpperCase();
 
   if (method === 'GET' && path === '/health') {
-    return json({ ok: true });
+    return json({ ok: true, backend: 'db-store' });
   }
 
   if (method === 'GET' && path === '/recent') {
-    return json({ notifications: store.list() });
+    try {
+      return json({ notifications: await store.list() });
+    } catch (error) {
+      return unavailable(error);
+    }
   }
 
   if (method === 'POST' && path === '/notify') {
@@ -53,8 +66,12 @@ export async function handleNotificationsRequest(
       typeRaw === 'success' || typeRaw === 'error' || typeRaw === 'info'
         ? typeRaw
         : 'info';
-    const entry = store.add(message, type);
-    return json({ ok: true, notification: entry });
+    try {
+      const entry = await store.add(message, type);
+      return json({ ok: true, notification: entry });
+    } catch (error) {
+      return unavailable(error);
+    }
   }
 
   return json({ error: 'not found' }, { status: 404 });

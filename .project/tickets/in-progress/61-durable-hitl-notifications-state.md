@@ -1,6 +1,6 @@
 # 61 — Durable HITL / notifications state (scale readiness)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -14,14 +14,15 @@ Move HITL approvals (and notifications inbox state as applicable) off in-process
 
 ## Done when
 
-- [ ] HITL approvals survive process restart
-- [ ] Notifications durable enough for single-replica production (define in ticket notes if subset)
-- [ ] API shapes for Shell / clients unchanged where possible
-- [ ] Tests for create → restart → list/approve
-- [ ] Docs: keep `max_instances` / replicas at **1** until cache/events also externalized; Redis optional follow-up
+- [x] HITL approvals survive process restart
+- [x] Notifications durable enough for single-replica production (full recent inbox via db-store collection `notifications`)
+- [x] API shapes for Shell / clients unchanged where possible
+- [x] Tests for create → restart → list/approve
+- [x] Docs: keep `max_instances` / replicas at **1** until cache/events also externalized; Redis optional follow-up
 
 ## Notes
 
 - Optional for first Cloudflare demo with `max_instances: 1` and accepted reset-on-restart.
 - Required before horizontal scale on Cloudflare, ECS, or EKS.
 - Prefer db-store over Cloudflare-specific storage.
+- Collections: `hitl_approvals`, `notifications`. Peer env: `AGENT_OS_EXT_HITL_DB_STORE_*`, `AGENT_OS_EXT_NOTIFICATIONS_DB_STORE_*`.

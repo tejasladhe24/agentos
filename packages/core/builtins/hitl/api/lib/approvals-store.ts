@@ -1,25 +1,19 @@
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+import type {
+  Approval,
+  ApprovalStatus,
+  DbStoreClient,
+} from './db-store-client';
 
-export type Approval = {
-  id: string;
-  title: string;
-  body?: string;
-  metadata?: Record<string, unknown>;
-  status: ApprovalStatus;
-  createdAt: string;
-  resolvedAt?: string;
-};
+export type { Approval, ApprovalStatus };
 
-/** In-memory approvals store (v1). */
-export function createApprovalsStore() {
-  const byId = new Map<string, Approval>();
-
+/** Durable approvals store backed by db-store (ticket 61). */
+export function createApprovalsStore(db: DbStoreClient) {
   return {
-    create(input: {
+    async create(input: {
       title: string;
       body?: string;
       metadata?: Record<string, unknown>;
-    }): Approval {
+    }): Promise<Approval> {
       const approval: Approval = {
         id: crypto.randomUUID(),
         title: input.title,
@@ -28,27 +22,22 @@ export function createApprovalsStore() {
         status: 'pending',
         createdAt: new Date().toISOString(),
       };
-      byId.set(approval.id, approval);
-      return approval;
+      return db.insert(approval);
     },
 
-    list(status?: ApprovalStatus): Approval[] {
-      const all = [...byId.values()].sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt),
-      );
-      if (!status) return all;
-      return all.filter((a) => a.status === status);
+    async list(status?: ApprovalStatus): Promise<Approval[]> {
+      return db.query(status);
     },
 
-    get(id: string): Approval | undefined {
-      return byId.get(id);
+    async get(id: string): Promise<Approval | undefined> {
+      return db.get(id);
     },
 
-    resolve(
+    async resolve(
       id: string,
       decision: 'approved' | 'rejected',
-    ): Approval | undefined {
-      const existing = byId.get(id);
+    ): Promise<Approval | undefined> {
+      const existing = await db.get(id);
       if (!existing) return undefined;
       if (existing.status !== 'pending') return existing;
       const updated: Approval = {
@@ -56,8 +45,7 @@ export function createApprovalsStore() {
         status: decision,
         resolvedAt: new Date().toISOString(),
       };
-      byId.set(id, updated);
-      return updated;
+      return db.update(updated);
     },
   };
 }
