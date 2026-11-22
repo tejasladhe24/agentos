@@ -18,7 +18,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | **hitl**          | Approvals API; Activity Bar **secondary** opens HITL panel in left sidebar (no `ui/`)                                          |
 | **settings**      | App/platform preferences; Activity Bar **secondary** (`GearSix`) opens `ui/page.tsx` (distinct from Auth **account** settings) |
 | **events**        | Cross-extension pub/sub                                                                                                        |
-| **files**         | Blob/object API                                                                                                                |
+| **files**         | Blob/object API (local FS default; optional S3-compatible)                                                                     |
 | **notifications** | Toast/fan-out                                                                                                                  |
 | **secrets**       | Secret resolution                                                                                                              |
 | **audit**         | Append-only audit via db-store                                                                                                 |
@@ -45,3 +45,49 @@ Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`.
 When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, auth sets `useSecureCookies` and `Secure` cookie attributes.
 
 **Production storage:** prefer managed Postgres (Neon / RDS / Cloud SQL) via `AGENT_OS_EXT_AUTH_DB`. Same single env key as local SQLite — do not set a customer `DATABASE_URL`. Auth (like db-store’s `AGENT_OS_EXT_DB_STORE_DATABASE_URL`) is one of the only builtins allowed to hold SQL credentials ([ADR 004](./adr/004-db-store-sole-sql-owner.md)). On Neon, prefer the **direct** (non-pooler) host for startup migrations.
+
+## Files storage env
+
+Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default backend is **local filesystem** (`AGENT_OS_EXT_FILES_PATH` or OS temp `agentos-files`). When `AGENT_OS_EXT_FILES_S3_BUCKET` is set, the builtin uses Bun’s portable `S3Client` (works with **Cloudflare R2**, **AWS S3**, and **GCS** S3-compatible endpoints). Do **not** import Cloudflare R2 bindings into `@agentos/core` — ticket 62 only injects credentials into the container env.
+
+| Variable                                  | Role                                                           |
+| ----------------------------------------- | -------------------------------------------------------------- |
+| `AGENT_OS_EXT_FILES_PATH`                 | Optional local root (ignored when S3 bucket is set)            |
+| `AGENT_OS_EXT_FILES_S3_BUCKET`            | Enables S3-compatible backend                                  |
+| `AGENT_OS_EXT_FILES_S3_ENDPOINT`          | Endpoint URL (required for R2 / GCS / MinIO; optional for AWS) |
+| `AGENT_OS_EXT_FILES_S3_REGION`            | Region (`auto` for R2; e.g. `us-east-1` for AWS)               |
+| `AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID`     | Access key (required when bucket is set)                       |
+| `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY` | Secret key (required when bucket is set)                       |
+| `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`     | Optional session token                                         |
+
+### Example env values
+
+**Cloudflare R2**
+
+```bash
+AGENT_OS_EXT_FILES_S3_BUCKET=agentos-files
+AGENT_OS_EXT_FILES_S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
+AGENT_OS_EXT_FILES_S3_REGION=auto
+AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID=…
+AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY=…
+```
+
+**AWS S3**
+
+```bash
+AGENT_OS_EXT_FILES_S3_BUCKET=agentos-files
+AGENT_OS_EXT_FILES_S3_REGION=us-east-1
+# endpoint optional — defaults to AWS
+AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID=…
+AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY=…
+```
+
+**GCS (S3-compatible XML API)**
+
+```bash
+AGENT_OS_EXT_FILES_S3_BUCKET=agentos-files
+AGENT_OS_EXT_FILES_S3_ENDPOINT=https://storage.googleapis.com
+AGENT_OS_EXT_FILES_S3_REGION=auto
+AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID=…   # HMAC key
+AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY=…
+```

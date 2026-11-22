@@ -1,59 +1,41 @@
-import { mkdir } from 'node:fs/promises';
-import { join, normalize, resolve, sep } from 'node:path';
-import { tmpdir } from 'node:os';
+import { createFilesystemBlobStore } from './filesystem-blob-store';
+import {
+  createS3BlobStore,
+  type S3BlobStoreConfig,
+  type S3ClientLike,
+} from './s3-blob-store';
+import type { BlobStore, BlobStoreBackend } from './types';
 
-export class BlobStoreError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
-    this.name = 'BlobStoreError';
-  }
-}
+export { BlobStoreError } from './blob-store-error';
+export { resolveBlobPath } from './filesystem-blob-store';
+export { normalizeBlobKey } from './normalize-key';
+export type { BlobStore, BlobStoreBackend, S3BlobStoreConfig, S3ClientLike };
 
-function defaultRoot(): string {
-  return join(tmpdir(), 'agentos-files');
-}
-
-/** Resolve a blob key under root; reject path traversal. */
-export function resolveBlobPath(rootDir: string, key: string): string {
-  const trimmed = key.replace(/^\/+/, '').trim();
-  if (!trimmed || trimmed.includes('\0')) {
-    throw new BlobStoreError('invalid key', 400);
-  }
-  const root = resolve(rootDir);
-  const target = resolve(root, normalize(trimmed));
-  if (target !== root && !target.startsWith(root + sep)) {
-    throw new BlobStoreError('path traversal rejected', 400);
-  }
-  return target;
-}
-
-export type BlobStore = {
-  rootDir: string;
-  put: (key: string, bytes: Uint8Array) => Promise<void>;
-  get: (key: string) => Promise<Uint8Array | null>;
+export type CreateBlobStoreOptions = {
+  /** Local root when not using S3 (`AGENT_OS_EXT_FILES_PATH`). */
+  path?: string;
+  /**
+   * When `bucket` is set, use S3-compatible storage (R2 / AWS S3 / GCS).
+   * Takes precedence over `path`.
+   */
+  s3?: S3BlobStoreConfig;
 };
 
+/**
+ * Create a blob store. Filesystem is the default; set `s3.bucket` for
+ * durable S3-compatible object storage across restarts.
+ */
 export async function createBlobStore(
-  rootDir: string = defaultRoot(),
+  options: CreateBlobStoreOptions | string = {},
 ): Promise<BlobStore> {
-  const root = resolve(rootDir);
-  await mkdir(root, { recursive: true });
+  // Back-compat: createBlobStore(rootDir) used by older call sites/tests.
+  if (typeof options === 'string') {
+    return createFilesystemBlobStore(options);
+  }
 
-  return {
-    rootDir: root,
-    async put(key, bytes) {
-      const path = resolveBlobPath(root, key);
-      await mkdir(join(path, '..'), { recursive: true });
-      await Bun.write(path, bytes);
-    },
-    async get(key) {
-      const path = resolveBlobPath(root, key);
-      const file = Bun.file(path);
-      if (!(await file.exists())) return null;
-      return new Uint8Array(await file.arrayBuffer());
-    },
-  };
+  if (options.s3?.bucket?.trim()) {
+    return createS3BlobStore(options.s3);
+  }
+
+  return createFilesystemBlobStore(options.path);
 }
