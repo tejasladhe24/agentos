@@ -30,6 +30,7 @@ export {
   virtualExtEntryId,
   virtualExtEntryScriptSrc,
 } from './agentos-plugin';
+export { collectEntryCss } from './collect-entry-css';
 export { serializeExtEntryModule } from './ext-entry-module';
 export { enrichExtension, enrichRegistry, uiEntryUrl } from './enrich-registry';
 export { scanExtensions } from './scan-extensions';

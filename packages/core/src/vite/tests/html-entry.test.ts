@@ -64,6 +64,22 @@ describe('html-entry helpers', () => {
     expect(html).toContain('src="/@id/virtual:agentos-ext-entry/crm/page"');
     expect(html).toContain('agentos-theme');
     expect(html).toContain('theme');
+    expect(html).not.toContain('rel="stylesheet"');
+  });
+
+  test('renderExtHtmlEntry emits stylesheet links for production CSS', () => {
+    const html = renderExtHtmlEntry({
+      extensionId: 'demo',
+      view: 'widget',
+      scriptSrc: '/assets/__agentos/ext/demo/widget-abc.js',
+      stylesheets: ['/assets/globals-xyz.css', '/assets/widget-abc.css'],
+    });
+    expect(html).toContain(
+      '<link rel="stylesheet" crossorigin href="/assets/globals-xyz.css" />',
+    );
+    expect(html).toContain(
+      '<link rel="stylesheet" crossorigin href="/assets/widget-abc.css" />',
+    );
   });
 
   test('serializeExtEntryModule imports fixture view path', () => {
