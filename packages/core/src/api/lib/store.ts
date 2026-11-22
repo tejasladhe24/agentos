@@ -94,12 +94,23 @@ async function postJson<T>(
   return (await res.json()) as T;
 }
 
-function createCollection(name: string) {
+export type CollectionOptions = {
+  /** Override API base (peer URL or gateway `/api/ext/db-store`). */
+  apiBase?: string;
+};
+
+function createCollection(name: string, options: CollectionOptions = {}) {
   const encoded = encodeURIComponent(name);
+  const resolveBase = (): string => {
+    if (options.apiBase) {
+      return options.apiBase.replace(/\/$/, '');
+    }
+    return resolveDbStoreApiBase();
+  };
 
   return {
     async query(input: QueryInput = {}): Promise<QueryResult> {
-      const base = resolveDbStoreApiBase();
+      const base = resolveBase();
       return postJson<QueryResult>(
         `${base}/collections/${encoded}/query`,
         input,
@@ -108,7 +119,7 @@ function createCollection(name: string) {
     },
 
     async insert(input: InsertInput): Promise<DocumentRow> {
-      const base = resolveDbStoreApiBase();
+      const base = resolveBase();
       return postJson<DocumentRow>(
         `${base}/collections/${encoded}/insert`,
         input,
@@ -117,7 +128,7 @@ function createCollection(name: string) {
     },
 
     async update(input: UpdateInput): Promise<DocumentRow> {
-      const base = resolveDbStoreApiBase();
+      const base = resolveBase();
       return postJson<DocumentRow>(
         `${base}/collections/${encoded}/update`,
         input,
@@ -126,7 +137,7 @@ function createCollection(name: string) {
     },
 
     async delete(input: DeleteInput = {}): Promise<DeleteResult> {
-      const base = resolveDbStoreApiBase();
+      const base = resolveBase();
       return postJson<DeleteResult>(
         `${base}/collections/${encoded}/delete`,
         input,
@@ -140,8 +151,8 @@ export type CollectionClient = ReturnType<typeof createCollection>;
 
 /** Document store client → builtin db-store. */
 export const dbStore = {
-  collection(name: string): CollectionClient {
-    return createCollection(name);
+  collection(name: string, options?: CollectionOptions): CollectionClient {
+    return createCollection(name, options);
   },
 };
 

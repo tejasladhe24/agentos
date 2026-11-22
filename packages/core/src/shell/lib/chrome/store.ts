@@ -83,6 +83,11 @@ export type ShellUiState = {
   ) => void;
   setExtensionSkills: (extensionId: string, skills: string[]) => void;
   setExtensionEnabled: (extensionId: string, enabled: boolean) => void;
+  /**
+   * Merge gateway enable overrides into local state (ticket 60 reload hydrate).
+   * Locked / non-toggleable extensions stay enabled.
+   */
+  hydrateEnabledById: (overrides: Record<string, boolean>) => void;
   setStatusText: (text: string | null, tone?: NotificationType | null) => void;
 };
 
@@ -202,5 +207,34 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
     });
 
     void requestExtensionEnable(extensionId, enabled);
+  },
+  hydrateEnabledById: (overrides) => {
+    set((s) => {
+      const enabledById = { ...s.enabledById, ...overrides };
+      for (const ext of s.extensions) {
+        if (!ext.toggleable) {
+          enabledById[ext.id] = true;
+        }
+      }
+      const runtimeStatus = { ...s.runtimeStatus };
+      for (const [extensionId, enabled] of Object.entries(enabledById)) {
+        if (enabled === false) {
+          for (const key of Object.keys(runtimeStatus)) {
+            if (key.startsWith(`${extensionId}:`)) {
+              delete runtimeStatus[key];
+            }
+          }
+        }
+      }
+      return {
+        enabledById,
+        runtimeStatus,
+        skillsByExtension: filterSkills(
+          s.desiredSkillsByExtension,
+          enabledById,
+        ),
+        contributions: filterContributions(s.desiredContributions, enabledById),
+      };
+    });
   },
 }));

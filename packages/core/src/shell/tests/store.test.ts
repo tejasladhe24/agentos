@@ -170,4 +170,26 @@ describe('useShellStore', () => {
     expect(init.method).toBe('POST');
     expect(JSON.parse(String(init.body))).toEqual({ enabled: false });
   });
+
+  test('hydrateEnabledById applies gateway overrides; builtins stay on', () => {
+    useShellStore.getState().setContributions([
+      { extensionId: 'crm', view: 'page', src: '/crm.html' },
+      { extensionId: 'invoices', view: 'page', src: '/inv.html' },
+    ]);
+    useShellStore.getState().setRuntimeStatus('crm', 'page', 'active');
+
+    useShellStore.getState().hydrateEnabledById({
+      crm: false,
+      auth: false,
+    });
+
+    const state = useShellStore.getState();
+    expect(state.enabledById.crm).toBe(false);
+    expect(state.enabledById.auth).toBe(true);
+    expect(state.contributions).toEqual([
+      { extensionId: 'invoices', view: 'page', src: '/inv.html' },
+    ]);
+    expect(state.runtimeStatus['crm:page']).toBeUndefined();
+    expect(state.skillsByExtension.crm).toBeUndefined();
+  });
 });

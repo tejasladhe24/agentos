@@ -1,6 +1,7 @@
 import { buildEnabledAgentRegistry } from '@agentos/core/agent/lib/build-enabled-agent-registry';
 
 import type { ExtensionEnableState } from './enable-state';
+import type { EnableStatePersister } from './enable-state-store';
 import { handleExtensionEnableRequest } from './extension-enable';
 import {
   jsonResponse,
@@ -60,6 +61,7 @@ export function createAgentControlPlaneHandler(
   getModel: () => RegistryModel,
   state: ExtensionEnableState,
   proxy?: GatewayHandler,
+  persister?: EnableStatePersister,
 ): GatewayHandler {
   return async (request) => {
     const pathname = requestPathname(request);
@@ -90,6 +92,7 @@ export function createAgentControlPlaneHandler(
         enableParsed.extensionId,
         getModel,
         state,
+        persister,
       );
     }
 

@@ -4,6 +4,7 @@ import {
   resolveActivityBarSection,
   type ExtensionEntry,
 } from './extension-catalog';
+import { requestExtensionEnableState } from './extension-enable';
 import { useShellStore } from './store';
 
 export type AppliedRegistry = {
@@ -62,4 +63,14 @@ export function applyRegistry(registry: RegistryModel): AppliedRegistry {
   store.setContributions(applied.contributions);
   store.setDesiredSkills(applied.skillsByExtension);
   return applied;
+}
+
+/**
+ * After registry seed, pull durable enable overrides from the gateway
+ * so Extension Manager matches process restarts (ticket 60).
+ */
+export async function hydrateEnableStateFromGateway(): Promise<void> {
+  const overrides = await requestExtensionEnableState();
+  if (!overrides) return;
+  useShellStore.getState().hydrateEnabledById(overrides);
 }

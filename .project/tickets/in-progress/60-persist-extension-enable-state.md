@@ -1,6 +1,6 @@
 # 60 — Persist extension enable-state
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -14,11 +14,11 @@ Persist customer extension enable/disable toggles (today in-memory in the gatewa
 
 ## Done when
 
-- [ ] Enable map loaded/saved via db-store (or equivalent durable store) — not only `Map` in memory
-- [ ] Builtins / locked extensions remain non-disableable
-- [ ] Dev and `agentos start` share the same persistence behavior
-- [ ] Tests cover restart / reload retaining toggles
-- [ ] Docs note single-replica vs multi-replica implications
+- [x] Enable map loaded/saved via db-store (or equivalent durable store) — not only `Map` in memory
+- [x] Builtins / locked extensions remain non-disableable
+- [x] Dev and `agentos start` share the same persistence behavior
+- [x] Tests cover restart / reload retaining toggles
+- [x] Docs note single-replica vs multi-replica implications
 
 ## Notes
 

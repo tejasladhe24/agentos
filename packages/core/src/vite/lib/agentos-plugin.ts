@@ -12,8 +12,11 @@ import {
   type ResolvedAgentosConfig,
 } from '@agentos/core/config';
 import {
+  createArmableEnableStatePersister,
+  createDbStoreEnableStatePersister,
   createExtensionEnableState,
   createGateway,
+  hydrateExtensionEnableStateWithRetry,
 } from '@agentos/core/gateway/lib/index';
 
 import { toConnectMiddleware, type ConnectMiddleware } from './connect-adapter';
@@ -138,6 +141,9 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
   let resolvedConfig: ResolvedAgentosConfig | null = null;
   let server: ViteDevServer | undefined;
   const enableState = createExtensionEnableState();
+  const enableStatePersister = createArmableEnableStatePersister(
+    createDbStoreEnableStatePersister(),
+  );
   /** Rollup entry name → `{ extensionId, view }` for generateBundle HTML emit. */
   const buildEntryNames = new Map<
     string,
@@ -170,6 +176,7 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
         createGateway({
           getModel,
           enableState,
+          enableStatePersister,
           getPublicRoot,
           resolveHtmlScriptSrc: virtualExtEntryScriptSrc,
         }),
@@ -395,12 +402,26 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
       devServer.watcher.on('change', onFsChange);
 
       mountGatewayMiddlewares(devServer.middlewares);
+      // Hydrate after db-store child is typically up (`agentos dev` spawns it first).
+      // Arm write-through only when load succeeds (avoids 502 when db-store is down).
+      void hydrateExtensionEnableStateWithRetry(
+        enableState,
+        enableStatePersister,
+      ).then((ok) => {
+        if (ok) enableStatePersister.arm();
+      });
     },
 
     configurePreviewServer(previewServer) {
       // Post-hook: prefer `generateBundle` HTML assets from dist; fall back here.
       return () => {
         mountGatewayMiddlewares(previewServer.middlewares);
+        void hydrateExtensionEnableStateWithRetry(
+          enableState,
+          enableStatePersister,
+        ).then((ok) => {
+          if (ok) enableStatePersister.arm();
+        });
       };
     },
 

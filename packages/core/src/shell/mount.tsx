@@ -4,7 +4,10 @@ import { registry as virtualRegistry } from 'virtual:agentos-registry';
 import type { RegistryModel } from '@agentos/core/vite/lib/types';
 import { AuthGate, type AuthGateConfig } from './components/auth/auth-gate';
 import { restoreStoredActivity } from './lib/chrome/activity-bar-persistence';
-import { applyRegistry } from './lib/chrome/apply-registry';
+import {
+  applyRegistry,
+  hydrateEnableStateFromGateway,
+} from './lib/chrome/apply-registry';
 
 let activeRoot: Root | null = null;
 
@@ -38,6 +41,9 @@ export function mountShell(
 ): void {
   applyRegistry(options.registry ?? virtualRegistry);
   restoreStoredActivity();
+  void hydrateEnableStateFromGateway().then(() => {
+    restoreStoredActivity();
+  });
 
   if (activeRoot) {
     activeRoot.unmount();

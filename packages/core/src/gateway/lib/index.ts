@@ -14,6 +14,8 @@ export type { ParsedExtApiPath } from './ext-api-proxy';
 export {
   createExtensionEnableHandler,
   handleExtensionEnableRequest,
+  handleExtensionEnableStateGet,
+  isExtensionEnableStatePath,
   parseExtensionEnablePath,
 } from './extension-enable';
 export {
@@ -23,6 +25,24 @@ export {
   parseEnabledFlag,
 } from './enable-state';
 export type { ApplyEnableResult, ExtensionEnableState } from './enable-state';
+export {
+  ENABLE_STATE_COLLECTION,
+  ENABLE_STATE_DOC_ID,
+  applyEnableOverrides,
+  createArmableEnableStatePersister,
+  createDbStoreEnableStatePersister,
+  createMemoryEnableStatePersister,
+  hydrateExtensionEnableState,
+  hydrateExtensionEnableStateWithRetry,
+  parseEnableOverrides,
+  persistExtensionEnableState,
+  serializeEnableOverrides,
+} from './enable-state-store';
+export type {
+  EnableOverrides,
+  EnableStatePersister,
+} from './enable-state-store';
+export { DEFAULT_DB_STORE_API_BASE, gatewayKeys } from './env';
 export {
   EXT_HTML_PREFIX,
   isUiViewName,
