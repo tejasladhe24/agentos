@@ -1,0 +1,20 @@
+{
+  "name": "@agentos/deploy-cloudflare",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Thin Cloudflare Workers + Containers adapter for the portable AgentOS image",
+  "license": "UNLICENSED",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "types": "wrangler types",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@agentos/typescript-config": "workspace:*",
+    "@cloudflare/workers-types": "^5.20261121.1",
+    "typescript": "~5.8.3",
+    "wrangler": "^4.50.0"
+  }
+}
