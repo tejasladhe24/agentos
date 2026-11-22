@@ -1,0 +1,45 @@
+# Dependencies & build outputs (recreated in-image via pnpm / uv / agentos build)
+node_modules
+**/node_modules
+dist
+**/dist
+dist-ssr
+.venv
+**/.venv
+
+# VCS / CI / editor
+.git
+.github
+.vscode
+.idea
+.DS_Store
+**/.DS_Store
+
+# Caches
+.turbo
+**/.turbo
+*.tsbuildinfo
+**/*.tsbuildinfo
+.pnpm-debug.log*
+*.log
+logs
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+**/.pytest_cache
+*.egg-info
+**/*.egg-info
+
+# Local stores & secrets (pass via docker run --env-file)
+.agentos
+**/.agentos
+.env
+.env.*
+**/.env
+**/.env.*
+
+# IDE / agent / ticket noise (not required at runtime)
+.cursor
+.agents
+.project/tickets
