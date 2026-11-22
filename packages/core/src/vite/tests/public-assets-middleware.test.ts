@@ -106,17 +106,19 @@ describe('createPublicAssetsMiddleware', () => {
     }
   });
 
-  test('serves assets with content-type and 404s missing', () => {
+  test('serves assets with content-type and 404s missing', async () => {
     const root = mkdtempSync(join(tmpdir(), 'agentos-public-mw-'));
     temps.push(root);
     writeFileSync(join(root, 'logo.svg'), '<svg id="mark" />');
 
     const mw = createPublicAssetsMiddleware(() => root);
+    const settle = () => new Promise((r) => setTimeout(r, 0));
 
     const hit = mockReqRes('/_public/logo.svg');
     mw(hit.req, hit.res, () => {
       throw new Error('should not next');
     });
+    await settle();
     expect(hit.status).toBe(200);
     expect(hit.headers['content-type']).toBe('image/svg+xml');
     expect(hit.body).toContain('id="mark"');
@@ -125,6 +127,7 @@ describe('createPublicAssetsMiddleware', () => {
     mw(missing.req, missing.res, () => {
       throw new Error('should not next');
     });
+    await settle();
     expect(missing.status).toBe(404);
     expect(missing.headers['content-type']).toBe('text/html; charset=utf-8');
     expect(missing.body).toContain('Not Found');
@@ -135,6 +138,7 @@ describe('createPublicAssetsMiddleware', () => {
     mw(pass.req, pass.res, () => {
       nexted = true;
     });
+    await settle();
     expect(nexted).toBe(true);
   });
 });
@@ -194,12 +198,13 @@ describe('agentos() public assets wiring', () => {
     } as unknown as ViteDevServer;
 
     await plugin.configureServer?.(fakeServer);
-    expect(middlewares.length).toBeGreaterThanOrEqual(1);
+    expect(middlewares.length).toBe(1);
 
     const hit = mockReqRes('/_public/logo.svg');
     middlewares[0]!(hit.req, hit.res, () => {
       throw new Error('should not next');
     });
+    await new Promise((r) => setTimeout(r, 0));
     expect(hit.status).toBe(200);
     expect(hit.body).toContain('<svg');
   });

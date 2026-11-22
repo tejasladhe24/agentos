@@ -1,6 +1,7 @@
 {
   "extends": "@agentos/typescript-config/base.json",
   "compilerOptions": {
+    "rootDir": ".",
     "outDir": "dist",
     "noEmit": true,
     "baseUrl": ".",
@@ -11,6 +12,7 @@
       "@agentos/core/builtins/*": ["./builtins/*"],
       "@agentos/core/client/lib/*": ["./src/client/lib/*"],
       "@agentos/core/client/components/*": ["./src/client/components/*"],
+      "@agentos/core/gateway/lib/*": ["./src/gateway/lib/*"],
       "@agentos/core/vite/lib/*": ["./src/vite/lib/*"],
       "@agentos/core/agent/lib/*": ["./src/agent/lib/*"],
       "@agentos/core/shell/mount": ["./src/shell/mount.tsx"],

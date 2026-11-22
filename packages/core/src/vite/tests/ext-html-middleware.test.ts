@@ -131,6 +131,7 @@ describe('agentos() iframe HTML entries', () => {
     mw(ok.req, ok.res, () => {
       nextCalled = true;
     });
+    await new Promise((r) => setTimeout(r, 0));
     expect(nextCalled).toBe(false);
     expect(ok.status).toBe(200);
     expect(ok.headers['content-type']).toContain('text/html');
@@ -141,11 +142,13 @@ describe('agentos() iframe HTML entries', () => {
     mw(builtin.req, builtin.res, () => {
       nextCalled = true;
     });
+    await new Promise((r) => setTimeout(r, 0));
     expect(builtin.status).toBe(200);
     expect(builtin.body).toContain('/@id/virtual:agentos-ext-entry/auth/page');
 
     const missing = mockReqRes('/__agentos/ext/nope/page.html');
     mw(missing.req, missing.res, () => {});
+    await new Promise((r) => setTimeout(r, 0));
     expect(missing.status).toBe(404);
 
     const passthrough = mockReqRes('/other.html');
@@ -153,6 +156,7 @@ describe('agentos() iframe HTML entries', () => {
     mw(passthrough.req, passthrough.res, () => {
       passed = true;
     });
+    await new Promise((r) => setTimeout(r, 0));
     expect(passed).toBe(true);
   });
 });

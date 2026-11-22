@@ -180,6 +180,7 @@ describe('createExtensionEnableMiddleware', () => {
     mw(other.req, other.res, () => {
       passed = true;
     });
+    await other.settle();
     expect(passed).toBe(true);
   });
 

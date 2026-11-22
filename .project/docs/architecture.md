@@ -9,7 +9,10 @@ Browser:  Shell (mountShell) + extension UI iframes
     │
     ├─ Comlink (MessageChannel per iframe) ── HostAPI
     │
-    └─ HTTP ── Gateway (@agentos/core/vite middleware)
+    └─ HTTP ── Gateway (@agentos/core/gateway fetch handlers)
+                  │         ▲
+                  │         └─ Vite Connect adapter (@agentos/core/vite) in dev
+                  │         └─ Bun.serve / host adapters under deploy/ in prod
                   ├─ /api/agent/*  → control plane → builtin ai / hitl
                   └─ /api/ext/:id/* → proxy → Bun API or Python service
                                               │
@@ -27,10 +30,11 @@ Browser:  Shell (mountShell) + extension UI iframes
 
 ## Gateway
 
-- Discovers builtins + customer extensions via Vite scanner → `virtual:agentos-registry`.
+- **Core** lives in `@agentos/core/gateway` as portable `(Request) => Response | null` handlers — host-agnostic (no Vite Connect, no `@cloudflare/*`). Platform adapters (Vite Connect bridge, future `deploy/*`) mount the same handlers.
+- Discovers builtins + customer extensions via Vite scanner → `virtual:agentos-registry` (dev); production hosts reuse the registry model (see `agentos start`).
 - Loads consumer `agentos.config.ts` → `virtual:agentos-config` (auth + branding runtime subset).
-- Serves consumer `public/` at `/_public/<path>` (dev + preview/build copy into `dist/_public/`). Missing `/_public/<file>` returns **HTTP 404** with a minimal HTML body (middleware answers before SPA fallback).
-- Proxies `/api/ext/:id/*` to upstream from `meta.json` (port, language `bun` | `python`).
+- Serves consumer `public/` at `/_public/<path>` (dev + preview/build copy into `dist/_public/`). Missing `/_public/<file>` returns **HTTP 404** with a minimal HTML body (gateway answers before SPA fallback).
+- Proxies `/api/ext/:id/*` to upstream from `meta.json` (port, language `bun` | `python`) at `http://127.0.0.1:<port>` (sidecar-friendly).
 - Disabled **customer** extensions → 403 + UI unmounted. **Builtins** cannot be disabled.
 
 ## SPA paths vs gateway prefixes
@@ -40,7 +44,7 @@ Browser:  Shell (mountShell) + extension UI iframes
 | Known SPA workspace | `/`                                      | AuthGate → Shell (session required)                                    |
 | Public auth         | `/login`, `/register`, …                 | AuthGate → auth pages (outside Shell chrome)                           |
 | Unknown SPA path    | `/totally-missing`, `/__public/…` (typo) | AuthGate → **Not Found** UI (no session)                               |
-| Reserved gateway    | `/_public/…`, `/__agentos/…`, `/api/…`   | Vite gateway middleware (HTTP status); **not** claimed as Shell routes |
+| Reserved gateway    | `/_public/…`, `/__agentos/…`, `/api/…`   | Gateway handlers (HTTP status); **not** claimed as Shell routes        |
 
 Correct public assets use a **single** underscore: `/_public/<path>`. A double-underscore typo (`/__public/…`) is an unknown SPA path and shows the client Not Found page.
 

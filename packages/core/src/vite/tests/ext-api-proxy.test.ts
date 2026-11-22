@@ -209,6 +209,7 @@ describe('createExtApiProxyMiddleware', () => {
     mw(other.req, other.res, () => {
       passed = true;
     });
+    await other.settle();
     expect(passed).toBe(true);
   });
 
@@ -230,7 +231,7 @@ describe('createExtApiProxyMiddleware', () => {
 });
 
 describe('agentos() gateway middleware wiring', () => {
-  test('registers public + enable + agent + proxy + html middlewares on configureServer', async () => {
+  test('registers a single Connect bridge over createGateway on configureServer', async () => {
     const plugin = asHooks(agentos({ extensionsDir, builtinsDir }));
     await plugin.configResolved?.({ root: fixturesRoot });
 
@@ -264,43 +265,40 @@ describe('agentos() gateway middleware wiring', () => {
     } as unknown as ViteDevServer;
 
     await plugin.configureServer?.(fakeServer);
-    expect(middlewares.length).toBe(5);
+    expect(middlewares.length).toBe(1);
+    const gw = middlewares[0]!;
 
-    // Public assets middleware is first (passes through non-/_public).
-    let publicNext = false;
-    middlewares[0]!(
-      mockReqRes('/api/extensions/crm/enable').req,
-      mockReqRes('/api/extensions/crm/enable').res,
-      () => {
-        publicNext = true;
-      },
-    );
-    expect(publicNext).toBe(true);
+    // Unrelated path passes through.
+    const other = mockReqRes('/spa/route');
+    let passed = false;
+    gw(other.req, other.res, () => {
+      passed = true;
+    });
+    await other.settle();
+    expect(passed).toBe(true);
 
-    // Enable middleware is second.
     const enableHit = mockReqRes('/api/extensions/crm/enable', {
       method: 'POST',
       body: JSON.stringify({ enabled: false }),
     });
-    middlewares[1]!(enableHit.req, enableHit.res, () => {});
+    gw(enableHit.req, enableHit.res, () => {});
     await enableHit.settle();
     expect(enableHit.status).toBe(200);
 
-    // Agent control plane is third.
     const registryHit = mockReqRes('/api/agent/registry');
-    middlewares[2]!(registryHit.req, registryHit.res, () => {});
+    gw(registryHit.req, registryHit.res, () => {});
     await registryHit.settle();
     expect(registryHit.status).toBe(200);
 
-    // Proxy is fourth — disabled customer now 403.
+    // Customer disabled above → proxy 403.
     const proxyHit = mockReqRes('/api/ext/crm/tools/x');
-    middlewares[3]!(proxyHit.req, proxyHit.res, () => {});
+    gw(proxyHit.req, proxyHit.res, () => {});
     await proxyHit.settle();
     expect(proxyHit.status).toBe(403);
 
-    // HTML middleware still last.
     const htmlHit = mockReqRes('/__agentos/ext/crm/page.html');
-    middlewares[4]!(htmlHit.req, htmlHit.res, () => {});
+    gw(htmlHit.req, htmlHit.res, () => {});
+    await htmlHit.settle();
     expect(htmlHit.status).toBe(200);
   });
 });

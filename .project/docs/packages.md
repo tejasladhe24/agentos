@@ -15,7 +15,9 @@ Framework package. Parent exports:
 | `@agentos/core/api/store`  | API routes          | `dbStore`, `cacheStore` clients                               |
 | `@agentos/core/api/ai`     | API routes          | AI client                                                     |
 | `@agentos/core/api/hitl` … | API routes          | Other builtin clients                                         |
-| `@agentos/core/vite`       | `vite.config.ts`    | Scanner, virtual modules, gateway (`/_public`, `/api/ext`, …) |
+| `@agentos/core/gateway`    | Hosts / CLI         | Portable fetch handlers (`/_public`, `/api/ext`, agent, HTML) |
+| `@agentos/core/gateway/*`  | Framework           | Deep gateway modules                                          |
+| `@agentos/core/vite`       | `vite.config.ts`    | Scanner, virtual modules, Connect adapter over gateway        |
 | `@agentos/core/vite/*`     | Framework           | Deep vite modules (`lib/types`, …)                            |
 | `@agentos/core/sdk`        | Advanced            | Low-level Comlink                                             |
 | `@agentos/core/shell`      | Framework           | `mountShell`                                                  |
