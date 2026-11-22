@@ -24,6 +24,11 @@ export type GatewayContext = {
   getPublicRoot: () => string;
   /** Script `src` for iframe HTML entries (Vite virtual id or built chunk). */
   resolveHtmlScriptSrc: (extensionId: string, view: UiViewName) => string;
+  /**
+   * When false, omit dynamic iframe HTML so the host can serve built
+   * `dist/__agentos/ext/...html`. Default true.
+   */
+  serveExtHtml?: boolean;
   fetchImpl?: ProxyFetch;
 };
 

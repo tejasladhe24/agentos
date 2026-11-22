@@ -23,8 +23,10 @@ export function createGateway(ctx: GatewayContext): GatewayHandler {
     createExtensionEnableHandler(ctx.getModel, ctx.enableState),
     createAgentControlPlaneHandler(ctx.getModel, ctx.enableState, proxy),
     proxy,
-    createExtHtmlHandler(ctx.getModel, ctx.resolveHtmlScriptSrc),
   ];
+  if (ctx.serveExtHtml !== false) {
+    handlers.push(createExtHtmlHandler(ctx.getModel, ctx.resolveHtmlScriptSrc));
+  }
 
   return async (request) => {
     for (const handler of handlers) {

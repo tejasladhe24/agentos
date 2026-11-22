@@ -36,6 +36,7 @@ Browser:  Shell (mountShell) + extension UI iframes
 - Serves consumer `public/` at `/_public/<path>` (dev + preview/build copy into `dist/_public/`). Missing `/_public/<file>` returns **HTTP 404** with a minimal HTML body (gateway answers before SPA fallback).
 - Proxies `/api/ext/:id/*` to upstream from `meta.json` (port, language `bun` | `python`) at `http://127.0.0.1:<port>` (sidecar-friendly).
 - Disabled **customer** extensions → 403 + UI unmounted. **Builtins** cannot be disabled.
+- **Production:** `agentos start` (after `agentos build`) spawns builtins + customer Bun/Python like `dev` (no Vite), then `Bun.serve` on `PORT` (default **8080**): gateway → static `dist/` (incl. built iframe HTML) → SPA `index.html` fallback. Sets `AGENT_OS_GLOBAL_GATEWAY_URL` to `http://127.0.0.1:<port>`. `GET /healthz` means the gateway process is up (does not probe children; fatal builtin exit shuts down via ProcessManager). Vite preview is not the production server.
 
 ## SPA paths vs gateway prefixes
 
