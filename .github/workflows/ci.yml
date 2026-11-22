@@ -82,3 +82,15 @@ jobs:
           bun-version: latest
       - run: pnpm install --frozen-lockfile
       - run: bun run build
+
+  deploy-workflow:
+    name: Deploy workflow smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      # No install needed — static check of workflow YAML vs package.json scripts.
+      - run: bun ./deploy/cloudflare/lib/check-deploy-workflow.ts
+      - run: bun test deploy/cloudflare/lib/check-deploy-workflow.test.ts
