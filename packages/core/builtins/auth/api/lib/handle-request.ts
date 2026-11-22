@@ -47,11 +47,11 @@ async function requireSession(ctx: AuthContext, request: Request) {
   return ctx.auth.api.getSession({ headers: request.headers });
 }
 
-function sessionPayload(
+async function sessionPayload(
   ctx: AuthContext,
   session: NonNullable<Awaited<ReturnType<typeof requireSession>>>,
 ) {
-  const roles = listRolesForUser(ctx.db, session.user.id);
+  const roles = await listRolesForUser(ctx.db, session.user.id);
   return {
     user: {
       id: session.user.id,
@@ -86,7 +86,7 @@ export async function handleAuthRequest(
     if (!session) {
       return json({ user: null, session: null, roles: [] }, { status: 401 });
     }
-    return json(sessionPayload(ctx, session));
+    return json(await sessionPayload(ctx, session));
   }
 
   if (method === 'POST' && path === '/sign-in') {
@@ -142,7 +142,7 @@ export async function handleAuthRequest(
         );
       }
 
-      return json(sessionPayload(ctx, session), {
+      return json(await sessionPayload(ctx, session), {
         status: 200,
         headers: outHeaders,
       });
@@ -234,9 +234,9 @@ export async function handleAuthRequest(
         );
       }
 
-      assignUserRole(ctx.db, session.user.id, DEMO_VIEWER.role);
+      await assignUserRole(ctx.db, session.user.id, DEMO_VIEWER.role);
 
-      return json(sessionPayload(ctx, session), {
+      return json(await sessionPayload(ctx, session), {
         status: 200,
         headers: outHeaders,
       });
@@ -365,7 +365,7 @@ export async function handleAuthRequest(
         );
       }
 
-      return json(sessionPayload(ctx, refreshed), {
+      return json(await sessionPayload(ctx, refreshed), {
         status: 200,
         headers: outHeaders,
       });
@@ -457,7 +457,11 @@ export async function handleAuthRequest(
       }
     }
 
-    const allowed = userHasPermission(ctx.db, session.user.id, permission);
+    const allowed = await userHasPermission(
+      ctx.db,
+      session.user.id,
+      permission,
+    );
 
     if (ctx.permissionCache) {
       await cacheSetAllowed(

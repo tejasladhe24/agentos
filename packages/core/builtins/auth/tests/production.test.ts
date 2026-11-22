@@ -151,7 +151,7 @@ describe('createAuth production hardening', () => {
     );
     expect(signIn.status).not.toBe(200);
 
-    ctx.db.close();
+    await ctx.close();
   });
 
   test('sets Secure cookies when app origin is https', async () => {
@@ -184,7 +184,7 @@ describe('createAuth production hardening', () => {
     expect(setCookies.length).toBeGreaterThan(0);
     expect(setCookies.some((c) => /;\s*Secure/i.test(c))).toBe(true);
 
-    ctx.db.close();
+    await ctx.close();
   });
 
   test('trustedOrigins include production app origin without localhost-only list', async () => {
@@ -206,6 +206,6 @@ describe('createAuth production hardening', () => {
       ),
     ).toEqual(['https://api.example.com', 'https://app.example.com']);
 
-    ctx.db.close();
+    await ctx.close();
   });
 });

@@ -1,6 +1,6 @@
 # 56 — Auth Postgres backend
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -13,11 +13,11 @@ Support `AGENT_OS_EXT_AUTH_DB=postgres://…` / `postgresql://…` for Better Au
 
 ## Done when
 
-- [ ] `createAuth` selects SQLite vs Postgres from the DB URL / path
-- [ ] Schema / migrations work for Postgres (startup or documented migrate step)
-- [ ] Local default remains `~/.agentos/store/auth.sqlite` when unset
-- [ ] Tests cover both dialects (Postgres via testcontainer or skip-if-unset)
-- [ ] Docs: production uses managed Postgres (Neon / RDS / Cloud SQL); same env key
+- [x] `createAuth` selects SQLite vs Postgres from the DB URL / path
+- [x] Schema / migrations work for Postgres (startup or documented migrate step)
+- [x] Local default remains `~/.agentos/store/auth.sqlite` when unset
+- [x] Tests cover both dialects (Postgres via testcontainer or skip-if-unset)
+- [x] Docs: production uses managed Postgres (Neon / RDS / Cloud SQL); same env key
 
 ## Notes
 
