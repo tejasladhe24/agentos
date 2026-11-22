@@ -6,6 +6,7 @@
 import { dbStore, type CollectionClient } from '@agentos/core/api/store';
 
 import type { ExtensionEnableState } from './enable-state';
+import { gatewayKeys } from './env';
 
 /** Platform collection for gateway control-plane docs. */
 export const ENABLE_STATE_COLLECTION = 'agentos_gateway';
@@ -62,11 +63,13 @@ export function applyEnableOverrides(
 }
 
 /**
- * Create a persister backed by db-store HTTP (`AGENT_OS_DB_STORE_API_BASE`
- * or gateway `/api/ext/db-store`).
+ * Create a persister backed by db-store HTTP.
+ * Uses {@link gatewayKeys} peer base by default (`AGENT_OS_DB_STORE_API_BASE`).
  */
 export function createDbStoreEnableStatePersister(
-  collection: CollectionClient = dbStore.collection(ENABLE_STATE_COLLECTION),
+  collection: CollectionClient = dbStore.collection(ENABLE_STATE_COLLECTION, {
+    apiBase: gatewayKeys().AGENT_OS_DB_STORE_API_BASE,
+  }),
 ): EnableStatePersister {
   return {
     async load() {

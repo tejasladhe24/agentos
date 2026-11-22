@@ -138,10 +138,6 @@ export async function runStart(
   const model = scanExtensions({ extensionsDir, builtinsDir });
   const getModel = () => model;
   const enableState = createExtensionEnableState();
-  // Peer base so enable persistence skips the gateway proxy (ticket 60).
-  if (!Bun.env.AGENT_OS_DB_STORE_API_BASE) {
-    Bun.env.AGENT_OS_DB_STORE_API_BASE = 'http://127.0.0.1:6111';
-  }
   const enableStatePersister = createArmableEnableStatePersister(
     createDbStoreEnableStatePersister(),
   );

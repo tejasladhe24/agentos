@@ -42,6 +42,7 @@ export type {
   EnableOverrides,
   EnableStatePersister,
 } from './enable-state-store';
+export { DEFAULT_DB_STORE_API_BASE, gatewayKeys } from './env';
 export {
   EXT_HTML_PREFIX,
   isUiViewName,

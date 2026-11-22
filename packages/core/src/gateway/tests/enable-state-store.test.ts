@@ -5,6 +5,8 @@ import {
   createExtensionEnableState,
   createGateway,
   createMemoryEnableStatePersister,
+  DEFAULT_DB_STORE_API_BASE,
+  gatewayKeys,
   hydrateExtensionEnableState,
   parseEnableOverrides,
   persistExtensionEnableState,
@@ -36,6 +38,20 @@ function modelOf(...extensions: ScannedExtension[]): RegistryModel {
 function req(path: string, init: RequestInit = {}): Request {
   return new Request(`http://localhost${path}`, init);
 }
+
+describe('gatewayKeys', () => {
+  test('defaults AGENT_OS_DB_STORE_API_BASE to peer URL', () => {
+    const env = gatewayKeys({});
+    expect(env.AGENT_OS_DB_STORE_API_BASE).toBe(DEFAULT_DB_STORE_API_BASE);
+  });
+
+  test('respects explicit AGENT_OS_DB_STORE_API_BASE', () => {
+    const env = gatewayKeys({
+      AGENT_OS_DB_STORE_API_BASE: 'http://db.example:6111',
+    });
+    expect(env.AGENT_OS_DB_STORE_API_BASE).toBe('http://db.example:6111');
+  });
+});
 
 describe('enable-state-store helpers', () => {
   test('parseEnableOverrides tolerates bad shapes', () => {

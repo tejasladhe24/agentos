@@ -141,10 +141,6 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
   let resolvedConfig: ResolvedAgentosConfig | null = null;
   let server: ViteDevServer | undefined;
   const enableState = createExtensionEnableState();
-  // Peer base so enable persistence skips the gateway proxy (ticket 60).
-  if (!process.env.AGENT_OS_DB_STORE_API_BASE) {
-    process.env.AGENT_OS_DB_STORE_API_BASE = 'http://127.0.0.1:6111';
-  }
   const enableStatePersister = createArmableEnableStatePersister(
     createDbStoreEnableStatePersister(),
   );
