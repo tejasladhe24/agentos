@@ -5,6 +5,7 @@ import type {
 } from '@agentos/core/vite/lib/types';
 
 import type { ExtensionEnableState } from './enable-state';
+import type { EnableStatePersister } from './enable-state-store';
 
 /** Fetch-style gateway route: `null` means pass to the next handler / host. */
 export type GatewayHandler = (
@@ -30,6 +31,11 @@ export type GatewayContext = {
    */
   serveExtHtml?: boolean;
   fetchImpl?: ProxyFetch;
+  /**
+   * Optional durable store for customer enable overrides (ticket 60).
+   * When omitted, enable state stays process-local (tests / memory-only).
+   */
+  enableStatePersister?: EnableStatePersister;
 };
 
 export type { RegistryModel, ScannedExtension, UiViewName };

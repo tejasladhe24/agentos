@@ -31,6 +31,7 @@ export {
 } from './auth/auth-routes';
 export {
   applyRegistry,
+  hydrateEnableStateFromGateway,
   mapRegistry,
   type AppliedRegistry,
 } from './chrome/apply-registry';
@@ -69,7 +70,10 @@ export {
   type ExtensionManagerStatus,
   type PaletteSkill,
 } from './chrome/extension-catalog';
-export { requestExtensionEnable } from './chrome/extension-enable';
+export {
+  requestExtensionEnable,
+  requestExtensionEnableState,
+} from './chrome/extension-enable';
 export {
   activateFrame,
   deactivateFrame,

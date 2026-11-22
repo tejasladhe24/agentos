@@ -9,8 +9,11 @@ import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  createArmableEnableStatePersister,
+  createDbStoreEnableStatePersister,
   createExtensionEnableState,
   createGateway,
+  hydrateExtensionEnableStateWithRetry,
   requestPathname,
 } from '@agentos/core/gateway';
 import { scanExtensions } from '@agentos/core/vite';
@@ -135,11 +138,19 @@ export async function runStart(
   const model = scanExtensions({ extensionsDir, builtinsDir });
   const getModel = () => model;
   const enableState = createExtensionEnableState();
+  // Peer base so enable persistence skips the gateway proxy (ticket 60).
+  if (!Bun.env.AGENT_OS_DB_STORE_API_BASE) {
+    Bun.env.AGENT_OS_DB_STORE_API_BASE = 'http://127.0.0.1:6111';
+  }
+  const enableStatePersister = createArmableEnableStatePersister(
+    createDbStoreEnableStatePersister(),
+  );
   const publicRoot = join(distRoot, '_public');
 
   const gateway = createGateway({
     getModel,
     enableState,
+    enableStatePersister,
     getPublicRoot: () => publicRoot,
     resolveHtmlScriptSrc: () => '',
     serveExtHtml: false,
@@ -180,6 +191,13 @@ export async function runStart(
       gatewayUrl,
       pm,
     });
+    const hydrated = await hydrateExtensionEnableStateWithRetry(
+      enableState,
+      enableStatePersister,
+    );
+    if (hydrated) {
+      enableStatePersister.arm();
+    }
   }
 
   const handle: StartHandle = {

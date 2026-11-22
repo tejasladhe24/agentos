@@ -20,8 +20,17 @@ export function createGateway(ctx: GatewayContext): GatewayHandler {
 
   const handlers: GatewayHandler[] = [
     createPublicAssetsHandler(ctx.getPublicRoot),
-    createExtensionEnableHandler(ctx.getModel, ctx.enableState),
-    createAgentControlPlaneHandler(ctx.getModel, ctx.enableState, proxy),
+    createExtensionEnableHandler(
+      ctx.getModel,
+      ctx.enableState,
+      ctx.enableStatePersister,
+    ),
+    createAgentControlPlaneHandler(
+      ctx.getModel,
+      ctx.enableState,
+      proxy,
+      ctx.enableStatePersister,
+    ),
     proxy,
   ];
   if (ctx.serveExtHtml !== false) {
