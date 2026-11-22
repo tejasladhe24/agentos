@@ -1,6 +1,6 @@
 # 63 — Cloudflare CI deploy workflow
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -13,11 +13,11 @@ Automate build verification and `wrangler deploy` for the Cloudflare adapter on 
 
 ## Done when
 
-- [ ] Workflow runs install + `pnpm ci` (or agreed subset) before deploy
-- [ ] Deploys via wrangler from `deploy/cloudflare` using `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`
-- [ ] Document required GitHub secrets and Cloudflare token permissions
-- [ ] Fail closed if secrets missing on protected branches
-- [ ] Does not force Cloudflare deploy on every PR (preview policy documented)
+- [x] Workflow runs install + `pnpm ci` (or agreed subset) before deploy
+- [x] Deploys via wrangler from `deploy/cloudflare` using `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`
+- [x] Document required GitHub secrets and Cloudflare token permissions
+- [x] Fail closed if secrets missing on protected branches
+- [x] Does not force Cloudflare deploy on every PR (preview policy documented)
 
 ## Notes
 

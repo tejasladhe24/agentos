@@ -48,6 +48,49 @@ pnpm deploy
 
 First deploy builds the full monorepo image — expect several minutes. After the Worker URL responds, wait for container provisioning before `/healthz` succeeds.
 
+## CI deploy (GitHub Actions)
+
+Workflow: [`.github/workflows/deploy-cloudflare.yml`](../../.github/workflows/deploy-cloudflare.yml).
+
+| Trigger                           | Behavior                                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Push to **`main`**                | Install → `pnpm ci` → fail-closed secret check → `pnpm deploy:cloudflare`                                     |
+| **`workflow_dispatch`**           | Same path (manual re-deploy)                                                                                  |
+| Pull requests / push to **`dev`** | **No** Cloudflare deploy (verification stays on [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) |
+
+### Preview / staging policy
+
+- **PRs:** never deploy to Cloudflare. Use local `wrangler` / Docker if you need an adapter smoke before merge.
+- **`dev`:** integration only; no staging Worker in v1 (add a Wrangler `env` later if needed).
+- **`main`:** production Worker (`name: agentos` in `wrangler.jsonc`).
+
+### Required GitHub secrets
+
+Repository **Settings → Secrets and variables → Actions**:
+
+| Secret                  | Purpose                       |
+| ----------------------- | ----------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | Non-interactive Wrangler auth |
+| `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account     |
+
+If either secret is missing on `main` / `workflow_dispatch`, the job **exits 1** (fail closed) — it does not skip deploy silently.
+
+### API token permissions
+
+Create a custom token (or start from **Edit Cloudflare Workers**) scoped to the deploy account:
+
+| Permission                   | Access                            |
+| ---------------------------- | --------------------------------- |
+| Account → Workers Scripts    | Edit                              |
+| Account → Workers Containers | Edit (image push + container app) |
+| Account → Account Settings   | Read (account id / plan checks)   |
+
+Workers **Paid** is required for Containers. App secrets (`AGENT_OS_EXT_*`) stay in Wrangler secrets / `vars` — they are **not** GitHub Actions secrets for this workflow.
+
+### Image build duration / caching
+
+`wrangler deploy` builds the monorepo image from the root `Dockerfile` (context = repo root) and pushes it to Cloudflare’s container registry. Budget **several minutes** on first or cold CI runs (`timeout-minutes: 60` on the job). GHA does not cache the Docker layers across runs by default; expect full rebuild cost when the Dockerfile or install graph changes. Runner Docker (ubuntu-latest) must be available — Wrangler needs the daemon during deploy.
+
 ## Local secrets
 
 Copy [`.dev.vars.example`](./.dev.vars.example) → `.dev.vars` (gitignored) for `wrangler dev`. Do not commit real secrets.
