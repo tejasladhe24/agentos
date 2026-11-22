@@ -1,4 +1,4 @@
-import { CACHE_STORE_PORT } from '../../cache-store/api/lib/constants';
+import { CACHE_STORE_PORT } from '@agentos/core/builtins/cache-store/api/lib/constants';
 import { keys } from './env';
 import { AUTH_PORT } from './lib/constants';
 import { createAuth } from './lib/create-auth';

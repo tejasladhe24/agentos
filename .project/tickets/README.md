@@ -70,8 +70,22 @@ Agents must never promote tickets to `done/` themselves.
 50. Auth account settings panel (profile / roles / security — not just sign-out)
 51. Chore: monorepo clean + Python uv sync on install
 52. Ticket reconciliation: promote covered in-progress → done — **done** (43–51 → `done/`)
+53. Production gateway handlers (Request/Response) — portable; Vite adapts
+54. CLI `agentos start` (production process + static Shell)
+55. Auth production hardening (secret, secure cookies, no demo seed)
+56. Auth Postgres backend (ephemeral-disk safe)
+57. Files S3-compatible backend (R2 / S3 / GCS via env)
+58. Root Dockerfile + `.dockerignore` (portable image)
+59. Deploy layout + portable runbook (`deploy/`; migration notes)
+60. Persist extension enable-state (db-store)
+61. Durable HITL / notifications state (scale readiness)
+62. `deploy/cloudflare` Worker + Containers adapter (thin; disposable)
+63. Cloudflare CI deploy workflow
+64. Cloudflare deploy smoke checks
 
-**Open:** `todo/` — **29** (E2E verification), **30** (Next host adapter spike). `in-progress/` — empty after reconciliation 52.
+**Open:** `todo/` — **29** (E2E), **30** (Next host spike), **54–64** (portable production + Cloudflare adapter). `in-progress/` — **53** (production gateway handlers).
+
+**Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64**; **60** / **61** optional before multi-instance.
 
 **Runtime policy:** `pnpm install` for the monorepo; `bun run` / `bun` for all TS/JS services (never Node).
 

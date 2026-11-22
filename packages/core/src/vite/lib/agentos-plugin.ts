@@ -1,7 +1,6 @@
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { Plugin, ViteDevServer } from 'vite';
 
@@ -12,26 +11,21 @@ import {
   serializeConfigModule,
   type ResolvedAgentosConfig,
 } from '@agentos/core/config';
+import {
+  createExtensionEnableState,
+  createGateway,
+} from '@agentos/core/gateway/lib/index';
 
-import { createAgentControlPlaneMiddleware } from './agent-control-plane';
-import { createExtApiProxyMiddleware } from './ext-api-proxy';
+import { toConnectMiddleware, type ConnectMiddleware } from './connect-adapter';
 import { serializeExtEntryModule } from './ext-entry-module';
 import {
-  createExtensionEnableMiddleware,
-  createExtensionEnableState,
-} from './extension-enable-state';
-import {
-  parseExtHtmlPath,
   parseVirtualExtEntryId,
   renderExtHtmlEntry,
   resolvedVirtualExtEntryId,
   virtualExtEntryId,
   virtualExtEntryScriptSrc,
 } from './html-entry';
-import {
-  createPublicAssetsMiddleware,
-  resolvePublicRoot,
-} from './public-assets-middleware';
+import { resolvePublicRoot } from './public-assets-middleware';
 import { scanExtensions } from './scan-extensions';
 import { serializeRegistryModule } from './serialize-registry';
 import type {
@@ -57,6 +51,12 @@ export {
   parseExtensionEnablePath,
 } from './extension-enable-state';
 export type { ExtensionEnableState } from './extension-enable-state';
+export {
+  toConnectMiddleware,
+  connectToFetchRequest,
+  writeFetchResponse,
+} from './connect-adapter';
+export type { ConnectMiddleware } from './connect-adapter';
 
 /** Public virtual module id imported by the Shell (ticket 11). */
 export const VIRTUAL_REGISTRY_ID = 'virtual:agentos-registry';
@@ -126,52 +126,6 @@ function viewFilePath(
   return findExtension(model, extensionId)?.ui[view];
 }
 
-type ConnectMiddleware = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  next: (err?: unknown) => void,
-) => void;
-
-function createExtHtmlMiddleware(
-  getModel: () => RegistryModel,
-  scriptSrcFor: (extensionId: string, view: UiViewName) => string,
-): ConnectMiddleware {
-  return (req, res, next) => {
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      next();
-      return;
-    }
-    const url = req.url ?? '';
-    const pathname = url.split('?')[0] ?? url;
-    const parsed = parseExtHtmlPath(pathname);
-    if (!parsed) {
-      next();
-      return;
-    }
-    const filePath = viewFilePath(getModel(), parsed.extensionId, parsed.view);
-    if (!filePath) {
-      res.statusCode = 404;
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.end(
-        `AgentOS extension view not found: ${parsed.extensionId}/${parsed.view}`,
-      );
-      return;
-    }
-    const html = renderExtHtmlEntry({
-      extensionId: parsed.extensionId,
-      view: parsed.view,
-      scriptSrc: scriptSrcFor(parsed.extensionId, parsed.view),
-    });
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    if (req.method === 'HEAD') {
-      res.end();
-      return;
-    }
-    res.end(html);
-  };
-}
-
 /**
  * Vite plugin: scan `extensions/` + `builtins/`, expose `virtual:agentos-registry`,
  * serve `/__agentos/ext/<id>/<view>.html` iframe entries, and invalidate on FS changes.
@@ -210,13 +164,15 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
   const mountGatewayMiddlewares = (middlewares: {
     use: (fn: ConnectMiddleware) => void;
   }): void => {
-    middlewares.use(createPublicAssetsMiddleware(getPublicRoot));
-    middlewares.use(createExtensionEnableMiddleware(getModel, enableState));
-    middlewares.use(createAgentControlPlaneMiddleware(getModel, enableState));
-    middlewares.use(createExtApiProxyMiddleware(getModel, enableState));
+    // Single Connect bridge over portable createGateway (ticket 53).
     middlewares.use(
-      createExtHtmlMiddleware(getModel, (extensionId, view) =>
-        virtualExtEntryScriptSrc(extensionId, view),
+      toConnectMiddleware(
+        createGateway({
+          getModel,
+          enableState,
+          getPublicRoot,
+          resolveHtmlScriptSrc: virtualExtEntryScriptSrc,
+        }),
       ),
     );
   };

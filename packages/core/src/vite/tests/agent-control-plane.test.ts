@@ -201,29 +201,49 @@ describe('createAgentControlPlaneMiddleware', () => {
     expect(JSON.parse(disableAi.body).error).toContain('driven');
   });
 
-  test('chat rewrites to builtin ai; hitl rewrites to hitl approvals', async () => {
-    const registry = modelOf();
+  test('chat and hitl proxy to builtin upstreams via rewritten paths', async () => {
+    const registry = modelOf(
+      ext({
+        id: 'ai',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        meta: { api: { language: 'bun', port: 7101 } },
+      }),
+      ext({
+        id: 'hitl',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        meta: { api: { language: 'bun', port: 7102 } },
+      }),
+    );
     const state = createExtensionEnableState();
-    const mw = createAgentControlPlaneMiddleware(() => registry, state);
+    const calls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      calls.push(url);
+      return new Response('ok');
+    };
+    const mw = createAgentControlPlaneMiddleware(
+      () => registry,
+      state,
+      fetchImpl,
+    );
 
-    const chat = mockReqRes('/api/agent/chat', { method: 'POST' });
-    let chatNext = false;
-    mw(chat.req, chat.res, () => {
-      chatNext = true;
-    });
-    expect(chatNext).toBe(true);
-    expect(chat.req.url).toBe('/api/ext/ai/chat');
+    const chat = mockReqRes('/api/agent/chat', { method: 'POST', body: '{}' });
+    mw(chat.req, chat.res, () => {});
+    await chat.settle();
+    expect(chat.status).toBe(200);
+    expect(calls[0]).toBe('http://127.0.0.1:7101/chat');
 
-    const hitl = mockReqRes('/api/agent/hitl', { method: 'POST' });
-    let hitlNext = false;
-    mw(hitl.req, hitl.res, () => {
-      hitlNext = true;
-    });
-    expect(hitlNext).toBe(true);
-    expect(hitl.req.url).toBe('/api/ext/hitl/approvals');
+    const hitl = mockReqRes('/api/agent/hitl', { method: 'POST', body: '{}' });
+    mw(hitl.req, hitl.res, () => {});
+    await hitl.settle();
+    expect(hitl.status).toBe(200);
+    expect(calls[1]).toBe('http://127.0.0.1:7102/approvals');
   });
 
-  test('passes through unrelated paths', () => {
+  test('passes through unrelated paths', async () => {
     const mw = createAgentControlPlaneMiddleware(
       () => modelOf(),
       createExtensionEnableState(),
@@ -233,6 +253,7 @@ describe('createAgentControlPlaneMiddleware', () => {
     mw(other.req, other.res, () => {
       passed = true;
     });
+    await other.settle();
     expect(passed).toBe(true);
   });
 });

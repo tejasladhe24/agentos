@@ -23,5 +23,8 @@ Implementation is tracked as numbered tickets in [../tickets/](../tickets/). Do 
 | Polish | Contextual sidebar + Shell panels left                       | **39**                                               |
 | Polish | App-level `ui/dashboard.tsx` Home surface                    | **40**                                               |
 | DX     | CLI scaffold consumer app (`agentos create` / `init`)        | **42**                                               |
+| Deploy | Portable production gateway + `agentos start` + image        | **53–59**                                            |
+| Deploy | Durable enable-state / HITL (before scale)                   | **60–61**                                            |
+| Deploy | Cloudflare Containers adapter + CI + smoke (thin `deploy/`)  | **62–64**                                            |
 
-**Status:** setup docs/skills can proceed before ticket 1. **Do not start ticket 1** until explicitly asked to build.
+**Status:** setup docs/skills can proceed before ticket 1. **Do not start ticket 1** until explicitly asked to build. Deploy tickets (**53+**) are host-agnostic first; Cloudflare is an adapter under `deploy/cloudflare/`.

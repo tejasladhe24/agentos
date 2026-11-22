@@ -35,6 +35,11 @@
       "./builtins/*.tsx"
     ],
     "./config": "./src/config/index.ts",
+    "./gateway": "./src/gateway/index.ts",
+    "./gateway/lib/*": [
+      "./src/gateway/lib/*.ts",
+      "./src/gateway/lib/*.tsx"
+    ],
     "./vite": "./src/vite/index.ts",
     "./vite/lib/*": [
       "./src/vite/lib/*.ts",
