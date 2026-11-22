@@ -6,7 +6,8 @@
   "description": "Thin Cloudflare Workers + Containers adapter for the portable AgentOS image",
   "license": "UNLICENSED",
   "scripts": {
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --env=\"\"",
+    "deploy:dev": "wrangler deploy --env dev",
     "dev": "wrangler dev",
     "types": "wrangler types",
     "typecheck": "tsc -p tsconfig.json --noEmit"

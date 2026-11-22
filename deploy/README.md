@@ -120,12 +120,13 @@ Thin disposable Worker under [`cloudflare/`](./cloudflare/). It proxies HTTPS to
 ```bash
 pnpm install
 # secrets: cd deploy/cloudflare && pnpm exec wrangler secret put …
-pnpm deploy:cloudflare
+pnpm deploy:cloudflare          # production Worker `agentos`
+pnpm deploy:cloudflare:dev      # staging Worker `agentos` (--env dev)
 ```
 
 Image path in `wrangler.jsonc`: `../../Dockerfile` with `image_build_context: ../..` (monorepo root). First deploy builds the full image — expect several minutes. `max_instances: 1` until tickets **60** / **61** if you scale out.
 
-**CI:** pushes to `main` run [`.github/workflows/deploy-cloudflare.yml`](../.github/workflows/deploy-cloudflare.yml) (`pnpm ci` then `pnpm deploy:cloudflare`). Requires GitHub secrets `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (fail closed if missing). PRs and `dev` do **not** deploy — see [`cloudflare/README.md`](./cloudflare/README.md) (CI deploy).
+**CI:** [`.github/workflows/deploy-cloudflare.yml`](../.github/workflows/deploy-cloudflare.yml) — push to **`main`** → production; push to **`dev`** (post-merge) → staging (`--env dev`). Requires GitHub secrets `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (fail closed if missing). PRs do **not** deploy — see [`cloudflare/README.md`](./cloudflare/README.md) (CI deploy).
 
 Do **not** put Cloudflare R2 bindings or `@cloudflare/*` into `packages/core` — only inject credentials as container env.
 

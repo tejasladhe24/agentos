@@ -1,6 +1,6 @@
 # 63 — Cloudflare CI deploy workflow
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

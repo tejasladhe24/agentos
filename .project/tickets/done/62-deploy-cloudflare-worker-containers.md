@@ -1,6 +1,6 @@
 # 62 — `deploy/cloudflare` Worker + Containers adapter
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

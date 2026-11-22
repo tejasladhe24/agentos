@@ -1,12 +1,22 @@
-# Production Cloudflare adapter deploy (ticket 63).
-# Triggers: push to main, or manual workflow_dispatch.
-# Does NOT run on pull_request or push to dev — see deploy/cloudflare/README.md (CI / preview policy).
+# Cloudflare adapter deploy (ticket 63 + post-merge staging on dev).
+# - push to main → production Worker (`agentos-demo` → agentos-demo.thatlad.dev)
+# - push to dev  → staging Worker (`agentos` → agentos.thatlad.workers.dev)
+# - workflow_dispatch → choose production | dev
+# PRs never deploy — see deploy/cloudflare/README.md (CI / preview policy).
 name: Deploy Cloudflare
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Cloudflare environment
+        type: choice
+        options:
+          - production
+          - dev
+        default: production
 
 concurrency:
   group: deploy-cloudflare-${{ github.ref }}
@@ -41,18 +51,36 @@ jobs:
       - name: CI
         run: pnpm ci
 
+      - name: Resolve deploy target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "env=${{ inputs.target }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "dev" ]; then
+            echo "env=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "env=production" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Require Cloudflare secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_ENV: ${{ steps.target.outputs.env }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID must be set as repository secrets on main. Refusing to deploy."
+            echo "::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID must be set as repository secrets. Refusing to deploy ($DEPLOY_ENV)."
             exit 1
           fi
+          echo "Deploy target: $DEPLOY_ENV"
 
       - name: Deploy Cloudflare adapter
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm deploy:cloudflare
+        run: |
+          if [ "${{ steps.target.outputs.env }}" = "dev" ]; then
+            pnpm deploy:cloudflare:dev
+          else
+            pnpm deploy:cloudflare
+          fi

@@ -1,6 +1,6 @@
 # 54 — CLI `agentos start` (production process + static shell)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

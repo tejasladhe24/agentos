@@ -1,6 +1,6 @@
 # 61 — Durable HITL / notifications state (scale readiness)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

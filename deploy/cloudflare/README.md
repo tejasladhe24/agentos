@@ -43,7 +43,8 @@ pnpm exec wrangler secret put AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY
 
 pnpm deploy
 # or from repo root:
-# pnpm deploy:cloudflare
+# pnpm deploy:cloudflare          # production (top-level)
+# pnpm deploy:cloudflare:dev      # staging (--env dev → Worker `agentos`)
 ```
 
 First deploy builds the full monorepo image — expect several minutes. After the Worker URL responds, wait for container provisioning before `/healthz` succeeds.
@@ -52,17 +53,32 @@ First deploy builds the full monorepo image — expect several minutes. After th
 
 Workflow: [`.github/workflows/deploy-cloudflare.yml`](../../.github/workflows/deploy-cloudflare.yml).
 
-| Trigger                           | Behavior                                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Push to **`main`**                | Install → `pnpm ci` → fail-closed secret check → `pnpm deploy:cloudflare`                                     |
-| **`workflow_dispatch`**           | Same path (manual re-deploy)                                                                                  |
-| Pull requests / push to **`dev`** | **No** Cloudflare deploy (verification stays on [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) |
+| Trigger                 | Behavior                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Push to **`main`**      | Install → `pnpm ci` → fail-closed secret check → `pnpm deploy:cloudflare` (production `agentos`)              |
+| Push to **`dev`**       | Same CI, then `pnpm deploy:cloudflare:dev` → Wrangler `--env dev` (staging Worker `agentos`)                  |
+| **`workflow_dispatch`** | Choose `production` or `dev`                                                                                  |
+| Pull requests           | **No** Cloudflare deploy (verification stays on [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) |
 
 ### Preview / staging policy
 
 - **PRs:** never deploy to Cloudflare. Use local `wrangler` / Docker if you need an adapter smoke before merge.
-- **`dev`:** integration only; no staging Worker in v1 (add a Wrangler `env` later if needed).
-- **`main`:** production Worker (`name: agentos` in `wrangler.jsonc`).
+- **`dev` (post-merge):** staging Worker **`agentos`** — `NODE_ENV` / `AGENT_OS_GLOBAL_NODE_ENV` = `development`; URL `https://agentos.thatlad.workers.dev`.
+- **`main`:** production Worker **`agentos-demo`** — `NODE_ENV` / `AGENT_OS_GLOBAL_NODE_ENV` = `production`; custom domain `https://agentos-demo.thatlad.dev` (`workers_dev` off).
+
+Wrangler secrets are **per Worker**. Top-level (`agentos-demo` / `main`) vs `--env dev` (`agentos`):
+
+```bash
+cd deploy/cloudflare
+# production (agentos-demo)
+pnpm exec wrangler secret put AGENT_OS_EXT_AUTH_SECRET
+pnpm exec wrangler secret put AGENT_OS_EXT_AUTH_DB
+pnpm exec wrangler secret put AGENT_OS_EXT_DB_STORE_DATABASE_URL
+# staging (agentos)
+pnpm exec wrangler secret put AGENT_OS_EXT_AUTH_SECRET --env dev
+pnpm exec wrangler secret put AGENT_OS_EXT_AUTH_DB --env dev
+pnpm exec wrangler secret put AGENT_OS_EXT_DB_STORE_DATABASE_URL --env dev
+```
 
 ### Required GitHub secrets
 
@@ -73,7 +89,7 @@ Repository **Settings → Secrets and variables → Actions**:
 | `CLOUDFLARE_API_TOKEN`  | Non-interactive Wrangler auth |
 | `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account     |
 
-If either secret is missing on `main` / `workflow_dispatch`, the job **exits 1** (fail closed) — it does not skip deploy silently.
+If either secret is missing on a deploy trigger (`main`, `dev`, or `workflow_dispatch`), the job **exits 1** (fail closed) — it does not skip deploy silently.
 
 ### API token permissions
 
@@ -99,11 +115,72 @@ Copy [`.dev.vars.example`](./.dev.vars.example) → `.dev.vars` (gitignored) for
 pnpm --filter @agentos/deploy-cloudflare dev
 ```
 
-## Custom domain
+## Custom domain (production)
 
-1. Attach a custom domain to the Worker in the Cloudflare dashboard (or via Wrangler routes).
-2. Set `AGENT_OS_GLOBAL_APP_ORIGIN` and `AGENT_OS_EXT_AUTH_BASE_URL` to `https://<that-host>` (vars or secrets).
-3. Redeploy so a fresh container start picks up the new env.
+Production uses a Wrangler Custom Domain on zone **`thatlad.dev`**:
+
+```jsonc
+"routes": [{ "pattern": "agentos-demo.thatlad.dev", "custom_domain": true }]
+```
+
+`AGENT_OS_GLOBAL_APP_ORIGIN` / `AGENT_OS_EXT_AUTH_BASE_URL` are set to `https://agentos-demo.thatlad.dev`. `wrangler deploy` (push to `main`) creates/updates the DNS + cert. Staging (`--env dev`) is `https://agentos.thatlad.workers.dev`.
+
+## Smoke checks
+
+Manual deploy-path verification against the live Worker URL (ticket **64**). Complements product E2E (ticket **29**); no Playwright required for v1.
+
+Set `BASE_URL` to the Worker `workers.dev` hostname or attached custom domain. After deploy, wait for container provisioning — the Worker may answer before `/healthz` succeeds.
+
+```bash
+export BASE_URL=https://agentos-demo.thatlad.dev   # production; staging: https://agentos.thatlad.workers.dev
+```
+
+| #   | Check          | Command / action                                                                     | Expect                                                                    |
+| --- | -------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| 1   | Gateway health | `curl -sS -o /dev/null -w '%{http_code}\n' "$BASE_URL/healthz"`                      | `200` (gateway up; does not probe child APIs)                             |
+| 2   | Auth session   | Browser: `/register` → `/login` → reload still signed in. Or cookie-jar curls below. | Session cookie round-trips; `GET /api/ext/auth/session` → `200` with user |
+| 3   | Bun extension  | `curl -sS "$BASE_URL/api/ext/crm-helper/health"`                                     | `{ "ok": true }` (Worker → container → Bun sidecar)                       |
+| 4   | Python service | `curl -sS "$BASE_URL/api/ext/invoice-bot/health"`                                    | Health ok (Python in container)                                           |
+| 5   | Files (R2)     | If `AGENT_OS_EXT_FILES_S3_*` set: health + PUT/GET blob. Else skip.                  | `backend` shows S3; blob round-trip                                       |
+
+### Auth (cookie jar)
+
+```bash
+COOKIE_JAR=$(mktemp)
+EMAIL="smoke-$(date +%s)@example.com"
+PASS='SmokeTestPass_change-me'
+
+curl -sS -c "$COOKIE_JAR" -b "$COOKIE_JAR" -X POST "$BASE_URL/api/ext/auth/sign-up" \
+  -H 'content-type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"name\":\"Smoke\"}"
+
+curl -sS -c "$COOKIE_JAR" -b "$COOKIE_JAR" -X POST "$BASE_URL/api/ext/auth/sign-in" \
+  -H 'content-type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}"
+
+curl -sS -c "$COOKIE_JAR" -b "$COOKIE_JAR" "$BASE_URL/api/ext/auth/session"
+rm -f "$COOKIE_JAR"
+```
+
+Secure cookies require `AGENT_OS_GLOBAL_APP_ORIGIN` / `AGENT_OS_EXT_AUTH_BASE_URL` set to this HTTPS origin. If session fails after reload, fix those vars and redeploy.
+
+### Files round-trip (when R2 configured)
+
+```bash
+curl -sS "$BASE_URL/api/ext/files/health"
+# Expect backend/label indicating S3 (not local filesystem).
+
+KEY="smoke-$(date +%s)"
+curl -sS -X PUT "$BASE_URL/api/ext/files/blobs/$KEY" \
+  -H 'content-type: application/octet-stream' \
+  --data-binary 'agentos-smoke'
+curl -sS "$BASE_URL/api/ext/files/blobs/$KEY"
+# Expect body: agentos-smoke
+```
+
+If S3 env is unset, `/api/ext/files/health` may still return ok on ephemeral local storage — skip the PUT/GET durability claim and note it in the ticket.
+
+Keep `max_instances: 1` until tickets **60** / **61** if you rely on in-memory HITL/cache. File gaps as follow-ups under `.project/tickets/todo/`; automated Playwright against a preview URL is an optional later ticket.
 
 ## Migrate off Cloudflare
 

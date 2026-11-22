@@ -1,6 +1,6 @@
 # 60 — Persist extension enable-state
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

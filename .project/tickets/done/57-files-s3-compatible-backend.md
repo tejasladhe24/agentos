@@ -1,6 +1,6 @@
 # 57 — Files S3-compatible backend
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

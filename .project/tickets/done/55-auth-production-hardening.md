@@ -1,6 +1,6 @@
 # 55 — Auth production hardening
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
