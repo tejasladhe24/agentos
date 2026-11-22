@@ -32,8 +32,17 @@ function parseResolvePath(path: string): string | null {
   }
 }
 
+function unavailable(error: unknown): Response {
+  const message = error instanceof Error ? error.message : String(error);
+  return json(
+    { error: 'db-store unavailable', detail: message },
+    { status: 502 },
+  );
+}
+
 /**
  * Thin Bun request router for `/api/ext/hitl/*` upstream paths.
+ * Persistence goes through db-store only (ADR 004).
  */
 export async function handleHitlRequest(
   store: ApprovalsStore,
@@ -44,7 +53,7 @@ export async function handleHitlRequest(
   const method = request.method.toUpperCase();
 
   if (method === 'GET' && path === '/health') {
-    return json({ ok: true });
+    return json({ ok: true, backend: 'db-store' });
   }
 
   if (method === 'GET' && path === '/approvals') {
@@ -55,7 +64,11 @@ export async function handleHitlRequest(
       statusParam === 'rejected'
         ? (statusParam as ApprovalStatus)
         : undefined;
-    return json({ approvals: store.list(status) });
+    try {
+      return json({ approvals: await store.list(status) });
+    } catch (error) {
+      return unavailable(error);
+    }
   }
 
   if (method === 'POST' && path === '/approvals') {
@@ -64,17 +77,21 @@ export async function handleHitlRequest(
     if (!title) {
       return json({ error: 'title required' }, { status: 400 });
     }
-    const approval = store.create({
-      title,
-      body: typeof body?.body === 'string' ? body.body : undefined,
-      metadata:
-        body?.metadata &&
-        typeof body.metadata === 'object' &&
-        !Array.isArray(body.metadata)
-          ? (body.metadata as Record<string, unknown>)
-          : undefined,
-    });
-    return json(approval, { status: 201 });
+    try {
+      const approval = await store.create({
+        title,
+        body: typeof body?.body === 'string' ? body.body : undefined,
+        metadata:
+          body?.metadata &&
+          typeof body.metadata === 'object' &&
+          !Array.isArray(body.metadata)
+            ? (body.metadata as Record<string, unknown>)
+            : undefined,
+      });
+      return json(approval, { status: 201 });
+    } catch (error) {
+      return unavailable(error);
+    }
   }
 
   const resolveId = parseResolvePath(path);
@@ -87,18 +104,22 @@ export async function handleHitlRequest(
         { status: 400 },
       );
     }
-    const existing = store.get(resolveId);
-    if (!existing) {
-      return json({ error: 'not found' }, { status: 404 });
+    try {
+      const existing = await store.get(resolveId);
+      if (!existing) {
+        return json({ error: 'not found' }, { status: 404 });
+      }
+      if (existing.status !== 'pending') {
+        return json(
+          { error: 'already resolved', approval: existing },
+          { status: 409 },
+        );
+      }
+      const approval = (await store.resolve(resolveId, decision))!;
+      return json(approval);
+    } catch (error) {
+      return unavailable(error);
     }
-    if (existing.status !== 'pending') {
-      return json(
-        { error: 'already resolved', approval: existing },
-        { status: 409 },
-      );
-    }
-    const approval = store.resolve(resolveId, decision)!;
-    return json(approval);
   }
 
   return json({ error: 'not found' }, { status: 404 });

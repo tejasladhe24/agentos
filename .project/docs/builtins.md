@@ -15,11 +15,11 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 
 | Id                | Role                                                                                                                           |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **hitl**          | Approvals API; Activity Bar **secondary** opens HITL panel in left sidebar (no `ui/`)                                          |
+| **hitl**          | Approvals API (durable via db-store); Activity Bar **secondary** opens HITL panel in left sidebar (no `ui/`)                   |
 | **settings**      | App/platform preferences; Activity Bar **secondary** (`GearSix`) opens `ui/page.tsx` (distinct from Auth **account** settings) |
 | **events**        | Cross-extension pub/sub                                                                                                        |
 | **files**         | Blob/object API (local FS default; optional S3-compatible)                                                                     |
-| **notifications** | Toast/fan-out                                                                                                                  |
+| **notifications** | Toast/fan-out; recent inbox durable via db-store                                                                               |
 | **secrets**       | Secret resolution                                                                                                              |
 | **audit**         | Append-only audit via db-store                                                                                                 |
 
@@ -28,6 +28,10 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 Customer (and most) APIs call builtins through `@agentos/core/api/*` or `agentos.*` — never hold `DATABASE_URL` themselves.
 
 Extension Manager shows builtins as **locked**.
+
+## Scale / replicas
+
+HITL approvals and the notifications recent inbox persist through **db-store** (SQLite or Postgres), so a **single-replica** restart keeps pending approvals and recent toasts. Keep Cloudflare `max_instances` / ECS/EKS replicas at **1** until **cache-store** (Redis) and **events** are also externalized — multi-instance would still diverge on in-memory cache/pubsub. Redis via cache-store is an optional follow-up for horizontal scale.
 
 ## Auth production env
 
