@@ -29,9 +29,9 @@ Never push commits straight to `dev` or `main`. Land changes only via pull reque
 
 **Default (intended):** one ticket PR → `dev` via **squash and merge**.
 
-| Target   | Default merge                        | Why |
-| -------- | ------------------------------------ | --- |
-| **`dev`**  | **Squash and merge**, **one PR per ticket** | Each ticket is one commit on `dev`, so ticket history stays separable and easy to bisect/revert per ticket. |
+| Target     | Default merge                                                                  | Why                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| **`dev`**  | **Squash and merge**, **one PR per ticket**                                    | Each ticket is one commit on `dev`, so ticket history stays separable and easy to bisect/revert per ticket.         |
 | **`main`** | **Squash and merge** the whole deployment PR (even when shipping many tickets) | Production history stays one commit per promotion — roll back by reverting/resetting to the previous `main` commit. |
 
 **GitHub UI:** keep **Squash and merge** and **Rebase and merge** enabled.
@@ -56,9 +56,9 @@ Agents: build/merge a stack only when the user asks (or clearly wants to batch o
 
 Merging a PR updates the branch tip; [`.github/workflows/deploy-cloudflare.yml`](../../../.github/workflows/deploy-cloudflare.yml) then deploys on **push** (not on the PR itself):
 
-| After merge into | Deploy target |
-| ---------------- | ------------- |
-| **`dev`**        | Staging Worker `agentos` → `https://agentos.thatlad.workers.dev` |
+| After merge into | Deploy target                                                         |
+| ---------------- | --------------------------------------------------------------------- |
+| **`dev`**        | Staging Worker `agentos` → `https://agentos.thatlad.workers.dev`      |
 | **`main`**       | Production Worker `agentos-demo` → `https://agentos-demo.thatlad.dev` |
 
 PRs never deploy. Secrets / `workflow_dispatch` details: [`deploy/cloudflare/README.md`](../../../deploy/cloudflare/README.md).
@@ -82,7 +82,7 @@ fix(16): correct db-store migration path
 ### Type picker
 
 | Type    | When                                                                  |
-| ---- | --------------------------------------------------------------------- |
+| ------- | --------------------------------------------------------------------- |
 | `feat`  | New capability or scaffold that advances the platform                 |
 | `fix`   | Bug fix                                                               |
 | `chore` | Cleanup, reset, tooling, docs/skills hygiene without product behavior |
@@ -164,10 +164,10 @@ DEPLOYMENT dev->main: 64 67
 
 ## Cherry-picked commits
 
-| Ticket | Commit | Title |
-| ------ | ------ | ----- |
+| Ticket | Commit    | Title                                                   |
+| ------ | --------- | ------------------------------------------------------- |
 | 67     | `abc1234` | fix(67): link extension iframe CSS in production builds |
-| 64     | `def5678` | feat(64): … |
+| 64     | `def5678` | feat(64): …                                             |
 
 ## Merge conflicts
 
