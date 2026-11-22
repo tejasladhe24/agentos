@@ -11,10 +11,19 @@ const port = env.AGENT_OS_EXT_AUTH_PORT ?? AUTH_PORT;
 const cachePort =
   Number(Bun.env.AGENT_OS_EXT_CACHE_STORE_PORT) || CACHE_STORE_PORT;
 
+const seedDemoUsers =
+  env.AGENT_OS_EXT_AUTH_SEED_DEMO === 'true'
+    ? true
+    : env.AGENT_OS_EXT_AUTH_SEED_DEMO === 'false'
+      ? false
+      : undefined;
+
 const ctx = await createAuth({
   secret: env.AGENT_OS_EXT_AUTH_SECRET,
   databasePath: env.AGENT_OS_EXT_AUTH_DB,
   baseURL: env.AGENT_OS_EXT_AUTH_BASE_URL,
+  appOrigin: Bun.env.AGENT_OS_GLOBAL_APP_ORIGIN,
+  seedDemoUsers,
   permissionCache: {
     baseUrl: `http://127.0.0.1:${cachePort}`,
   },

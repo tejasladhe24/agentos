@@ -54,6 +54,8 @@ export const keys = (runtimeEnv = Bun.env) =>
 
 Domain = extension id uppercased with `-` → `_` (`db-store` → `DB_STORE`).
 
+**Production auth (builtin):** set `AGENT_OS_EXT_AUTH_SECRET` (≥32 chars, no default), `AGENT_OS_GLOBAL_APP_ORIGIN` (Shell HTTPS origin), and `AGENT_OS_EXT_AUTH_BASE_URL` (public auth API URL). With `AGENT_OS_GLOBAL_NODE_ENV`/`NODE_ENV=production`, demo users are not seeded (override with `AGENT_OS_EXT_AUTH_SEED_DEMO=true|false`). See [builtins.md](./builtins.md#auth-production-env).
+
 ```ts
 import { createEnv } from '@t3-oss/env-core';
 import { platformKeys } from '@agentos/core/api/env';

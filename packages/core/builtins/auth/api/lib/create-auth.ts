@@ -5,8 +5,19 @@ import { betterAuth, type Auth, type BetterAuthOptions } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
 import { Database } from 'bun:sqlite';
 
-import { AUTH_PORT, DEMO_ADMIN, DEMO_VIEWER } from './constants';
+import {
+  AUTH_PORT,
+  DEFAULT_DEV_AUTH_SECRET,
+  DEMO_ADMIN,
+  DEMO_VIEWER,
+} from './constants';
 import type { PermissionCacheConfig } from './permission-cache';
+import {
+  assertProductionAuthSecret,
+  buildTrustedOrigins,
+  isAuthProduction,
+  usesHttpsOrigin,
+} from './production';
 import {
   assignUserRole,
   ensureRbacSchema,
@@ -24,7 +35,10 @@ export type CreateAuthOptions = {
   databasePath?: string;
   baseURL?: string;
   secret?: string;
-  /** When false, skip demo user seed (tests that sign up themselves). */
+  /**
+   * When set, forces demo seed on/off.
+   * When unset, seeds outside production only.
+   */
   seedDemoUsers?: boolean;
   /** Optional soft-fail permission cache via cache-store. */
   permissionCache?: PermissionCacheConfig;
@@ -35,6 +49,8 @@ export type CreateAuthOptions = {
   appOrigin?: string;
   /** Override password-reset email sender (tests). Default logs the app URL. */
   sendResetPassword?: BetterAuthSendResetPassword;
+  /** Env bag for production / origin detection (defaults to `Bun.env`). */
+  env?: Record<string, string | undefined>;
 };
 
 export type AuthContext = {
@@ -42,8 +58,6 @@ export type AuthContext = {
   db: AuthSqlite;
   permissionCache?: PermissionCacheConfig;
 };
-
-const DEFAULT_SECRET = 'agentos-dev-auth-secret-min-32-chars!!';
 
 /** Default local store: `~/.agentos/store/auth.sqlite` (override with AGENT_OS_EXT_AUTH_DB). */
 function defaultDatabasePath(): string {
@@ -95,14 +109,24 @@ async function seedDemoUser(
 export async function createAuth(
   options: CreateAuthOptions = {},
 ): Promise<AuthContext> {
+  const env = options.env ?? Bun.env;
+  const production = isAuthProduction(env);
+  const resolvedSecret =
+    options.secret ?? (production ? undefined : DEFAULT_DEV_AUTH_SECRET);
+  assertProductionAuthSecret(resolvedSecret, env);
+  if (!resolvedSecret) {
+    throw new Error('AGENT_OS_EXT_AUTH_SECRET is required');
+  }
+
   const databasePath = options.databasePath ?? defaultDatabasePath();
   const db = openDatabase(databasePath);
   const baseURL = options.baseURL ?? `http://127.0.0.1:${AUTH_PORT}`;
-  const secret = options.secret ?? DEFAULT_SECRET;
   const appOrigin =
     options.appOrigin ??
-    process.env.AGENT_OS_GLOBAL_APP_ORIGIN ??
+    env.AGENT_OS_GLOBAL_APP_ORIGIN ??
     'http://localhost:5173';
+  const useHttps = usesHttpsOrigin(appOrigin, baseURL);
+  const shouldSeed = options.seedDemoUsers ?? !production;
 
   const sendResetPassword: BetterAuthSendResetPassword = async (
     data,
@@ -119,22 +143,17 @@ export async function createAuth(
   const betterAuthOptions: BetterAuthOptions = {
     database: db,
     baseURL,
-    secret,
+    secret: resolvedSecret,
     emailAndPassword: {
       enabled: true,
       sendResetPassword,
     },
-    trustedOrigins: [
-      baseURL,
-      appOrigin,
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-    ],
+    trustedOrigins: buildTrustedOrigins(baseURL, appOrigin, production),
     advanced: {
-      useSecureCookies: false,
+      useSecureCookies: useHttps,
       defaultCookieAttributes: {
         sameSite: 'lax' as const,
-        secure: false,
+        secure: useHttps,
         httpOnly: true,
         path: '/',
       },
@@ -149,7 +168,7 @@ export async function createAuth(
 
   const auth = betterAuth(betterAuthOptions) as Auth;
 
-  if (options.seedDemoUsers !== false) {
+  if (shouldSeed) {
     await seedDemoUser(auth, db, DEMO_ADMIN);
     await seedDemoUser(auth, db, DEMO_VIEWER);
   }

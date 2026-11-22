@@ -43,11 +43,14 @@ export const platformKeys = (runtimeEnv: RuntimeEnv = Bun.env) =>
       AGENT_OS_GLOBAL_NODE_ENV: z
         .enum(['development', 'production', 'test'])
         .optional(),
+      /** Consumer Shell origin (password-reset links, trustedOrigins, secure cookies). */
+      AGENT_OS_GLOBAL_APP_ORIGIN: z.url().optional(),
     },
     clientPrefix: 'AGENT_OS_GLOBAL_CLIENT',
     client: {},
     runtimeEnv: {
       AGENT_OS_GLOBAL_NODE_ENV: runtimeEnv.AGENT_OS_GLOBAL_NODE_ENV,
+      AGENT_OS_GLOBAL_APP_ORIGIN: runtimeEnv.AGENT_OS_GLOBAL_APP_ORIGIN,
     },
     emptyStringAsUndefined: true,
   });

@@ -28,3 +28,18 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 Customer (and most) APIs call builtins through `@agentos/core/api/*` or `agentos.*` — never hold `DATABASE_URL` themselves.
 
 Extension Manager shows builtins as **locked**.
+
+## Auth production env
+
+Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`.
+
+| Variable                                 | Production                       | Notes                                                                          |
+| ---------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------ |
+| `AGENT_OS_EXT_AUTH_SECRET`               | **Required** (≥32 chars)         | No default; must not be the local dev secret                                   |
+| `AGENT_OS_GLOBAL_APP_ORIGIN`             | **Required** for HTTPS Shell     | e.g. `https://app.example.com` — trustedOrigins + secure cookies + reset links |
+| `AGENT_OS_EXT_AUTH_BASE_URL`             | **Required** for public auth URL | Better Auth `baseURL` as seen by the browser / gateway                         |
+| `AGENT_OS_GLOBAL_NODE_ENV` or `NODE_ENV` | `production`                     | Disables demo admin/viewer seed; requires real secret                          |
+| `AGENT_OS_EXT_AUTH_SEED_DEMO`            | Optional `true`/`false`          | Override seed default (`false` in production, `true` otherwise)                |
+| `AGENT_OS_EXT_AUTH_DB`                   | Optional                         | SQLite path (Postgres URL is ticket **56**)                                    |
+
+When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, auth sets `useSecureCookies` and `Secure` cookie attributes.
