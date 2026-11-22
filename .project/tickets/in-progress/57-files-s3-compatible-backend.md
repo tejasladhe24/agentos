@@ -1,6 +1,6 @@
 # 57 — Files S3-compatible backend
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -12,12 +12,12 @@ Add an S3-compatible blob backend for builtin `files` (via `Bun.S3Client` or equ
 
 ## Done when
 
-- [ ] Local filesystem backend remains default (`AGENT_OS_EXT_FILES_PATH` / temp root)
-- [ ] When bucket env is set, use S3-compatible client (endpoint + region + credentials)
-- [ ] Env keys documented and wired through `files` `keys()` / app `createEnv` extends
-- [ ] Path-traversal protections preserved
-- [ ] Tests: filesystem backend + mocked or optional S3 integration
-- [ ] Docs example: R2 vs S3 vs GCS env values (no R2 SDK in core)
+- [x] Local filesystem backend remains default (`AGENT_OS_EXT_FILES_PATH` / temp root)
+- [x] When bucket env is set, use S3-compatible client (endpoint + region + credentials)
+- [x] Env keys documented and wired through `files` `keys()` / app `createEnv` extends
+- [x] Path-traversal protections preserved
+- [x] Tests: filesystem backend + mocked or optional S3 integration
+- [x] Docs example: R2 vs S3 vs GCS env values (no R2 SDK in core)
 
 ## Notes
 

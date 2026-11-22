@@ -30,7 +30,11 @@ export async function handleFilesRequest(
   const method = request.method.toUpperCase();
 
   if (method === 'GET' && path === '/health') {
-    return json({ ok: true, rootDir: store.rootDir });
+    return json({
+      ok: true,
+      backend: store.backend,
+      label: store.label,
+    });
   }
 
   const key = parseBlobPath(path);
