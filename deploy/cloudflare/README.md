@@ -53,12 +53,14 @@ First deploy builds the full monorepo image — expect several minutes. After th
 
 Workflow: [`.github/workflows/deploy-cloudflare.yml`](../../.github/workflows/deploy-cloudflare.yml).
 
-| Trigger                 | Behavior                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Push to **`main`**      | Install → `pnpm ci` → fail-closed secret check → `pnpm deploy:cloudflare` (production `agentos`)              |
-| Push to **`dev`**       | Same CI, then `pnpm deploy:cloudflare:dev` → Wrangler `--env dev` (staging Worker `agentos`)                  |
-| **`workflow_dispatch`** | Choose `production` or `dev`                                                                                  |
-| Pull requests           | **No** Cloudflare deploy (verification stays on [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)) |
+| Trigger                 | Behavior                                                                                                             |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Push to **`main`**      | Workflow smoke → `pnpm run ci` → fail-closed secret check → `pnpm run deploy:cloudflare` (production `agentos-demo`) |
+| Push to **`dev`**       | Same, then `pnpm run deploy:cloudflare:dev` → Wrangler `--env dev` (staging Worker `agentos`)                        |
+| **`workflow_dispatch`** | Choose `production` or `dev`                                                                                         |
+| Pull requests           | **No** Cloudflare deploy; PR CI runs deploy-workflow smoke (catches `pnpm ci` vs `pnpm run ci`, missing scripts)     |
+
+Always use `pnpm run <script>` in the deploy workflow — bare `pnpm ci` is a pnpm builtin and does **not** run the repo `ci` script (`ERR_PNPM_CI_NOT_IMPLEMENTED`). Local check: `bun ./scripts/check-deploy-workflow.ts`.
 
 ### Preview / staging policy
 
