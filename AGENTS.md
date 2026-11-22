@@ -10,7 +10,7 @@ This repository is the **AgentOS** experiment. Coding agents must follow project
    - [`.agents/skills/agentos-architecture/SKILL.md`](.agents/skills/agentos-architecture/SKILL.md)
    - [`.agents/skills/agentos-ticket-planner/SKILL.md`](.agents/skills/agentos-ticket-planner/SKILL.md)
    - [`.agents/skills/agentos-bun-runtime/SKILL.md`](.agents/skills/agentos-bun-runtime/SKILL.md)
-   - [`.agents/skills/agentos-git-workflow/SKILL.md`](.agents/skills/agentos-git-workflow/SKILL.md) — commits/PRs (`dev`/`main`)
+   - [`.agents/skills/agentos-git-workflow/SKILL.md`](.agents/skills/agentos-git-workflow/SKILL.md) — commits; **`bun run ci` before every PR** (to `dev` or `main`); default squash one-ticket PRs → `dev`; stack + rebase-merge when batching; squash `DEPLOYMENT dev->main: …` → `main`; post-merge Cloudflare deploy
 
 ## Hard rules
 

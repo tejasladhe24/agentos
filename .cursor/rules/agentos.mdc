@@ -7,7 +7,7 @@ Before planning or implementing work in this repository:
 
 1. Follow `AGENTS.md` at the repo root.
 2. Read `.project/docs/concepts.md` (extension vs service vs packages).
-3. Use skills: `agentos-architecture`, `agentos-ticket-planner`, `agentos-bun-runtime`.
+3. Use skills: `agentos-architecture`, `agentos-ticket-planner`, `agentos-bun-runtime`, and `agentos-git-workflow` for commits/PRs (`bun run ci` before every PR to `dev` or `main`; default squash one ticket → `dev`; stack + rebase-merge to batch; `DEPLOYMENT dev->main: …` → `main`; live UI QA when customer-facing).
 4. pnpm = install; Bun = run TS/JS; never Node for services.
 5. Do not start build tickets 1+ until the user explicitly asks to build.
 6. On implement: move the working ticket `todo/` → `in-progress/`. Never move tickets to `done/` (reconciliation owns that).
