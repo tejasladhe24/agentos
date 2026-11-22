@@ -20,6 +20,7 @@ import {
 } from '@agentos/core/gateway/lib/index';
 
 import { toConnectMiddleware, type ConnectMiddleware } from './connect-adapter';
+import { collectEntryCss } from './collect-entry-css';
 import { serializeExtEntryModule } from './ext-entry-module';
 import {
   parseVirtualExtEntryId,
@@ -431,6 +432,9 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
         const meta = buildEntryNames.get(output.name);
         if (!meta) continue;
         const scriptSrc = `/${fileName}`;
+        const stylesheets = collectEntryCss(output, bundle).map(
+          (cssFile) => `/${cssFile}`,
+        );
         this.emitFile({
           type: 'asset',
           fileName: `__agentos/ext/${meta.extensionId}/${meta.view}.html`,
@@ -438,6 +442,7 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
             extensionId: meta.extensionId,
             view: meta.view,
             scriptSrc,
+            stylesheets,
           }),
         });
       }

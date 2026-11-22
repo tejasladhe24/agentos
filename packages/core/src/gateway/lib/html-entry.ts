@@ -27,22 +27,32 @@ export function parseExtHtmlPath(pathname: string): ParsedExtHtmlPath | null {
 }
 
 /**
- * Minimal HTML shell that loads the entry module.
+ * Minimal HTML shell that loads the entry module (and optional stylesheets).
  * `scriptSrc` is `/@id/virtual:...` in Vite dev or the built chunk path in production.
+ * `stylesheets` are production CSS asset paths (e.g. `/assets/globals-….css`);
+ * Vite injects CSS in dev, so this is empty there.
  */
 export function renderExtHtmlEntry(options: {
   extensionId: string;
   view: UiViewName;
   scriptSrc: string;
+  stylesheets?: readonly string[];
 }): string {
-  const { extensionId, view, scriptSrc } = options;
+  const { extensionId, view, scriptSrc, stylesheets = [] } = options;
   const title = `${extensionId} ${view}`;
+  const links = stylesheets
+    .map(
+      (href) =>
+        `  <link rel="stylesheet" crossorigin href="${escapeHtml(href)}" />`,
+    )
+    .join('\n');
+  const linkBlock = links ? `\n${links}` : '';
   return `<!DOCTYPE html>
 <html lang="en" data-agentos-ext>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(title)}</title>
+  <title>${escapeHtml(title)}</title>${linkBlock}
   <script>
     (function () {
       try {
