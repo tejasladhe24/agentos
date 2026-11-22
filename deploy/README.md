@@ -106,9 +106,30 @@ Provider API key env vars are not part of the contract yet; when added they will
 - **No** Wrangler / Workers tooling baked into the production image.
 - This runbook is **container deploy**, not the Next host spike (ticket 30).
 
+## Cloudflare adapter
+
+Thin disposable Worker under [`cloudflare/`](./cloudflare/). It proxies HTTPS to one Container that runs this image on **8080**. Details: [`cloudflare/README.md`](./cloudflare/README.md).
+
+| Prerequisite           | Notes                                                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Workers Paid**       | Containers are not available on the free Workers plan                                                                                        |
+| **R2** bucket          | Create a bucket + S3 API credentials; set `AGENT_OS_EXT_FILES_S3_*` (endpoint `https://<accountid>.r2.cloudflarestorage.com`, region `auto`) |
+| **Neon** (or Postgres) | Set `AGENT_OS_EXT_AUTH_DB` and `AGENT_OS_EXT_DB_STORE_DATABASE_URL` (prefer Neon **direct** host for auth migrations)                        |
+| **Custom domain**      | Attach to the Worker; set `AGENT_OS_GLOBAL_APP_ORIGIN` and `AGENT_OS_EXT_AUTH_BASE_URL` to that HTTPS origin                                 |
+
+```bash
+pnpm install
+# secrets: cd deploy/cloudflare && pnpm exec wrangler secret put …
+pnpm deploy:cloudflare
+```
+
+Image path in `wrangler.jsonc`: `../../Dockerfile` with `image_build_context: ../..` (monorepo root). First deploy builds the full image — expect several minutes. `max_instances: 1` until tickets **60** / **61** if you scale out.
+
+Do **not** put Cloudflare R2 bindings or `@cloudflare/*` into `packages/core` — only inject credentials as container env.
+
 ## Migrate off Cloudflare
 
-1. Stop using (or delete) `deploy/cloudflare/` once ticket 62 lands.
+1. Stop using (or delete) `deploy/cloudflare/`.
 2. Push the **same** image to your registry.
 3. Run it behind Cloud Run, ALB + ECS Fargate, or Ingress + EKS — listen on **8080**, forward the env checklist above.
 4. Point DNS / TLS at the new front door; app origin and auth base URL stay the public HTTPS URLs.
@@ -120,7 +141,7 @@ No gateway rewrite; adapters are disposable.
 | Path                 | Status                                                                     |
 | -------------------- | -------------------------------------------------------------------------- |
 | `deploy/README.md`   | This runbook                                                               |
-| `deploy/cloudflare/` | Ticket **62** — thin Worker + Containers adapter                           |
+| `deploy/cloudflare/` | Thin Worker + Containers adapter (`pnpm deploy:cloudflare`)                |
 | `deploy/k8s/`        | **Placeholder** — future Ingress / ECS / EKS manifests (out of scope here) |
 | `deploy/gcp/`        | **Placeholder** — future Cloud Run manifests (out of scope here)           |
 

@@ -1,0 +1,55 @@
+/**
+ * Cloudflare adapter for the portable AgentOS image (repo-root Dockerfile).
+ * Disposable: same image runs on Cloud Run / ECS / EKS without this Worker.
+ *
+ * Uses the default Containers scheduling policy so max_instances is enforced.
+ * Worker code uses the Durable Object Container API (ctx.container) — not the
+ * deprecated @cloudflare/containers package.
+ */
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "agentos",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-22",
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+  },
+  "containers": [
+    {
+      "class_name": "AgentOsContainer",
+      // Root Dockerfile — build context is the monorepo root.
+      "image": "../../Dockerfile",
+      "image_build_context": "../..",
+      "max_instances": 1,
+      // Bun gateway + Python/Bun sidecars need more than lite.
+      "instance_type": "standard-1",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AGENT_OS_CONTAINER",
+        "class_name": "AgentOsContainer",
+      },
+    ],
+  },
+  "exports": {
+    "AgentOsContainer": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+  },
+  // Non-secret defaults. Override per-env; put secrets via `wrangler secret put`.
+  "vars": {
+    "PORT": "8080",
+    "NODE_ENV": "production",
+    "AGENT_OS_GLOBAL_NODE_ENV": "production",
+    // Set these to your public HTTPS origin after attaching a custom domain:
+    // "AGENT_OS_GLOBAL_APP_ORIGIN": "https://app.example.com",
+    // "AGENT_OS_EXT_AUTH_BASE_URL": "https://app.example.com",
+    // "AGENT_OS_EXT_FILES_S3_BUCKET": "agentos-files",
+    // "AGENT_OS_EXT_FILES_S3_ENDPOINT": "https://<accountid>.r2.cloudflarestorage.com",
+    // "AGENT_OS_EXT_FILES_S3_REGION": "auto",
+  },
+}
