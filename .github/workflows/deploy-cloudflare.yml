@@ -48,8 +48,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Deploy workflow smoke
+        run: bun ./scripts/check-deploy-workflow.ts
+
       - name: CI
-        run: pnpm ci
+        # Must be `pnpm run ci` — bare `pnpm ci` is a pnpm builtin (unimplemented).
+        run: pnpm run ci
 
       - name: Resolve deploy target
         id: target
@@ -80,7 +84,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ "${{ steps.target.outputs.env }}" = "dev" ]; then
-            pnpm deploy:cloudflare:dev
+            pnpm run deploy:cloudflare:dev
           else
-            pnpm deploy:cloudflare
+            pnpm run deploy:cloudflare
           fi
