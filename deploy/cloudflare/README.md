@@ -14,7 +14,7 @@ See the portable env checklist in [`../README.md`](../README.md).
 | **Neon** (or other Postgres) | Auth + db-store survive ephemeral container disks                                          |
 | Custom domain (recommended)  | Set `AGENT_OS_GLOBAL_APP_ORIGIN` / `AGENT_OS_EXT_AUTH_BASE_URL` to the public HTTPS origin |
 
-Optional before multi-instance: tickets **60** / **61**. This adapter pins `max_instances: 1`.
+Optional before multi-instance: set `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` for shared cache; events SSE remains process-local. This adapter pins `max_instances: 1`.
 
 ## Layout
 
@@ -182,7 +182,7 @@ curl -sS "$BASE_URL/api/ext/files/blobs/$KEY"
 
 If S3 env is unset, `/api/ext/files/health` may still return ok on ephemeral local storage — skip the PUT/GET durability claim and note it in the ticket.
 
-Keep `max_instances: 1` until tickets **60** / **61** if you rely on in-memory HITL/cache. File gaps as follow-ups under `.project/tickets/todo/`; automated Playwright against a preview URL is an optional later ticket.
+Keep `max_instances: 1` until Redis is wired for cache-store (`AGENT_OS_EXT_CACHE_STORE_REDIS_URL`) if replicas must share caches; HITL/notifications/events outbox are already durable via db-store. File gaps as follow-ups under `.project/tickets/todo/`; automated Playwright against a preview URL is an optional later ticket.
 
 ## Migrate off Cloudflare
 

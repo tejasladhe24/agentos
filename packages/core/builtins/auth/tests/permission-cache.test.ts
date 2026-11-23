@@ -108,10 +108,10 @@ describe('auth permission check + cache-store', () => {
 
     const cacheUser = adminOrgId ? `${adminUserId}:${adminOrgId}` : adminUserId;
     const key = permissionCacheKey(cacheUser, PERMISSION_ADMIN_ONLY);
-    expect(memory.get(key)).toEqual({ allowed: true });
+    expect(await memory.get(key)).toEqual({ allowed: true });
 
     // Overwrite cache to prove subsequent reads skip SQLite.
-    memory.set(key, { allowed: false }, 30);
+    await memory.set(key, { allowed: false }, 30);
 
     const second = await handleAuthRequest(
       ctx,

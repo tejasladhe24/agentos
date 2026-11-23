@@ -1,13 +1,15 @@
 import { keys } from './env';
 import { CACHE_STORE_PORT } from './lib/constants';
-import { createMemoryCache } from './lib/create-cache';
+import { createCacheStore } from './lib/create-store';
 import { handleCacheStoreRequest } from './lib/handle-request';
 
 const env = keys();
 
 const port = env.AGENT_OS_EXT_CACHE_STORE_PORT ?? CACHE_STORE_PORT;
 
-const cache = createMemoryCache();
+const cache = createCacheStore({
+  redisUrl: env.AGENT_OS_EXT_CACHE_STORE_REDIS_URL,
+});
 
 const server = Bun.serve({
   port,

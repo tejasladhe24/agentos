@@ -244,7 +244,7 @@ Opening **Extensions** or **Approvals** from the Activity Bar (secondary) swaps 
 Customer enable/disable toggles are stored in builtin **db-store** (collection `agentos_gateway`, doc `extension-enable`) — not Cloudflare KV. Vite (`agentos()`) and `agentos start` share the same load/save path; builtins stay locked.
 
 - **Single replica:** safe — Map is process-local, rehydrated from db-store on boot; Shell also `GET /api/extensions/enable-state` on mount.
-- **Multi-replica:** each process keeps its own Map cache. Writes go to shared db-store, but other replicas can lag until restart/rehydrate. Keep `max_instances` / replicas at **1** until a later read-through or invalidation design (see roadmap tickets 60–61).
+- **Multi-replica:** each process keeps its own Map cache for enable-state. Writes go to shared db-store, but other replicas can lag until restart/rehydrate. Keep `max_instances` / replicas at **1** until a later read-through or invalidation design. For shared **cache-store** KV (permissions, rate limits, fingerprints), set `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` before scaling out.
 
 ```json
 {
