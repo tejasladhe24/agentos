@@ -43,7 +43,10 @@ function unauthenticated(c: AppContext): Response {
 function encodeBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 function decodeBase64Url(input: string): Uint8Array {
@@ -204,9 +207,7 @@ export function isPublicApiPath(
 }
 
 /** Read public access stashed by `requirePublicToken`. */
-export function getPublicAccess(
-  c: AppContext,
-): PublicTokenPayload | undefined {
+export function getPublicAccess(c: AppContext): PublicTokenPayload | undefined {
   return c.get<PublicTokenPayload>(PUBLIC_ACCESS_KEY);
 }
 

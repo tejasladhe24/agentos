@@ -83,9 +83,7 @@ function parsePublicUiRoute(raw: unknown): ExtensionPublicUiRoute | undefined {
     return undefined;
   }
   const view =
-    entry.view === 'page' ||
-    entry.view === 'sidebar' ||
-    entry.view === 'widget'
+    entry.view === 'page' || entry.view === 'sidebar' || entry.view === 'widget'
       ? entry.view
       : 'page';
   return { path: entry.path, view };

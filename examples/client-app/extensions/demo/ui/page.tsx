@@ -13,7 +13,9 @@ export default function Page() {
     const token = params.get('token');
     if (!token) {
       setStatus('no-token');
-      setDetail('Open /p/demo?token=… after minting via POST /api/ext/demo/links/mint');
+      setDetail(
+        'Open /p/demo?token=… after minting via POST /api/ext/demo/links/mint',
+      );
       return;
     }
 
@@ -55,9 +57,7 @@ export default function Page() {
       <p data-demo-status={status} style={{ fontSize: 14 }}>
         Status: {status}
       </p>
-      {detail ? (
-        <p style={{ fontSize: 13, opacity: 0.8 }}>{detail}</p>
-      ) : null}
+      {detail ? <p style={{ fontSize: 13, opacity: 0.8 }}>{detail}</p> : null}
     </div>
   );
 }

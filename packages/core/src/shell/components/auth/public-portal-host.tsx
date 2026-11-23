@@ -33,8 +33,7 @@ function PortalFrame({
   const { resolvedTheme } = useTheme();
   const theme = themeProp ?? resolvedTheme ?? 'dark';
   const query =
-    search ??
-    (typeof window !== 'undefined' ? window.location.search : '');
+    search ?? (typeof window !== 'undefined' ? window.location.search : '');
   const base = withThemeQuery(route.iframeSrc, theme);
   const src = query
     ? `${base}${base.includes('?') ? '&' : '?'}${query.replace(/^\?/, '')}`

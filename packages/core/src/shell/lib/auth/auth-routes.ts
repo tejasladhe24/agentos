@@ -1,7 +1,4 @@
-import type {
-  RegistryModel,
-  UiViewName,
-} from '@agentos/core/vite/lib/types';
+import type { RegistryModel, UiViewName } from '@agentos/core/vite/lib/types';
 
 export type PublicAuthRoute =
   'login' | 'register' | 'forgot-password' | 'reset-password';
@@ -95,10 +92,7 @@ export function collectPublicExtensionRoutes(
   return out;
 }
 
-function pathMatchesPublicPattern(
-  pathname: string,
-  pattern: string,
-): boolean {
+function pathMatchesPublicPattern(pathname: string, pattern: string): boolean {
   const path = normalizePathname(pathname);
   const raw = pattern.trim();
   if (raw.endsWith('/*')) {

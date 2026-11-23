@@ -107,10 +107,10 @@ not be a wide-open bypass. Declare them on the extension:
 }
 ```
 
-| Field | Meaning |
-| ----- | ------- |
-| `public.ui[].path` | SPA pathname AuthGate admits without login (exact, or prefix with `/*`) |
-| `public.ui[].view` | Extension view to iframe (`page` default) |
+| Field                | Meaning                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| `public.ui[].path`   | SPA pathname AuthGate admits without login (exact, or prefix with `/*`) |
+| `public.ui[].view`   | Extension view to iframe (`page` default)                               |
 | `public.apiPrefixes` | Upstream path prefixes (after `/api/ext/:id`) that accept public tokens |
 
 **Shell:** AuthGate renders a minimal portal host (branding + iframe to
