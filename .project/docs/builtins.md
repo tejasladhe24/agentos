@@ -19,7 +19,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | **settings**      | App/platform preferences; Activity Bar **secondary** (`GearSix`) opens `ui/page.tsx` (distinct from Auth **account** settings) |
 | **events**        | Cross-extension pub/sub                                                                                                        |
 | **files**         | Blob/object API (local FS default; optional S3-compatible)                                                                     |
-| **notifications** | Toast/fan-out; recent inbox durable via db-store                                                                               |
+| **notifications** | Toast/fan-out + email/SMS delivery; recent inbox + delivery status via db-store                                                |
 | **secrets**       | Secret resolution                                                                                                              |
 | **audit**         | Append-only audit via db-store                                                                                                 |
 
@@ -32,6 +32,33 @@ Extension Manager shows builtins as **locked**.
 ## Scale / replicas
 
 HITL approvals and the notifications recent inbox persist through **db-store** (SQLite or Postgres), so a **single-replica** restart keeps pending approvals and recent toasts. Keep Cloudflare `max_instances` / ECS/EKS replicas at **1** until **cache-store** (Redis) and **events** are also externalized — multi-instance would still diverge on in-memory cache/pubsub. Redis via cache-store is an optional follow-up for horizontal scale.
+
+## Notifications delivery env
+
+Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default providers are **log sinks** (print and mark `sent`) so local/dev works without Resend / Cloudflare / Twilio.
+
+| Variable                                      | Role                                                            |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_PROVIDER`   | `log` (default), `resend`, or `cloudflare` (Email Sending REST) |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_API_KEY`    | Resend API key, or Cloudflare API token (`Email Sending Write`) |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_FROM`       | From address (required for `resend` / `cloudflare`)             |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_ACCOUNT_ID` | Cloudflare account id (required when provider is `cloudflare`)  |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_PROVIDER`     | `log` (default) or `twilio`                                     |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID`  | Twilio Account SID                                              |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_AUTH_TOKEN`   | Twilio Auth Token                                               |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM`         | Twilio from number (E.164)                                      |
+
+**Cloudflare Email Sending** uses the public REST API (`POST /accounts/{account_id}/email/sending/send`) — no Workers binding inside the Bun builtin. Domain must be onboarded under Email Service; token needs **Email Sending Write**.
+
+**API**
+
+| Method | Path                                    | Role                                                                                                                                           |
+| ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/ext/notifications/notify`         | Enqueue: `channel` `in_app` \| `email` \| `sms` (default `in_app`); optional `templateId`, `vars`, `to`, `subject`, `message`, `type`, `orgId` |
+| `GET`  | `/api/ext/notifications/recent`         | In-app inbox only (Shell toasts)                                                                                                               |
+| `GET`  | `/api/ext/notifications/deliveries/:id` | Delivery status (`queued` \| `sent` \| `failed`)                                                                                               |
+
+**Templates** (builtin catalog ids): `client-reminder` (`name`, `title`, `message`, `appName`), `digest` (`date`, `summary`). Placeholders use `{{var}}`; missing vars render as empty strings. Per-org custom templates are a follow-up.
 
 ## Auth production env
 
