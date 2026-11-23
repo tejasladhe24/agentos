@@ -87,12 +87,35 @@ Agents must never promote tickets to `done/` themselves.
 67. Extension iframe production CSS links — **done**
 68. Deploy workflow command smoke (`pnpm run ci`) — **done**
 69. GitHub Actions Node 22 for Wrangler — **done**
+70. Solo freelancer portfolio + $5k–$10k pipeline (personal; not AgentOS platform)
+71. Tenancy: org model + org-scoped db-store — **in-progress**
+72. Public (unauthenticated) extension routes
+73. Notifications: email and SMS delivery channels
+74. Durable event queue + job scheduler (+ `hitl.resolved`)
+75. Auth: SAML/OIDC SSO + role admin API
+76. db-store query operators, sort, and indexes
+77. Per-tenant credential vault (secrets)
+78. OAuth connect + inbound webhook kits
+79. `vector-store` builtin (pgvector)
+80. Worker service type (long jobs / headless browser)
+81. cache-store Redis backend
+82. SDK parity: files, events, audit, secrets, notifications
+83. `meta.json`: Bun API + linked Python service per extension
+84. db-store bulk insert + retention/TTL
+85. AI: structured JSON output + file/image inputs
+86. Inbound email per org
+87. Retention policies + subject deletion
+88. TrustDesk MVP (`examples/trustdesk`)
+89. CloseDesk MVP (`examples/closedesk`)
+90. VendorGate MVP (`examples/vendorgate`)
+91. PlacementOS MVP (`examples/placementos`)
+92. ChannelGuard MVP (`examples/channelguard`)
 
-70. Tenancy: org model + org-scoped db-store — **in-progress**
-
-**Open:** `todo/` — **29** (E2E), **30** (Next host spike), **65** (R2 files round-trip after enabling R2). `in-progress/` — **71** (tenancy).
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **72**–**92**. `in-progress/` — **71** (tenancy).
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
+
+**Portfolio platform order (framework first):** **71 → 72 → 73 → 74** (close-first), then **75**–**87** as needed; product MVPs **88 → 89 → 90 → 91 → 92**. Source: [`.project/portfolio/portfolio-briefs.md`](../portfolio/portfolio-briefs.md). Do not start build tickets until the user explicitly asks.
 
 **Runtime policy:** `pnpm install` for the monorepo; `bun run` / `bun` for all TS/JS services (never Node).
 
