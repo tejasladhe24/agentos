@@ -13,17 +13,17 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 
 ## Supporting (default-on)
 
-| Id                | Role                                                                                                                           |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **hitl**          | Approvals API (durable via db-store); Activity Bar **secondary** opens HITL panel in left sidebar (no `ui/`)                   |
-| **settings**      | App/platform preferences; Activity Bar **secondary** (`GearSix`) opens `ui/page.tsx` (distinct from Auth **account** settings) |
-| **events**        | Cross-extension pub/sub                                                                                                        |
-| **files**         | Blob/object API + Drive-style Activity Bar UI (local FS default; optional S3-compatible; org-scoped)                           |
-| **notifications** | Toast/fan-out + email/SMS delivery; recent inbox + delivery status via db-store                                                |
-| **secrets**       | Per-tenant credential vault (encrypted) + env fallback                                                                         |
-| **audit**         | Append-only audit via db-store                                                                                                 |
-| **vector-store**  | Org-scoped embedding upsert / similarity query (pgvector; in-memory for local/tests)                                           |
-| **inbound-email** | Per-org inbound address → attachments in `files` + durable `email.received` event                                              |
+| Id                | Role                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **hitl**          | Approvals API (durable via db-store); Activity Bar **secondary** opens HITL panel in left sidebar (no `ui/`)                                                   |
+| **settings**      | App/platform preferences; Activity Bar **secondary** (`GearSix`) opens `ui/page.tsx` (distinct from Auth **account** settings)                                 |
+| **events**        | Cross-extension pub/sub                                                                                                                                        |
+| **files**         | Blob/object API + Drive-style Activity Bar UI (local FS default; optional S3-compatible; org-scoped)                                                           |
+| **notifications** | Toast/fan-out + email/SMS delivery; recent inbox + delivery status via db-store                                                                                |
+| **secrets**       | Per-tenant credential vault (encrypted) + env fallback                                                                                                         |
+| **audit**         | Append-only Activity log via db-store; Activity Bar **secondary** (`ListBullets`, chrome label **Activity**) opens `ui/page.tsx` — **not** the `events` outbox |
+| **vector-store**  | Org-scoped embedding upsert / similarity query (pgvector; in-memory for local/tests)                                                                           |
+| **inbound-email** | Per-org inbound address → attachments in `files` + durable `email.received` event                                                                              |
 
 ## Access pattern
 
@@ -259,6 +259,24 @@ Org-level defaults and **legal hold** live beside collection policies (ticket 84
 | Legal hold gate                                  | Provider / ESP / CDN access logs                        |
 
 TS: `dbStore.setOrgRetention / getOrgRetention / deleteSubject`. Python: `set_org_retention` / `get_org_retention` / `delete_subject`. Files: `deleteBlob` / `delete_blob`.
+
+## Audit / Activity (ticket 97)
+
+Builtin **`audit`** is the append-only **Activity** log (who did what). Product chrome label is **Activity**; extension id stays `audit`. It is **not** the **`events`** outbox / claim / dead-letter surface — keep those UIs separate.
+
+`audit_entries` remains a **platform** db-store collection (`org_id = __platform__`). Soft tenancy stamps a top-level document **`orgId`** on append (session cookie or peer `X-AgentOS-Org-Id`). Session `GET /entries` filters `where: { orgId }` and requires permission **`audit.read`** (seeded on admin/owner/reviewer/sales). Peer header skips RBAC. Pre-97 rows without top-level `orgId` are not shown in the tenant Activity UI.
+
+| Method | Path                     | Role                                                                                     |
+| ------ | ------------------------ | ---------------------------------------------------------------------------------------- |
+| `POST` | `/api/ext/audit/entries` | Append `{ action, actor?, resource?, meta? }`; stamps `orgId` + `at`                     |
+| `GET`  | `/api/ext/audit/entries` | Query: `action`, `actor`, `resource`, `q`, `from`, `to`, `limit` (≤100), opaque `cursor` |
+| `GET`  | `/api/ext/audit/health`  | `{ ok, backend: "db-store" }`                                                            |
+
+**Pagination:** opaque `cursor` encodes a db-store scan **offset** (base64url). Response `{ entries, nextCursor? }` ordered by `at` desc. UI uses **Load more**. Free-text `q` and action prefix (`subject.*`) are applied in the audit API after structured db-store filters.
+
+**Activity UI:** secondary Activity Bar → `ui/page.tsx` — filter/search, detail sheet (redacted `meta`), export JSON/CSV (cap 1000), optional auto-refresh (off by default). Deep-link: iframe `?action=` and/or host storage key `audit.activity.filters`.
+
+TS: `appendEntry` / `listEntries` from `@agentos/core/api/audit` with `{ orgId }` or forwarded cookie. Python: `agentos.audit.append_entry` / `list_entries`.
 
 ## Secrets vault (per-tenant)
 

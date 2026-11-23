@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   CubeIcon,
   GearSixIcon,
+  ListBulletsIcon,
   UserIcon,
   UsersIcon,
 } from '@phosphor-icons/react';
@@ -24,6 +25,7 @@ describe('resolveExtensionIcon', () => {
     expect(resolveExtensionIcon('UsersIcon')).toBe(UsersIcon);
     expect(resolveExtensionIcon('User')).toBe(UserIcon);
     expect(resolveExtensionIcon('GearSix')).toBe(GearSixIcon);
+    expect(resolveExtensionIcon('ListBullets')).toBe(ListBulletsIcon);
     expect(resolveExtensionIcon('Nope')).toBe(DEFAULT_EXTENSION_ICON);
     expect(resolveExtensionIcon(undefined)).toBe(CubeIcon);
   });

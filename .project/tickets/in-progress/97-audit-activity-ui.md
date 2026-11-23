@@ -1,6 +1,6 @@
 # 97 — Audit Activity manager UI (fully functional)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -47,10 +47,10 @@ Today audit is API-only (`POST`/`GET /entries`, limit ≤200) with **no `ui/`**,
 
 ## Done when
 
-- [ ] Activity Bar secondary opens Activity manager UI
-- [ ] Filter, search, pagination, detail, export work end-to-end
-- [ ] Tenant-safe listing (org filter/stamp) documented and enforced for session callers
-- [ ] SDK + docs + tests updated
+- [x] Activity Bar secondary opens Activity manager UI
+- [x] Filter, search, pagination, detail, export work end-to-end
+- [x] Tenant-safe listing (org filter/stamp) documented and enforced for session callers
+- [x] SDK + docs + tests updated
 
 ## Notes
 

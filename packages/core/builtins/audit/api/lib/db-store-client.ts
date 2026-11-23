@@ -5,6 +5,8 @@ export type AuditEntryInput = {
   actor?: string;
   resource?: string;
   meta?: Record<string, unknown>;
+  /** Tenant stamp for Activity list filtering (platform collection soft-tenancy). */
+  orgId?: string;
 };
 
 export type AuditEntry = AuditEntryInput & {
@@ -12,10 +14,36 @@ export type AuditEntry = AuditEntryInput & {
   at: string;
 };
 
+export type QueryInput = {
+  where?: Record<string, unknown>;
+  sort?: Record<string, 'asc' | 'desc'>;
+  limit?: number;
+  offset?: number;
+};
+
 export type DbStoreClient = {
   insert: (entry: AuditEntry) => Promise<AuditEntry>;
-  query: (limit?: number) => Promise<AuditEntry[]>;
+  query: (input?: QueryInput) => Promise<AuditEntry[]>;
 };
+
+function mapDoc(doc: {
+  id: string;
+  data: Record<string, unknown>;
+}): AuditEntry {
+  const data = doc.data ?? {};
+  return {
+    id: doc.id,
+    action: typeof data.action === 'string' ? data.action : '',
+    actor: typeof data.actor === 'string' ? data.actor : undefined,
+    resource: typeof data.resource === 'string' ? data.resource : undefined,
+    meta:
+      data.meta && typeof data.meta === 'object' && !Array.isArray(data.meta)
+        ? (data.meta as Record<string, unknown>)
+        : undefined,
+    orgId: typeof data.orgId === 'string' ? data.orgId : undefined,
+    at: typeof data.at === 'string' ? data.at : '',
+  };
+}
 
 export function createDbStoreClient(baseUrl: string): DbStoreClient {
   const root = baseUrl.replace(/\/+$/, '');
@@ -39,11 +67,19 @@ export function createDbStoreClient(baseUrl: string): DbStoreClient {
       return entry;
     },
 
-    async query(limit = 50) {
+    async query(input: QueryInput = {}) {
+      const limit = input.limit ?? 50;
+      const body: QueryInput = {
+        limit,
+        sort: input.sort ?? { at: 'desc' },
+      };
+      if (input.where) body.where = input.where;
+      if (input.offset !== undefined) body.offset = input.offset;
+
       const res = await fetch(`${root}/collections/${AUDIT_COLLECTION}/query`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ limit }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const detail = await res.text();
@@ -51,28 +87,12 @@ export function createDbStoreClient(baseUrl: string): DbStoreClient {
           `db-store query failed (${res.status}): ${detail || res.statusText}`,
         );
       }
-      const body = (await res.json()) as {
+      const payload = (await res.json()) as {
         items?: Array<{ id: string; data: Record<string, unknown> }>;
         documents?: Array<{ id: string; data: Record<string, unknown> }>;
       };
-      const docs = body.items ?? body.documents ?? [];
-      return docs.map((doc) => {
-        const data = doc.data ?? {};
-        return {
-          id: doc.id,
-          action: typeof data.action === 'string' ? data.action : '',
-          actor: typeof data.actor === 'string' ? data.actor : undefined,
-          resource:
-            typeof data.resource === 'string' ? data.resource : undefined,
-          meta:
-            data.meta &&
-            typeof data.meta === 'object' &&
-            !Array.isArray(data.meta)
-              ? (data.meta as Record<string, unknown>)
-              : undefined,
-          at: typeof data.at === 'string' ? data.at : '',
-        };
-      });
+      const docs = payload.items ?? payload.documents ?? [];
+      return docs.map(mapDoc);
     },
   };
 }
