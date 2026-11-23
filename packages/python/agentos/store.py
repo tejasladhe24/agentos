@@ -25,6 +25,8 @@ class DocumentRow(BaseModel):
 
 class QueryInput(BaseModel):
     where: dict[str, Any] | None = None
+    # { field: "asc" | "desc" } — key order is sort priority
+    sort: dict[str, str] | None = None
     limit: int | None = None
     offset: int | None = None
 

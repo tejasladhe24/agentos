@@ -147,6 +147,35 @@ Permission checks resolve **active org membership role** plus global `user_roles
 
 **Backfill:** existing DBs without `org_id` are migrated in-place; legacy rows get `org_id = '__unscoped__'`. Treat that sentinel as orphaned — reassign or delete before production multi-tenant use. New installs create the org-scoped schema from day one.
 
+### db-store query operators (ticket 76)
+
+`POST /collections/:name/query` accepts Mongo-style field filters. Equality shorthand still works. Operators nest **under a field** (never top-level `$gt`).
+
+| Shape                                        | Meaning                                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `{ city: "London" }`                         | `$eq`                                                                                                              |
+| `{ amount: { $eq: 10 } }`                    | explicit equality                                                                                                  |
+| `{ amount: { $ne: 0 } }`                     | not equal                                                                                                          |
+| `{ amount: { $gt / $gte / $lt / $lte: n } }` | range (numbers compare numerically; other scalars lexicographically via string coerce — ISO dates work as strings) |
+| `{ status: { $in: ["open", "held"] } }`      | membership (non-empty scalar array)                                                                                |
+| `{ amount: { $gte: 10, $lt: 100 } }`         | AND of operators on one field                                                                                      |
+
+**Also:** `sort: { createdAt: "desc", amount: "asc" }` (object key order = priority; fields may be document keys or meta `id` / `createdAt` / `updatedAt`), plus existing `limit` / `offset`.
+
+**Rejected:** unknown `$ops`, top-level `$gt`, empty `$in`, non-scalar comparisons, invalid field names (top-level `A-Za-z0-9_` only — no dotted paths in v1).
+
+**Dialects:** SQLite and Postgres share the **same** operator + sort semantics (evaluated in-process over the org+collection partition). That moves filtering out of portfolio services; it is not yet a SQL pushdown of every predicate.
+
+**Postgres indexes** (created on boot when using Postgres):
+
+| Index                                                                  | Purpose                               |
+| ---------------------------------------------------------------------- | ------------------------------------- |
+| `documents_data_gin` (`GIN` / `jsonb_path_ops`)                        | Containment-style lookups on `data`   |
+| `documents_expiry_at_expr` `(collection, org_id, (data->>'expiryAt'))` | VendorGate / expiry-style range scans |
+| `documents_created_at_meta` `(collection, org_id, created_at DESC)`    | Recent-first lists                    |
+
+Extra expression indexes for app-specific paths (e.g. `data->>'transactedAt'`) can be added in ops without changing the HTTP API — keep the single `documents` table ([ADR 004](./adr/004-db-store-sole-sql-owner.md)).
+
 ## Files storage env
 
 Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default backend is **local filesystem** (`AGENT_OS_EXT_FILES_PATH` or OS temp `agentos-files`). When `AGENT_OS_EXT_FILES_S3_BUCKET` is set, the builtin uses Bun’s portable `S3Client` (works with **Cloudflare R2**, **AWS S3**, and **GCS** S3-compatible endpoints). Do **not** import Cloudflare R2 bindings into `@agentos/core` — ticket 62 only injects credentials into the container env.

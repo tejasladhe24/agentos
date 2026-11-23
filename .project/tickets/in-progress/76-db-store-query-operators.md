@@ -1,6 +1,6 @@
 # 76 — db-store query operators, sort, and indexes
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,13 +15,13 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Supported operators documented (`$gt` / `$gte` / `$lt` / `$lte` / `$in` / `$ne` or equivalent)
-- [ ] `sort` + `limit` (+ optional `offset` or cursor) on query
-- [ ] Nested `$`-operator objects no longer unconditionally rejected
-- [ ] Postgres: optional index hints / documented GIN or expression indexes for common paths
-- [ ] SQLite path supports the same operator subset (or clearly documents reduced support)
-- [ ] Tests cover operators + rejection of unsafe / unknown operators
-- [ ] API kit `store` client updated if request shapes change
+- [x] Supported operators documented (`$gt` / `$gte` / `$lt` / `$lte` / `$in` / `$ne` or equivalent)
+- [x] `sort` + `limit` (+ optional `offset` or cursor) on query
+- [x] Nested `$`-operator objects no longer unconditionally rejected
+- [x] Postgres: optional index hints / documented GIN or expression indexes for common paths
+- [x] SQLite path supports the same operator subset (or clearly documents reduced support)
+- [x] Tests cover operators + rejection of unsafe / unknown operators
+- [x] API kit `store` client updated if request shapes change
 
 ## Notes
 

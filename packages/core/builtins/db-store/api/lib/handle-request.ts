@@ -79,6 +79,12 @@ export async function handleDbStoreRequest(
                 body.where && typeof body.where === 'object'
                   ? (body.where as Record<string, unknown>)
                   : undefined,
+              sort:
+                body.sort &&
+                typeof body.sort === 'object' &&
+                !Array.isArray(body.sort)
+                  ? (body.sort as Record<string, 'asc' | 'desc'>)
+                  : undefined,
               limit: typeof body.limit === 'number' ? body.limit : undefined,
               offset: typeof body.offset === 'number' ? body.offset : undefined,
             },

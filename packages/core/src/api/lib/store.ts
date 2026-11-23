@@ -15,6 +15,8 @@ export type DocumentRow = {
 
 export type QueryInput = {
   where?: Record<string, unknown>;
+  /** `{ field: 'asc' | 'desc' }` — key order is sort priority. */
+  sort?: Record<string, 'asc' | 'desc'>;
   limit?: number;
   offset?: number;
 };
