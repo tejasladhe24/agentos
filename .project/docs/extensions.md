@@ -141,9 +141,15 @@ const token = await signPublicToken({
   purpose: 'portal',
   pathPrefix: '/portal/',
   ttlSeconds: 3600,
+  // optional: role: 'external_viewer' — default from purpose
 });
 // Share: `${AGENT_OS_GLOBAL_APP_ORIGIN}/p/demo?token=${token}`
 ```
+
+Tokens carry a limited **`role`** (default `external_viewer` for `portal` /
+`trust-center` / `client-link` purposes). Use `resolvePublicTokenRole(payload)`
+or `getPublicAccess(c)?.role` when a portal handler needs RBAC-style checks
+without a Better Auth session.
 
 Set `AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET` (≥16 chars) in platform env. Prefer
 expiring signed links over anonymous cookies. Public handlers read

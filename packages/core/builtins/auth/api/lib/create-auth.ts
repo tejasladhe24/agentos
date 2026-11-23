@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { sso, type SSOOptions } from '@better-auth/sso';
 import { betterAuth, type Auth, type BetterAuthOptions } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
 import { Database } from 'bun:sqlite';
@@ -27,6 +28,12 @@ import {
   type AuthDb,
   type AuthDialect,
 } from './rbac-store';
+import {
+  buildSsoPluginOptions,
+  readSsoEnv,
+  ssoTrustedOrigins,
+  type AuthSsoEnv,
+} from './sso-config';
 
 /** @deprecated Prefer AuthDb; kept for callers that typed the old SQLite handle. */
 export type AuthSqlite = Database;
@@ -59,6 +66,10 @@ export type CreateAuthOptions = {
   sendResetPassword?: BetterAuthSendResetPassword;
   /** Env bag for production / origin detection (defaults to `Bun.env`). */
   env?: Record<string, string | undefined>;
+  /** Override SSO env (tests). Defaults to reading from `env`. */
+  ssoEnv?: AuthSsoEnv;
+  /** Extra Better Auth SSO plugin options (tests / advanced). */
+  ssoOptions?: Partial<SSOOptions>;
 };
 
 export type AuthContext = {
@@ -67,6 +78,8 @@ export type AuthContext = {
   db: AuthDb;
   close: () => Promise<void>;
   permissionCache?: PermissionCacheConfig;
+  /** True when a defaultSSO OIDC provider was configured from env/options. */
+  ssoConfigured: boolean;
 };
 
 /** True when the value is a Postgres connection URL. */
@@ -126,12 +139,15 @@ async function seedDemoUser(
   }
   if (userId) {
     await assignUserRole(db, userId, demo.role);
-    await ensureDemoOrgMembership(db, userId);
+    // Admin seeds as org owner; viewer joins as viewer (not owner).
+    const orgRole = demo.role === 'admin' ? 'owner' : demo.role;
+    await ensureDemoOrgMembership(db, userId, undefined, orgRole);
   }
 }
 
 /**
  * Build Better Auth + local RBAC store (SQLite default; Postgres via URL).
+ * Includes Better Auth SSO plugin (OIDC/SAML); email/password remains enabled.
  */
 export async function createAuth(
   options: CreateAuthOptions = {},
@@ -179,6 +195,16 @@ export async function createAuth(
   const useHttps = usesHttpsOrigin(appOrigin, baseURL);
   const shouldSeed = options.seedDemoUsers ?? !production;
 
+  const ssoEnv = options.ssoEnv ?? readSsoEnv(env);
+  const ssoPluginOptions = buildSsoPluginOptions(ssoEnv, {
+    provisionUser: async ({ user }) => {
+      await assignUserRole(db, user.id, DEMO_VIEWER.role);
+      await ensureDemoOrgMembership(db, user.id, undefined, DEMO_VIEWER.role);
+    },
+    ...options.ssoOptions,
+  });
+  const ssoConfigured = (ssoPluginOptions.defaultSSO?.length ?? 0) > 0;
+
   const sendResetPassword: BetterAuthSendResetPassword = async (
     data,
     request,
@@ -191,15 +217,25 @@ export async function createAuth(
     console.info(`[auth] Password reset for ${data.user.email}: ${resetUrl}`);
   };
 
+  const trustedOrigins = [
+    ...buildTrustedOrigins(baseURL, appOrigin, production),
+    ...ssoTrustedOrigins(ssoEnv),
+  ];
+
   const betterAuthOptions: BetterAuthOptions = {
     database,
     baseURL,
+    /**
+     * Gateway proxies `/api/ext/auth/*` → Bun paths at `/`. Use `/` so SSO
+     * callbacks (`/sso/callback/:id`) match without an `/api/auth` prefix.
+     */
+    basePath: '/',
     secret: resolvedSecret,
     emailAndPassword: {
       enabled: true,
       sendResetPassword,
     },
-    trustedOrigins: buildTrustedOrigins(baseURL, appOrigin, production),
+    trustedOrigins: [...new Set(trustedOrigins)],
     advanced: {
       useSecureCookies: useHttps,
       defaultCookieAttributes: {
@@ -209,6 +245,7 @@ export async function createAuth(
         path: '/',
       },
     },
+    plugins: [sso(ssoPluginOptions)],
   };
 
   const { runMigrations } = await getMigrations(betterAuthOptions);
@@ -225,5 +262,12 @@ export async function createAuth(
     await seedDemoUser(auth, db, DEMO_VIEWER);
   }
 
-  return { auth, dialect, db, close, permissionCache: options.permissionCache };
+  return {
+    auth,
+    dialect,
+    db,
+    close,
+    permissionCache: options.permissionCache,
+    ssoConfigured,
+  };
 }

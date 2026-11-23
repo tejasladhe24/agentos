@@ -8,6 +8,16 @@ import type { AppContext, Middleware, Next } from './types';
 
 const PUBLIC_ACCESS_KEY = 'auth.publicAccess';
 
+/**
+ * Default public-link `purpose` → limited role when `role` is omitted.
+ * Mirrors builtin auth `PUBLIC_PURPOSE_DEFAULT_ROLE` (ticket 75).
+ */
+export const PUBLIC_PURPOSE_DEFAULT_ROLE: Record<string, string> = {
+  portal: 'external_viewer',
+  'trust-center': 'external_viewer',
+  'client-link': 'external_viewer',
+};
+
 /** Signed public-link payload. */
 export type PublicTokenPayload = {
   orgId: string;
@@ -17,6 +27,11 @@ export type PublicTokenPayload = {
   exp: number;
   /** Optional upstream path prefix this token is valid for. */
   pathPrefix?: string;
+  /**
+   * Limited role for portal authorization (default via purpose →
+   * `external_viewer`). Not a Better Auth session role.
+   */
+  role?: string;
 };
 
 export type SignPublicTokenInput = {
@@ -26,9 +41,21 @@ export type SignPublicTokenInput = {
   /** Time-to-live in seconds (default 3600). */
   ttlSeconds?: number;
   pathPrefix?: string;
+  /** Explicit limited role; otherwise derived from `purpose`. */
+  role?: string;
   /** Override signing secret (tests). Defaults to env. */
   secret?: string;
 };
+
+/** Resolve the limited role carried by a public token. */
+export function resolvePublicTokenRole(
+  payload: Pick<PublicTokenPayload, 'purpose' | 'role'>,
+): string {
+  if (payload.role && payload.role.trim()) {
+    return payload.role.trim();
+  }
+  return PUBLIC_PURPOSE_DEFAULT_ROLE[payload.purpose] ?? 'external_viewer';
+}
 
 export type RequirePublicTokenOptions = {
   purposes?: string[];
@@ -110,6 +137,9 @@ function stablePayloadJson(payload: PublicTokenPayload): string {
   if (payload.pathPrefix != null) {
     ordered.pathPrefix = payload.pathPrefix;
   }
+  if (payload.role != null) {
+    ordered.role = payload.role;
+  }
   return JSON.stringify(ordered);
 }
 
@@ -132,6 +162,11 @@ export async function signPublicToken(
     exp: Math.floor(Date.now() / 1000) + Math.floor(ttl),
   };
   if (input.pathPrefix) payload.pathPrefix = input.pathPrefix;
+  const role =
+    input.role?.trim() ||
+    PUBLIC_PURPOSE_DEFAULT_ROLE[input.purpose] ||
+    'external_viewer';
+  payload.role = role;
 
   const body = stablePayloadJson(payload);
   const bodyB64 = encodeBase64Url(new TextEncoder().encode(body));
@@ -173,6 +208,11 @@ export async function verifyPublicToken(
     };
     if (typeof parsed.pathPrefix === 'string') {
       payload.pathPrefix = parsed.pathPrefix;
+    }
+    if (typeof parsed.role === 'string' && parsed.role.trim()) {
+      payload.role = parsed.role.trim();
+    } else {
+      payload.role = resolvePublicTokenRole(payload);
     }
     return payload;
   } catch {

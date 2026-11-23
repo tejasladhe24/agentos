@@ -143,6 +143,69 @@ export async function listOrgsForUser(
   return result.rows;
 }
 
+export type OrgMember = {
+  userId: string;
+  email: string;
+  name: string;
+  role: string;
+};
+
+/** List members of an org (joined to Better Auth `user` for email/name). */
+export async function listOrgMembers(
+  db: AuthDb,
+  orgId: string,
+): Promise<OrgMember[]> {
+  if (db.dialect === 'sqlite') {
+    return db.client
+      .prepare(
+        `SELECT m.user_id AS userId, u.email AS email, u.name AS name, m.role AS role
+         FROM org_members m
+         JOIN user u ON u.id = m.user_id
+         WHERE m.org_id = ?
+         ORDER BY u.email COLLATE NOCASE ASC`,
+      )
+      .all(orgId) as OrgMember[];
+  }
+
+  const result = await db.client.query<OrgMember>(
+    `SELECT m.user_id AS "userId", u.email AS email, u.name AS name, m.role AS role
+     FROM org_members m
+     JOIN "user" u ON u.id = m.user_id
+     WHERE m.org_id = $1
+     ORDER BY LOWER(u.email) ASC`,
+    [orgId],
+  );
+  return result.rows;
+}
+
+/** Set (replace) a member's org role. Member must already belong to the org. */
+export async function setOrgMemberRole(
+  db: AuthDb,
+  orgId: string,
+  userId: string,
+  role: string,
+): Promise<boolean> {
+  const trimmed = role.trim();
+  if (!trimmed) {
+    throw new Error('role required');
+  }
+
+  if (db.dialect === 'sqlite') {
+    const result = db.client
+      .prepare(
+        `UPDATE org_members SET role = ? WHERE org_id = ? AND user_id = ?`,
+      )
+      .run(trimmed, orgId, userId);
+    return result.changes > 0;
+  }
+
+  const result = await db.client.query(
+    `UPDATE org_members SET role = $1 WHERE org_id = $2 AND user_id = $3`,
+    [trimmed, orgId, userId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function isOrgMember(
   db: AuthDb,
   userId: string,
@@ -227,11 +290,16 @@ export async function resolveActiveOrgId(
   return fallback;
 }
 
-/** Ensure a named demo org exists and the user is a member (owner if new). */
+/**
+ * Ensure a named demo org exists and the user is a member.
+ * `memberRole` defaults to owner when creating the org; when joining an
+ * existing org, pass an explicit role (e.g. `viewer`) so demos stay accurate.
+ */
 export async function ensureDemoOrgMembership(
   db: AuthDb,
   userId: string,
   orgName = DEMO_ORG_NAME,
+  memberRole: string = ORG_ROLE_OWNER,
 ): Promise<string> {
   let orgId: string | null = null;
 
@@ -252,7 +320,7 @@ export async function ensureDemoOrgMembership(
     const created = await createOrganization(db, {
       name: orgName,
       creatorUserId: userId,
-      role: ORG_ROLE_OWNER,
+      role: memberRole,
     });
     return created.id;
   }
@@ -263,12 +331,12 @@ export async function ensureDemoOrgMembership(
         .prepare(
           `INSERT OR IGNORE INTO org_members (org_id, user_id, role) VALUES (?, ?, ?)`,
         )
-        .run(orgId, userId, ORG_ROLE_OWNER);
+        .run(orgId, userId, memberRole);
     } else {
       await db.client.query(
         `INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, $3)
          ON CONFLICT DO NOTHING`,
-        [orgId, userId, ORG_ROLE_OWNER],
+        [orgId, userId, memberRole],
       );
     }
   }

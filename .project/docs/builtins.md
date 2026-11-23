@@ -97,8 +97,16 @@ Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`.
 | `AGENT_OS_GLOBAL_NODE_ENV` or `NODE_ENV` | `production`                     | Disables demo admin/viewer seed; requires real secret                                           |
 | `AGENT_OS_EXT_AUTH_SEED_DEMO`            | Optional `true`/`false`          | Override seed default (`false` in production, `true` otherwise)                                 |
 | `AGENT_OS_EXT_AUTH_DB`                   | Optional                         | SQLite path (default `~/.agentos/store/auth.sqlite`) **or** `postgres://` / `postgresql://` URL |
+| `AGENT_OS_EXT_AUTH_SSO_ISSUER`           | Optional                         | OIDC issuer URL for defaultSSO (Auth0 / Okta / Entra / Keycloak / …)                            |
+| `AGENT_OS_EXT_AUTH_SSO_CLIENT_ID`        | Optional                         | OIDC client id (required with issuer + secret to enable defaultSSO)                             |
+| `AGENT_OS_EXT_AUTH_SSO_CLIENT_SECRET`    | Optional                         | OIDC client secret                                                                              |
+| `AGENT_OS_EXT_AUTH_SSO_DOMAIN`           | Optional                         | Email domain matched to the IdP (default `example.com`)                                         |
+| `AGENT_OS_EXT_AUTH_SSO_PROVIDER_ID`      | Optional                         | Better Auth provider id (default `default-oidc`)                                                |
+| `AGENT_OS_EXT_AUTH_SSO_TRUSTED_ORIGINS`  | Optional                         | Comma-separated extra IdP origins for OIDC discovery                                            |
 
 When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, auth sets `useSecureCookies` and `Secure` cookie attributes.
+
+**SSO (OIDC / SAML):** Better Auth `@better-auth/sso` plugin. Email/password stays enabled. Set the SSO env vars above for a demo/default OIDC IdP, or register providers at runtime via Better Auth (`POST /api/ext/auth/sso/register` — forwarded to the plugin). SAML ACS / OIDC callback URLs are under `/api/ext/auth/sso/…` (gateway → Bun). `POST /api/ext/auth/sign-in/sso` with `{ callbackURL, providerId | email | domain }` returns `{ url, redirect: true }` for the IdP.
 
 **Production storage:** prefer managed Postgres (Neon / RDS / Cloud SQL) via `AGENT_OS_EXT_AUTH_DB`. Same single env key as local SQLite — do not set a customer `DATABASE_URL`. Auth (like db-store’s `AGENT_OS_EXT_DB_STORE_DATABASE_URL`) is one of the only builtins allowed to hold SQL credentials ([ADR 004](./adr/004-db-store-sole-sql-owner.md)). On Neon, prefer the **direct** (non-pooler) host for startup migrations.
 
@@ -113,6 +121,17 @@ When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, a
 | `POST` | `/api/ext/auth/orgs/switch` | `{ orgId }` — membership required              |
 
 `GET /session` includes `orgId` and `orgs: { id, name, role }[]`. Kit: `requireOrg()` from `@agentos/core/api/auth`.
+
+**Role admin APIs** (require permission `auth.roles.manage` — seeded on `admin` / `owner`):
+
+| Method | Path                                   | Role                                                                 |
+| ------ | -------------------------------------- | -------------------------------------------------------------------- |
+| `GET`  | `/api/ext/auth/roles`                  | Role catalog + `role_permissions` rows                               |
+| `GET`  | `/api/ext/auth/orgs/members`           | Members of the active org with roles                                 |
+| `POST` | `/api/ext/auth/orgs/members/roles`     | `{ userId, role }` — set org membership role                         |
+| `PUT`  | `/api/ext/auth/roles/:role/permissions`| `{ permissions: string[] }` — replace grants for a role              |
+
+Permission checks resolve **active org membership role** plus global `user_roles`. Seeded roles: `admin`, `owner`, `reviewer`, `sales`, `viewer`, `external_viewer`. Product permissions (e.g. `trustdesk.*`) are added by apps via the permissions PUT.
 
 **db-store isolation**
 

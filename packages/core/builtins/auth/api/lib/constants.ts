@@ -19,8 +19,33 @@ export const DEMO_VIEWER = {
   role: 'viewer',
 } as const;
 
-/** Wildcard permission granted to the `admin` role. */
+/** Wildcard permission granted to admin / owner roles. */
 export const PERMISSION_ALL = '*';
 
-/** Sample permission granted only to `admin` (viewer lacks it). */
+/** Sample permission granted only to admin/owner (viewer lacks it). */
 export const PERMISSION_ADMIN_ONLY = 'auth.admin';
+
+/** Permission required to manage org member roles and role→permission maps. */
+export const PERMISSION_ROLES_MANAGE = 'auth.roles.manage';
+
+/** Platform / org role catalog (TrustDesk-shaped; apps may add product permissions). */
+export const PLATFORM_ROLES = [
+  'admin',
+  'owner',
+  'reviewer',
+  'sales',
+  'viewer',
+  'external_viewer',
+] as const;
+
+export type PlatformRole = (typeof PLATFORM_ROLES)[number];
+
+/**
+ * Default public-link `purpose` → limited role (ticket 72 + 75).
+ * Used when a signed token omits an explicit `role`.
+ */
+export const PUBLIC_PURPOSE_DEFAULT_ROLE: Record<string, string> = {
+  portal: 'external_viewer',
+  'trust-center': 'external_viewer',
+  'client-link': 'external_viewer',
+};
