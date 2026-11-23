@@ -69,11 +69,12 @@ Short definitions so humans and agents never confuse **extension**, **service**,
 
 ## Prefer these words
 
-| Say                     | Avoid                                 |
-| ----------------------- | ------------------------------------- |
-| extension API / Bun API | “the Node BFF”                        |
-| service                 | “Python extension folder”             |
-| builtin `auth`          | “rbac package” as separate builtin    |
-| `agentos.config.ts`     | stuffing secrets into the Vite plugin |
-| `db-store`              | “give the CRM service a database URL” |
-| `@agentos/ui` Button    | raw `<button>` / ad-hoc button CSS    |
+| Say                     | Avoid                                              |
+| ----------------------- | -------------------------------------------------- |
+| extension API / Bun API | “the Node BFF”                                     |
+| service                 | “Python extension folder”                          |
+| builtin `auth`          | “rbac package” as separate builtin                 |
+| `agentos.config.ts`     | stuffing secrets into the Vite plugin              |
+| `db-store`              | “give the CRM service a database URL”              |
+| secrets vault / env     | raw tokens in db-store docs or `agentos.config.ts` |
+| `@agentos/ui` Button    | raw `<button>` / ad-hoc button CSS                 |

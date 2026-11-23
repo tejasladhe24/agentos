@@ -1,6 +1,6 @@
 # 77 — Per-tenant credential vault (secrets)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,12 +15,12 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] API to put/get/delete secret by `(orgId, key)` with permission checks
-- [ ] Values encrypted at rest (platform key or KMS env); never logged
-- [ ] Rotation metadata (`rotatedAt`, optional expiry) stored
-- [ ] Env fallback still works for bootstrap / local demos
-- [ ] Tests: org isolation + encryption round-trip (no plaintext on disk/db assertion where feasible)
-- [ ] Docs: threat model + env for master key
+- [x] API to put/get/delete secret by `(orgId, key)` with permission checks
+- [x] Values encrypted at rest (platform key or KMS env); never logged
+- [x] Rotation metadata (`rotatedAt`, optional expiry) stored
+- [x] Env fallback still works for bootstrap / local demos
+- [x] Tests: org isolation + encryption round-trip (no plaintext on disk/db assertion where feasible)
+- [x] Docs: threat model + env for master key
 
 ## Notes
 

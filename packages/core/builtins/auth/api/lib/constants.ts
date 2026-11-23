@@ -28,6 +28,12 @@ export const PERMISSION_ADMIN_ONLY = 'auth.admin';
 /** Permission required to manage org member roles and role→permission maps. */
 export const PERMISSION_ROLES_MANAGE = 'auth.roles.manage';
 
+/** Read org vault secrets (builtin secrets). Admin/owner covered by `*`. */
+export const PERMISSION_SECRETS_READ = 'secrets.read';
+
+/** Put/delete org vault secrets (builtin secrets). Admin/owner covered by `*`. */
+export const PERMISSION_SECRETS_WRITE = 'secrets.write';
+
 /** Platform / org role catalog (TrustDesk-shaped; apps may add product permissions). */
 export const PLATFORM_ROLES = [
   'admin',
