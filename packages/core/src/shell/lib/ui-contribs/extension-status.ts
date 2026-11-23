@@ -3,6 +3,19 @@ import type { ContributionRuntimeStatus, UiContribution } from './contribution';
 import { contributionKey } from './contribution';
 
 /**
+ * Whether the Shell should show an in-canvas loading overlay for an extension frame.
+ * Unset status counts as loading (cold mount before handshake starts).
+ */
+export function shouldShowExtensionFrameLoading(
+  runtimeStatus: ContributionRuntimeStatus | undefined,
+  visible: boolean,
+): boolean {
+  return (
+    visible && (runtimeStatus === undefined || runtimeStatus === 'loading')
+  );
+}
+
+/**
  * Derive Extension Manager row status from enable flag + mounted frame statuses.
  */
 export function deriveExtensionManagerStatus(

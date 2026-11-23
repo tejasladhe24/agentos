@@ -84,7 +84,10 @@ export {
   type ActivatedFrame,
   type ActivateFrameOptions,
 } from './ui-contribs/extension-runtime';
-export { deriveExtensionManagerStatus } from './ui-contribs/extension-status';
+export {
+  deriveExtensionManagerStatus,
+  shouldShowExtensionFrameLoading,
+} from './ui-contribs/extension-status';
 export {
   DEFAULT_EXTENSION_ICON,
   EXTENSION_ICON_MAP,

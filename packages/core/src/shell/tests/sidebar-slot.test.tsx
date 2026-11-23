@@ -121,6 +121,9 @@ describe('SidebarSlot contextual + shell panels', () => {
     );
     expect(html).toContain('data-sidebar-panel="hitl"');
     expect(html).toContain('data-slot="hitl-inbox"');
+    expect(html).toContain('data-slot="hitl-inbox-loading"');
+    expect(html).toContain('data-loading="true"');
+    expect(html).not.toContain('No pending approvals.');
     expect(html).not.toContain('data-view="sidebar"');
     expect(html).not.toContain('role="dialog"');
   });

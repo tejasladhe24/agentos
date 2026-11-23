@@ -111,8 +111,9 @@ Agents must never promote tickets to `done/` themselves.
 91. PlacementOS MVP (`examples/placementos`)
 92. ChannelGuard MVP (`examples/channelguard`)
 93. Ticket reconciliation: promote covered in-progress → done — **done** (71–87 → `done/`)
+94. Proper loading states (extension frames, HostProvider, HITL/invoice fetch, gateway stream) — **in-progress**
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**. `in-progress/` — empty.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**. `in-progress/` — **95**.
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 

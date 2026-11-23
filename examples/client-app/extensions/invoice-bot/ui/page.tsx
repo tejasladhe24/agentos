@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useHostApi } from '@agentos/core/client';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
+import { LoadingState } from '@agentos/ui/components/loading-state';
 import {
   Table,
   TableBody,
@@ -130,6 +131,12 @@ export default function Page() {
         <p className="text-destructive text-xs" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {busy && items.length === 0 ? (
+        <LoadingState data-slot="invoice-bot-loading">
+          Loading invoices…
+        </LoadingState>
       ) : null}
 
       {!error && !busy && items.length === 0 ? (

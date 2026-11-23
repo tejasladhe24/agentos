@@ -181,7 +181,9 @@ export function createExtApiProxyHandler(
       });
     }
 
-    return new Response(await upstreamRes.arrayBuffer(), {
+    // Pass through the upstream body so SSE / chunked responses can stream.
+    // Do not buffer with arrayBuffer() — that defeats live progress over /api/ext/*.
+    return new Response(upstreamRes.body, {
       status: upstreamRes.status,
       headers: responseHeaders,
     });

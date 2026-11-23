@@ -5,6 +5,7 @@ import {
   type HostAPIClient,
 } from '@agentos/core/sdk';
 import { HostContext } from '@agentos/core/client/lib/host-context';
+import { LoadingState } from '@agentos/ui/components/loading-state';
 
 export type HostProviderProps = {
   children: ReactNode;
@@ -65,7 +66,11 @@ export function HostProvider({
 
   const value = injectedHost ?? bootedHost;
   if (!value) {
-    return null;
+    return (
+      <LoadingState data-slot="host-provider-loading">
+        Connecting to host…
+      </LoadingState>
+    );
   }
 
   return <HostContext.Provider value={value}>{children}</HostContext.Provider>;

@@ -168,4 +168,56 @@ describe('createExtApiProxyHandler', () => {
       targetPath: '/health',
     });
   });
+
+  test('streams upstream body without buffering', async () => {
+    const encoder = new TextEncoder();
+    let pullCount = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pullCount += 1;
+        if (pullCount === 1) {
+          controller.enqueue(encoder.encode('data: hello\n\n'));
+          return;
+        }
+        controller.close();
+      },
+    });
+
+    const model: RegistryModel = {
+      scannedAt: 1,
+      extensions: [
+        ext({
+          id: 'events',
+          kind: 'builtin',
+          toggleable: false,
+          driven: true,
+          meta: { api: { language: 'bun', port: 6115 } },
+        }),
+      ],
+    };
+    const state = createExtensionEnableState();
+    const handler = createExtApiProxyHandler(
+      () => model,
+      state,
+      async () =>
+        new Response(stream, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+    );
+
+    const res = await handler(
+      new Request('http://localhost/api/ext/events/subscribe'),
+    );
+    expect(res?.status).toBe(200);
+    expect(res?.headers.get('content-type')).toBe('text/event-stream');
+    expect(res?.body).not.toBeNull();
+
+    const reader = res!.body!.getReader();
+    const first = await reader.read();
+    expect(first.done).toBe(false);
+    expect(new TextDecoder().decode(first.value)).toBe('data: hello\n\n');
+    const second = await reader.read();
+    expect(second.done).toBe(true);
+  });
 });
