@@ -34,6 +34,7 @@ const crmContributions = [
 
 describe('ExtensionFrame slot placement', () => {
   test('sandboxed iframe markup includes required attrs', () => {
+    useShellStore.setState({ runtimeStatus: {} });
     const html = renderToStaticMarkup(
       createElement(ExtensionFrame, {
         contribution: crmContributions[0]!,
@@ -47,6 +48,8 @@ describe('ExtensionFrame slot placement', () => {
     expect(html).toContain('data-extension-id="crm"');
     expect(html).toContain('data-view="page"');
     expect(html).toContain('src="/__agentos/ext/crm/page.html?theme=dark"');
+    expect(html).toContain('data-slot="extension-frame-loading"');
+    expect(html).toContain('data-loading="true"');
   });
 
   test('passes light theme into iframe query', () => {

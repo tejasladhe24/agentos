@@ -76,6 +76,8 @@ describe('AuthGate not-found', () => {
     expect(html).toContain('data-agentos-public-portal');
     expect(html).toContain('data-extension-id="demo"');
     expect(html).toContain('/__agentos/ext/demo/page.html');
+    expect(html).toContain('data-slot="public-portal-loading"');
+    expect(html).toContain('data-loading="true"');
     expect(html).not.toContain('data-agentos-not-found');
     expect(html).not.toContain('Welcome back');
     expect(html).not.toContain('data-agentos-shell');

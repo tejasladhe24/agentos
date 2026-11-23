@@ -25,7 +25,7 @@ describe('HostProvider', () => {
     expect(html).toContain('data-ok="1"');
   });
 
-  test('renders nothing until a host is available (boot path without inject)', () => {
+  test('renders LoadingState until a host is available (boot path without inject)', () => {
     // Outside an iframe, createExtensionClient would throw in useLayoutEffect.
     // SSR / static markup never runs layout effects, so children stay unmounted.
     const html = renderToStaticMarkup(
@@ -33,6 +33,8 @@ describe('HostProvider', () => {
         children: createElement('span', { 'data-child': '1' }),
       }),
     );
-    expect(html).toBe('');
+    expect(html).toContain('data-slot="host-provider-loading"');
+    expect(html).toContain('Connecting to host');
+    expect(html).not.toContain('data-child');
   });
 });

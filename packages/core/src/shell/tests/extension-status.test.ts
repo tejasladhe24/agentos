@@ -2,7 +2,22 @@ import { describe, expect, test } from 'bun:test';
 import {
   contributionKey,
   deriveExtensionManagerStatus,
+  shouldShowExtensionFrameLoading,
 } from '@agentos/core/shell/lib';
+
+describe('shouldShowExtensionFrameLoading', () => {
+  test('true when visible and status unset or loading', () => {
+    expect(shouldShowExtensionFrameLoading(undefined, true)).toBe(true);
+    expect(shouldShowExtensionFrameLoading('loading', true)).toBe(true);
+  });
+
+  test('false when active, crashed, or not visible', () => {
+    expect(shouldShowExtensionFrameLoading('active', true)).toBe(false);
+    expect(shouldShowExtensionFrameLoading('crashed', true)).toBe(false);
+    expect(shouldShowExtensionFrameLoading('loading', false)).toBe(false);
+    expect(shouldShowExtensionFrameLoading(undefined, false)).toBe(false);
+  });
+});
 
 describe('deriveExtensionManagerStatus', () => {
   const contributions = [
