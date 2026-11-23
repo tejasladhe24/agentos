@@ -182,34 +182,34 @@ Builtin **`secrets`** stores OAuth refresh tokens and API keys **per org** in db
 
 **Resolve order (GET):** vault decrypt for the active org → env fallback (`AGENT_OS_EXT_SECRETS_MAP` or `AGENT_OS_EXT_SECRETS_<KEY>`).
 
-| Method   | Path                     | Role                                                                 |
-| -------- | ------------------------ | -------------------------------------------------------------------- |
-| `GET`    | `/api/ext/secrets/:key`  | Vault (needs org) then env fallback; permission `secrets.read` when session cookie |
-| `PUT`    | `/api/ext/secrets/:key`  | `{ value, expiresAt? }` — encrypt + upsert; `secrets.write` / peer org header |
-| `DELETE` | `/api/ext/secrets/:key`  | Remove vault row; `secrets.write` / peer org header                  |
-| `GET`    | `/api/ext/secrets/health`| `{ ok, vault, masterKey }`                                           |
+| Method   | Path                      | Role                                                                               |
+| -------- | ------------------------- | ---------------------------------------------------------------------------------- |
+| `GET`    | `/api/ext/secrets/:key`   | Vault (needs org) then env fallback; permission `secrets.read` when session cookie |
+| `PUT`    | `/api/ext/secrets/:key`   | `{ value, expiresAt? }` — encrypt + upsert; `secrets.write` / peer org header      |
+| `DELETE` | `/api/ext/secrets/:key`   | Remove vault row; `secrets.write` / peer org header                                |
+| `GET`    | `/api/ext/secrets/health` | `{ ok, vault, masterKey }`                                                         |
 
 **Org context:** auth session cookie `orgId`, or peer header `X-AgentOS-Org-Id` (services / FDE). Session callers need RBAC; peer header is trusted (same pattern as db-store). Kit: `getSecret` / `putSecret` / `deleteSecret` from `@agentos/core/api/secrets` with `{ orgId }` or forwarded `cookie`.
 
 **Threat model (v1)**
 
-| Asset                         | Control                                                                 |
-| ----------------------------- | ----------------------------------------------------------------------- |
-| Vault ciphertext in db-store  | AES-256-GCM; unique IV per write; master key never in documents         |
-| Master key                    | Process env only (`AGENT_OS_EXT_SECRETS_MASTER_KEY`); rotate by re-encrypt |
-| Cross-org read                | db-store `org_id` filter + secrets checks `orgId` on the row            |
-| Bootstrap / local demos       | Env map / per-key env still work without a master key (read-only)       |
-| Config misuse                 | Never put customer tokens in `agentos.config.ts`                        |
+| Asset                        | Control                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------- |
+| Vault ciphertext in db-store | AES-256-GCM; unique IV per write; master key never in documents            |
+| Master key                   | Process env only (`AGENT_OS_EXT_SECRETS_MASTER_KEY`); rotate by re-encrypt |
+| Cross-org read               | db-store `org_id` filter + secrets checks `orgId` on the row               |
+| Bootstrap / local demos      | Env map / per-key env still work without a master key (read-only)          |
+| Config misuse                | Never put customer tokens in `agentos.config.ts`                           |
 
 KMS (Cloudflare / AWS) can wrap the master key later; the vault API stays the same.
 
-| Variable                                | Role                                                                 |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| `AGENT_OS_EXT_SECRETS_MASTER_KEY`       | 32-byte AES key as **base64** (preferred) or **64-char hex**; required for PUT |
-| `AGENT_OS_EXT_SECRETS_MAP`              | Optional JSON object key→value (env fallback)                        |
-| `AGENT_OS_EXT_SECRETS_<KEY>`            | Per-key env fallback (`api-token` → `AGENT_OS_EXT_SECRETS_API_TOKEN`) |
-| `AGENT_OS_EXT_SECRETS_DB_STORE_HOST` / `_PORT` | Peer db-store (defaults `127.0.0.1:6111`)                      |
-| `AGENT_OS_EXT_SECRETS_AUTH_API_BASE`    | Optional auth base for session / permission checks                   |
+| Variable                                       | Role                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| `AGENT_OS_EXT_SECRETS_MASTER_KEY`              | 32-byte AES key as **base64** (preferred) or **64-char hex**; required for PUT |
+| `AGENT_OS_EXT_SECRETS_MAP`                     | Optional JSON object key→value (env fallback)                                  |
+| `AGENT_OS_EXT_SECRETS_<KEY>`                   | Per-key env fallback (`api-token` → `AGENT_OS_EXT_SECRETS_API_TOKEN`)          |
+| `AGENT_OS_EXT_SECRETS_DB_STORE_HOST` / `_PORT` | Peer db-store (defaults `127.0.0.1:6111`)                                      |
+| `AGENT_OS_EXT_SECRETS_AUTH_API_BASE`           | Optional auth base for session / permission checks                             |
 
 Generate a local master key: `openssl rand -base64 32`.
 
