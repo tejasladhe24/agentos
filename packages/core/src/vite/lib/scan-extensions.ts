@@ -9,12 +9,15 @@ import type {
   ExtensionMeta,
   ExtensionMetaApi,
   ExtensionMetaPublic,
+  ExtensionMetaService,
   ExtensionPublicUiRoute,
+  PythonServiceKind,
   RegistryModel,
   ScannedExtension,
   ScanExtensionsOptions,
   UiViewName,
 } from './types';
+import { DEFAULT_SERVICE_MOUNT } from './types';
 
 /** Scan output before Shell-facing enrichment. */
 type RawScannedExtension = Omit<
@@ -58,6 +61,26 @@ function findUiFile(uiDir: string, view: UiViewName): string | undefined {
   return undefined;
 }
 
+function parsePositiveInt(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 1) {
+    return undefined;
+  }
+  return Math.floor(value);
+}
+
+function parseServiceKind(raw: unknown): PythonServiceKind | undefined {
+  if (raw === 'worker' || raw === 'http') return raw;
+  return undefined;
+}
+
+function normalizeMount(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw.startsWith('/') || raw === '/') {
+    return DEFAULT_SERVICE_MOUNT;
+  }
+  // Drop trailing slash so `/_service/` matches `/_service`
+  return raw.length > 1 && raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
 function parseMetaApi(raw: unknown): ExtensionMetaApi | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const api = raw as Record<string, unknown>;
@@ -73,24 +96,70 @@ function parseMetaApi(raw: unknown): ExtensionMetaApi | undefined {
   if (typeof api.routesDir === 'string') result.routesDir = api.routesDir;
   if (typeof api.root === 'string') result.root = api.root;
   if (typeof api.health === 'string') result.health = api.health;
-  if (api.kind === 'worker' || api.kind === 'http') {
-    result.kind = api.kind;
-  }
-  if (
-    typeof api.concurrency === 'number' &&
-    Number.isFinite(api.concurrency) &&
-    api.concurrency >= 1
-  ) {
-    result.concurrency = Math.floor(api.concurrency);
-  }
-  if (
-    typeof api.timeoutSeconds === 'number' &&
-    Number.isFinite(api.timeoutSeconds) &&
-    api.timeoutSeconds > 0
-  ) {
-    result.timeoutSeconds = Math.floor(api.timeoutSeconds);
-  }
+  const kind = parseServiceKind(api.kind);
+  if (kind) result.kind = kind;
+  const concurrency = parsePositiveInt(api.concurrency);
+  if (concurrency !== undefined) result.concurrency = concurrency;
+  const timeoutSeconds = parsePositiveInt(api.timeoutSeconds);
+  if (timeoutSeconds !== undefined) result.timeoutSeconds = timeoutSeconds;
   return result;
+}
+
+function parseMetaService(raw: unknown): ExtensionMetaService | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const svc = raw as Record<string, unknown>;
+  if (typeof svc.root !== 'string' || !svc.root) return undefined;
+  const port = svc.port;
+  if (typeof port !== 'number' || !Number.isFinite(port)) return undefined;
+
+  const result: ExtensionMetaService = {
+    root: svc.root,
+    port,
+    mount: normalizeMount(svc.mount),
+  };
+  if (typeof svc.health === 'string') result.health = svc.health;
+  const kind = parseServiceKind(svc.kind);
+  if (kind) result.kind = kind;
+  const concurrency = parsePositiveInt(svc.concurrency);
+  if (concurrency !== undefined) result.concurrency = concurrency;
+  const timeoutSeconds = parsePositiveInt(svc.timeoutSeconds);
+  if (timeoutSeconds !== undefined) result.timeoutSeconds = timeoutSeconds;
+  return result;
+}
+
+function resolveServiceLink(
+  rootDir: string,
+  id: string,
+  link: {
+    root: string;
+    port: number;
+    health?: string;
+    kind?: PythonServiceKind;
+    concurrency?: number;
+    timeoutSeconds?: number;
+    mount?: string;
+  },
+): NonNullable<ScannedExtension['service']> {
+  const resolvedRoot = resolve(rootDir, link.root);
+  if (!isDirectory(resolvedRoot)) {
+    console.warn(
+      `[agentos] python service root missing for ${id}: ${resolvedRoot}`,
+    );
+  }
+  return {
+    root: link.root,
+    resolvedRoot,
+    port: link.port,
+    ...(link.health ? { health: link.health } : {}),
+    ...(link.kind ? { kind: link.kind } : {}),
+    ...(link.concurrency !== undefined
+      ? { concurrency: link.concurrency }
+      : {}),
+    ...(link.timeoutSeconds !== undefined
+      ? { timeoutSeconds: link.timeoutSeconds }
+      : {}),
+    ...(link.mount ? { mount: link.mount } : {}),
+  };
 }
 
 function parsePublicUiRoute(raw: unknown): ExtensionPublicUiRoute | undefined {
@@ -162,6 +231,8 @@ function readMeta(metaPath: string): ExtensionMeta | undefined {
     }
     const api = parseMetaApi(obj.api);
     if (api) meta.api = api;
+    const service = parseMetaService(obj.service);
+    if (service) meta.service = service;
     const pub = parseMetaPublic(obj.public);
     if (pub) meta.public = pub;
     return meta;
@@ -219,10 +290,13 @@ function scanOneExtension(
   if (hasApiRoutes) extension.apiRoutesDir = apiRoutesDir;
 
   if (meta.api?.language === 'python' && meta.api.root) {
-    const resolvedRoot = resolve(rootDir, meta.api.root);
-    extension.service = {
+    if (meta.service) {
+      console.warn(
+        `[agentos] ${id}: meta.service ignored when api.language is python — use api.root`,
+      );
+    }
+    extension.service = resolveServiceLink(rootDir, id, {
       root: meta.api.root,
-      resolvedRoot,
       port: meta.api.port,
       ...(meta.api.health ? { health: meta.api.health } : {}),
       ...(meta.api.kind ? { kind: meta.api.kind } : {}),
@@ -232,12 +306,14 @@ function scanOneExtension(
       ...(meta.api.timeoutSeconds !== undefined
         ? { timeoutSeconds: meta.api.timeoutSeconds }
         : {}),
-    };
-    if (!isDirectory(resolvedRoot)) {
+    });
+  } else if (meta.api?.language === 'bun' && meta.service) {
+    if (meta.service.port === meta.api.port) {
       console.warn(
-        `[agentos] python service root missing for ${id}: ${resolvedRoot}`,
+        `[agentos] ${id}: service.port collides with api.port (${meta.api.port})`,
       );
     }
+    extension.service = resolveServiceLink(rootDir, id, meta.service);
   }
 
   return extension;

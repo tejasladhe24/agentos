@@ -18,3 +18,4 @@ Extensions include TSX/TS. Colocating a FastAPI tree alongside React files harms
 
 - `agentos dev` must start both Bun APIs and Python services.
 - Docs and skills must teach “extension vs service” explicitly.
+- An extension may link a Python service **and** keep a Bun `api/` (ticket 83): `meta.service` beside `api.language: "bun"`. Python still lives under `services/`; the gateway exposes it under a documented mount (default `/_service`).

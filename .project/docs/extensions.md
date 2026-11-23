@@ -207,6 +207,45 @@ Signing secret: `AGENT_OS_GLOBAL_OAUTH_STATE_SECRET` (falls back to
 }
 ```
 
+## meta.json (Bun API + linked Python service)
+
+One extension may declare **both** a Bun `api/` and a Python service (ticket **83**). Keep Bun as the primary gateway face; put the Python link in a sibling `service` block:
+
+```json
+{
+  "name": "Questionnaires",
+  "icon": "ClipboardText",
+  "api": {
+    "language": "bun",
+    "port": 6201,
+    "routesDir": "api/routes"
+  },
+  "service": {
+    "root": "../../services/questionnaires",
+    "port": 6211,
+    "health": "/health",
+    "kind": "http",
+    "mount": "/_service"
+  }
+}
+```
+
+| Field           | Meaning                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `service.root`  | Path to `services/<id>/`, relative to the extension directory                                  |
+| `service.port`  | Python uvicorn port (must differ from `api.port`)                                              |
+| `service.mount` | Gateway prefix under `/api/ext/:id` (default `/_service`); stripped before forwarding upstream |
+| `service.kind`  | `http` (default) or `worker` — same as python-only `api.kind`                                  |
+
+Gateway routing:
+
+- `/api/ext/<id>/*` → Bun (`api.port`)
+- `/api/ext/<id>/_service/*` → Python (`service.port`), mount stripped (so `/_service/health` → `/health`)
+
+`agentos dev` / `start` boots both processes; the Python child is named `<id>:service` so log prefixes do not collide with the Bun API.
+
+Do **not** combine `api.language: "python"` with a top-level `service` — use `api.root` for python-only extensions. Public portals (`public.apiPrefixes`) stay Bun-facing unless a prefix falls under `mount`.
+
 Optional `icon` is a Phosphor icon basename (`"Users"` → `UsersIcon`) for Activity Bar and Extension Manager. Unknown or missing values fall back to `Cube`. Curated names live in `@agentos/core` `resolveExtensionIcon` / `EXTENSION_ICON_MAP`.
 
 ### Activity Bar sections

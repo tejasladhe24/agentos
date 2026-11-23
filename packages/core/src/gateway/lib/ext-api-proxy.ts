@@ -1,3 +1,4 @@
+import { DEFAULT_SERVICE_MOUNT } from '@agentos/core/vite/lib/types';
 import type { ExtensionEnableState } from './enable-state';
 import { plainResponse } from './http';
 import type {
@@ -54,9 +55,43 @@ const HOP_BY_HOP = new Set([
   'content-length',
 ]);
 
-function upstreamPort(extension: ScannedExtension): number | undefined {
-  const port = extension.meta.api?.port ?? extension.service?.port;
-  return typeof port === 'number' && Number.isFinite(port) ? port : undefined;
+export type ResolvedUpstream = {
+  port: number;
+  /** Path to forward (mount stripped for dual service). */
+  targetPath: string;
+};
+
+/**
+ * Pick Bun vs linked Python upstream.
+ * Dual: paths under `service.mount` (default `/_service`) → Python (prefix stripped).
+ * Everything else → Bun `api.port` when present, else python-only `service.port`.
+ */
+export function resolveUpstream(
+  extension: ScannedExtension,
+  targetPath: string,
+): ResolvedUpstream | undefined {
+  const service = extension.service;
+  const api = extension.meta.api;
+  const isDual = api?.language === 'bun' && service != null;
+
+  if (isDual && service) {
+    const mount = service.mount ?? DEFAULT_SERVICE_MOUNT;
+    if (targetPath === mount || targetPath.startsWith(`${mount}/`)) {
+      const stripped =
+        targetPath === mount ? '/' : targetPath.slice(mount.length) || '/';
+      return { port: service.port, targetPath: stripped };
+    }
+    if (typeof api.port === 'number' && Number.isFinite(api.port)) {
+      return { port: api.port, targetPath };
+    }
+    return undefined;
+  }
+
+  const port = api?.port ?? service?.port;
+  if (typeof port === 'number' && Number.isFinite(port)) {
+    return { port, targetPath };
+  }
+  return undefined;
 }
 
 function collectForwardHeaders(request: Request): Headers {
@@ -72,6 +107,7 @@ function collectForwardHeaders(request: Request): Headers {
 /**
  * `ALL /api/ext/:id/*` → `http://127.0.0.1:<port>/<remainder>`.
  * Disabled customer extensions get 403; builtins always proxy.
+ * Dual Bun+Python: `/_service/*` (or custom mount) → Python with prefix stripped.
  */
 export function createExtApiProxyHandler(
   getModel: () => RegistryModel,
@@ -96,15 +132,15 @@ export function createExtApiProxyHandler(
       return plainResponse(403, `Extension disabled: ${parsed.extensionId}`);
     }
 
-    const port = upstreamPort(extension);
-    if (port == null) {
+    const upstream = resolveUpstream(extension, parsed.targetPath);
+    if (!upstream) {
       return plainResponse(
         502,
         `No upstream port configured for extension: ${parsed.extensionId}`,
       );
     }
 
-    const targetUrl = `http://127.0.0.1:${port}${parsed.targetPath}${parsed.search}`;
+    const targetUrl = `http://127.0.0.1:${upstream.port}${upstream.targetPath}${parsed.search}`;
     const method = request.method.toUpperCase();
     const headers = collectForwardHeaders(request);
 
@@ -113,9 +149,9 @@ export function createExtApiProxyHandler(
       body = await request.arrayBuffer();
     }
 
-    let upstream: Response;
+    let upstreamRes: Response;
     try {
-      upstream = await fetchImpl(targetUrl, {
+      upstreamRes = await fetchImpl(targetUrl, {
         method,
         headers,
         body:
@@ -133,20 +169,20 @@ export function createExtApiProxyHandler(
     }
 
     const responseHeaders = new Headers();
-    upstream.headers.forEach((value, name) => {
+    upstreamRes.headers.forEach((value, name) => {
       if (HOP_BY_HOP.has(name.toLowerCase())) return;
       responseHeaders.set(name, value);
     });
 
     if (method === 'HEAD') {
       return new Response(null, {
-        status: upstream.status,
+        status: upstreamRes.status,
         headers: responseHeaders,
       });
     }
 
-    return new Response(await upstream.arrayBuffer(), {
-      status: upstream.status,
+    return new Response(await upstreamRes.arrayBuffer(), {
+      status: upstreamRes.status,
       headers: responseHeaders,
     });
   };

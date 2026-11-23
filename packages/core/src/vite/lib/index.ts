@@ -44,6 +44,7 @@ export type {
   ProxyFetch,
 } from './agentos-plugin';
 
+export { DEFAULT_SERVICE_MOUNT } from './types';
 export type {
   AgentDescriptors,
   AgentFileName,
@@ -53,6 +54,7 @@ export type {
   ExtensionMeta,
   ExtensionMetaApi,
   ExtensionMetaPublic,
+  ExtensionMetaService,
   ExtensionPublicUiRoute,
   PythonServiceKind,
   RegistryModel,

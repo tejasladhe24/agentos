@@ -39,7 +39,7 @@ Short definitions so humans and agents never confuse **extension**, **service**,
 │    ui/*.tsx                ←── @agentos/core/client + @agentos/ui    │
 │    agent/*                 ←── declarations for builtin ai           │
 │    api/routes/**           ←── @agentos/core/api/*  (Bun)            │
-│    meta.json               ←── may point at a Service if Python      │
+│    meta.json               ←── Bun api and/or linked Python service  │
 │                                                                      │
 │  services/<id>/            ←── SERVICE (Python)                      │
 │    app/                    ←── agentos.*                             │
@@ -56,7 +56,7 @@ Short definitions so humans and agents never confuse **extension**, **service**,
 1. **UI SDK** → `@agentos/core/client` only. Never `@agentos/core/api` in `ui/`.
 2. **UI primitives** → `@agentos/ui` (shadcn) for buttons, inputs, checkboxes, selects, dropdowns, etc. Avoid native HTML controls unless specifically required.
 3. **TS routes** → `@agentos/core/api/*` only. No customer product DB URL / Redis — use `/api/store` (db-store may use `AGENT_OS_EXT_DB_STORE_DATABASE_URL` internally only).
-4. **Python** → `agentos.*` in `services/` only, linked from `meta.json`.
+4. **Python** → `agentos.*` in `services/` only, linked from `meta.json` (`api.language: "python"` **or** dual `service` beside a Bun `api` — ticket 83).
 5. **Auth/RBAC** → builtin `auth` + `@agentos/core/api/auth` (no second stack; no `/api/rbac`). Public sign-in/up/reset are **Shell gate** routes (`/login`, `/register`, `/forgot-password`, `/reset-password`); Auth secondary Activity Bar is **account settings** (profile / **organization** / roles / security / sign-out), not app Settings. Session exposes **`orgId`** (active tenant) plus membership list; use `requireOrg()` when FDE routes need a tenant. **SSO** (OIDC/SAML) via Better Auth `@better-auth/sso` — email/password remains; role admin APIs under `/api/ext/auth/roles` and `/orgs/members` (permission `auth.roles.manage`). **Public extension portals** (trust center / client links) are declared in `meta.json` `public` — Shell admits those SPA paths without login; Bun APIs use short-lived signed tokens (`@agentos/core/api/public-token`) bound to `orgId` with a limited `role` (default `external_viewer`), not anonymous open access. See [extensions.md](./extensions.md#public-unauthenticated-routes).
 6. **Tenancy** → orgs live in builtin `auth` (`organizations` / `org_members` / `user_active_org`). **db-store** stamps and filters every tenant document by `org_id` (row-per-tenant, not DB-per-tenant). Pass `orgId` via `dbStore.collection(name, { orgId })` or forward the auth cookie; platform collections (`agentos_gateway`, hitl/audit/notifications/events outbox+jobs) use sentinel `__platform__`.
 7. **App config** → consumer-root `agentos.config.ts` via `@agentos/core/config` (`defineConfig`). Holds FDE settings including **auth** flags and **branding** (`appName`, `logoUrl`, `faviconUrl`, fonts). Consumer `public/` assets are served at `/_public/<path>` by the gateway — use those URLs (or `https://…`) in branding, never filesystem paths. Secrets stay in `src/env.ts` / `createEnv` (never in branding).

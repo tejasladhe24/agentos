@@ -34,7 +34,7 @@ Browser:  Shell (mountShell) + extension UI iframes
 - Discovers builtins + customer extensions via Vite scanner → `virtual:agentos-registry` (dev); production hosts reuse the registry model (see `agentos start`).
 - Loads consumer `agentos.config.ts` → `virtual:agentos-config` (auth + branding runtime subset).
 - Serves consumer `public/` at `/_public/<path>` (dev + preview/build copy into `dist/_public/`). Missing `/_public/<file>` returns **HTTP 404** with a minimal HTML body (gateway answers before SPA fallback).
-- Proxies `/api/ext/:id/*` to upstream from `meta.json` (port, language `bun` | `python`) at `http://127.0.0.1:<port>` (sidecar-friendly).
+- Proxies `/api/ext/:id/*` to upstream from `meta.json` (port, language `bun` | `python`) at `http://127.0.0.1:<port>` (sidecar-friendly). Dual Bun+Python extensions route `/api/ext/:id/_service/*` (or custom `service.mount`) to the Python port with the mount prefix stripped; other paths go to the Bun port.
 - Disabled **customer** extensions → 403 + UI unmounted. **Builtins** cannot be disabled.
 - **Production:** `agentos start` (after `agentos build`) spawns builtins + customer Bun/Python like `dev` (no Vite), then `Bun.serve` on `PORT` (default **8080**): gateway → static `dist/` (incl. built iframe HTML) → SPA `index.html` fallback. Sets `AGENT_OS_GLOBAL_GATEWAY_URL` to `http://127.0.0.1:<port>`. `GET /healthz` means the gateway process is up (does not probe children; fatal builtin exit shuts down via ProcessManager). Vite preview is not the production server.
 
@@ -73,7 +73,7 @@ See [builtins.md](./builtins.md). Hard rules:
 ## Customer features
 
 - **Extension** folder: `ui/`, `agent/`, optional `api/routes/` (Bun).
-- **Service** folder: Python FastAPI under `services/<id>/` when `meta.api.language === "python"`.
+- **Service** folder: Python FastAPI under `services/<id>/` when `meta.api.language === "python"` or when a Bun extension declares a sibling `meta.service` link.
 
 ## Runtime tooling
 
