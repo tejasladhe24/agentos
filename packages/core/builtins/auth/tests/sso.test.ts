@@ -28,9 +28,9 @@ const MOCK_SSO = {
     tokenEndpoint: `${IDP_ORIGIN}/token`,
     userInfoEndpoint: `${IDP_ORIGIN}/userinfo`,
     jwksEndpoint: `${IDP_ORIGIN}/jwks`,
-    scopes: ['openid', 'email', 'profile'],
+    scopes: ['openid', 'email', 'profile'] as string[],
   },
-} as const;
+};
 
 describe('auth SSO (Better Auth plugin)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'agentos-auth-sso-'));
