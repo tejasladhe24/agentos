@@ -116,3 +116,43 @@ async def get_json(
         label=label,
         client=client,
     )
+
+
+async def put_json(
+    url: str,
+    body: Any,
+    label: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    headers: dict[str, str] | None = None,
+) -> Any:
+    """PUT JSON helper used by domain clients."""
+    return await json_fetch(
+        url,
+        method="PUT",
+        body=body if body is not None else {},
+        headers=headers,
+        label=label,
+        client=client,
+    )
+
+
+async def delete_json(
+    url: str,
+    label: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    headers: dict[str, str] | None = None,
+    body: Any = None,
+    allow_empty: bool = False,
+) -> Any:
+    """DELETE JSON helper used by domain clients."""
+    return await json_fetch(
+        url,
+        method="DELETE",
+        body=body,
+        headers=headers,
+        label=label,
+        client=client,
+        allow_empty=allow_empty,
+    )

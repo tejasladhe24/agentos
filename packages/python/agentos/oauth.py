@@ -19,9 +19,8 @@ from urllib.parse import quote, urlencode
 
 import httpx
 
-from agentos.http import EnvMap, resolve_ext_api_base
-
-SECRETS_ORG_ID_HEADER = "x-agentos-org-id"
+from agentos.http import EnvMap
+from agentos.secrets import SECRETS_ORG_ID_HEADER, resolve_secrets_api_base
 
 
 def create_pkce_pair() -> tuple[str, str]:
@@ -107,11 +106,6 @@ async def exchange_authorization_code(
     if not isinstance(body, dict) or not isinstance(body.get("access_token"), str):
         raise RuntimeError("oauth exchange_authorization_code: missing access_token")
     return body
-
-
-def resolve_secrets_api_base(env: EnvMap | None = None) -> str:
-    """Resolve builtin secrets API base."""
-    return resolve_ext_api_base("secrets", "AGENT_OS_SECRETS_API_BASE", env)
 
 
 async def persist_oauth_tokens(

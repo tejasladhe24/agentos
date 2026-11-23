@@ -9,6 +9,11 @@ import {
   resolveAiApiBase,
 } from '@agentos/core/api/ai';
 import {
+  appendEntry,
+  listEntries,
+  resolveAuditApiBase,
+} from '@agentos/core/api/audit';
+import {
   ack,
   claim,
   publish,
@@ -28,6 +33,12 @@ import {
   resolveApproval,
   resolveHitlApiBase,
 } from '@agentos/core/api/hitl';
+import {
+  getDelivery,
+  listRecent,
+  notify,
+  resolveNotificationsApiBase,
+} from '@agentos/core/api/notifications';
 import {
   deleteSecret,
   getSecret,
@@ -97,6 +108,10 @@ describe('resolve*ApiBase', () => {
     expect(resolveFilesApiBase({})).toBe('http://127.0.0.1:5173/api/ext/files');
     expect(resolveSecretsApiBase({})).toBe(
       'http://127.0.0.1:5173/api/ext/secrets',
+    );
+    expect(resolveAuditApiBase({})).toBe('http://127.0.0.1:5173/api/ext/audit');
+    expect(resolveNotificationsApiBase({})).toBe(
+      'http://127.0.0.1:5173/api/ext/notifications',
     );
     expect(resolveVectorStoreApiBase({})).toBe(
       'http://127.0.0.1:5173/api/ext/vector-store',
@@ -338,6 +353,91 @@ describe('files client', () => {
     });
     const bytes = await getBlob('doc/1', env);
     expect([...bytes]).toEqual([97]);
+  });
+});
+
+describe('audit client', () => {
+  test('appendEntry and listEntries', async () => {
+    const env = { AGENT_OS_AUDIT_API_BASE: 'http://audit.test' };
+    const entry = {
+      id: 'a1',
+      action: 'doc.view',
+      actor: 'u1',
+      resource: 'doc/1',
+      at: '2026-01-01T00:00:00.000Z',
+    };
+
+    mockFetch(({ url, method, body }) => {
+      expect(method).toBe('POST');
+      expect(url).toBe('http://audit.test/entries');
+      expect(body).toEqual({
+        action: 'doc.view',
+        actor: 'u1',
+        resource: 'doc/1',
+      });
+      return Response.json(entry, { status: 201 });
+    });
+    expect(
+      await appendEntry(
+        { action: 'doc.view', actor: 'u1', resource: 'doc/1' },
+        env,
+      ),
+    ).toEqual(entry);
+
+    mockFetch(({ url, method }) => {
+      expect(method).toBe('GET');
+      expect(url).toBe('http://audit.test/entries?limit=10');
+      return Response.json({ entries: [entry] });
+    });
+    expect(await listEntries(10, env)).toEqual([entry]);
+  });
+});
+
+describe('notifications client', () => {
+  test('notify / listRecent / getDelivery forward orgId', async () => {
+    const env = { AGENT_OS_NOTIFICATIONS_API_BASE: 'http://notify.test' };
+    const notification = {
+      id: 'n1',
+      message: 'hello',
+      type: 'info' as const,
+      channel: 'email' as const,
+      status: 'sent' as const,
+      at: '2026-01-01T00:00:00.000Z',
+      to: 'a@b.co',
+      orgId: 'org_1',
+    };
+
+    mockFetch(({ url, method, body, headers }) => {
+      expect(method).toBe('POST');
+      expect(url).toBe('http://notify.test/notify');
+      expect(body).toEqual({
+        channel: 'email',
+        message: 'hello',
+        to: 'a@b.co',
+      });
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({ ok: true, notification });
+    });
+    expect(
+      await notify({ channel: 'email', message: 'hello', to: 'a@b.co' }, env, {
+        orgId: 'org_1',
+      }),
+    ).toEqual({ ok: true, notification });
+
+    mockFetch(({ url, method, headers }) => {
+      expect(method).toBe('GET');
+      expect(url).toBe('http://notify.test/recent');
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({ notifications: [notification] });
+    });
+    expect(await listRecent(env, { orgId: 'org_1' })).toEqual([notification]);
+
+    mockFetch(({ url, method }) => {
+      expect(method).toBe('GET');
+      expect(url).toBe('http://notify.test/deliveries/n1');
+      return Response.json({ notification });
+    });
+    expect(await getDelivery('n1', env)).toEqual(notification);
   });
 });
 
