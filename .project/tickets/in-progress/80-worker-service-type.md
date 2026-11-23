@@ -1,6 +1,6 @@
 # 80 — Worker service type (long jobs / headless browser)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,12 +15,12 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] `meta.json` / service config can declare `kind: "worker"` (or equivalent) with concurrency + timeout
-- [ ] CLI / process supervisor starts workers distinctly from HTTP APIs
-- [ ] Documented Playwright (or similar) base image / Dockerfile fragment for browser workers
-- [ ] Optional egress/proxy env knobs documented (rotation out of scope for MVP)
-- [ ] Example stub or ChannelGuard-oriented notes in docs
-- [ ] Tests or smoke: worker process registers health and respects concurrency=1 in fixture
+- [x] `meta.json` / service config can declare `kind: "worker"` (or equivalent) with concurrency + timeout
+- [x] CLI / process supervisor starts workers distinctly from HTTP APIs
+- [x] Documented Playwright (or similar) base image / Dockerfile fragment for browser workers
+- [x] Optional egress/proxy env knobs documented (rotation out of scope for MVP)
+- [x] Example stub or ChannelGuard-oriented notes in docs
+- [x] Tests or smoke: worker process registers health and respects concurrency=1 in fixture
 
 ## Notes
 

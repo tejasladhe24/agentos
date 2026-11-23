@@ -1,11 +1,16 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+export type PythonServiceKind = 'http' | 'worker';
+
 export type ExtensionMeta = {
   api?: {
     language?: string;
     root?: string;
     port?: number;
+    kind?: string;
+    concurrency?: number;
+    timeoutSeconds?: number;
   };
 };
 
@@ -19,7 +24,15 @@ export type PythonService = {
   id: string;
   resolvedRoot: string;
   port: number;
+  /** Defaults to `http` when meta omits kind. */
+  kind: PythonServiceKind;
+  concurrency?: number;
+  timeoutSeconds?: number;
 };
+
+/** Env keys injected for worker processes (read by `agentos.worker`). */
+export const WORKER_CONCURRENCY_ENV = 'AGENT_OS_WORKER_CONCURRENCY';
+export const WORKER_TIMEOUT_SECONDS_ENV = 'AGENT_OS_WORKER_TIMEOUT_SECONDS';
 
 function isDirectory(path: string): boolean {
   try {
@@ -35,6 +48,17 @@ function readMeta(metaPath: string): ExtensionMeta | null {
   } catch {
     return null;
   }
+}
+
+function parsePositiveInt(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 1) {
+    return undefined;
+  }
+  return Math.floor(value);
+}
+
+function parseServiceKind(raw: unknown): PythonServiceKind {
+  return raw === 'worker' ? 'worker' : 'http';
 }
 
 /** Discover customer Bun API servers from extensions/<id>/meta.json. */
@@ -104,9 +128,48 @@ export function discoverPythonServices(extensionsDir: string): PythonService[] {
       continue;
     }
 
-    out.push({ id, resolvedRoot, port: meta.api.port });
+    const kind = parseServiceKind(meta.api.kind);
+    const concurrency = parsePositiveInt(meta.api.concurrency);
+    const timeoutSeconds = parsePositiveInt(meta.api.timeoutSeconds);
+
+    if (
+      meta.api.kind != null &&
+      meta.api.kind !== 'http' &&
+      meta.api.kind !== 'worker'
+    ) {
+      console.warn(
+        `[agentos] ${id}: unknown api.kind "${String(meta.api.kind)}" — treating as http`,
+      );
+    }
+
+    out.push({
+      id,
+      resolvedRoot,
+      port: meta.api.port,
+      kind,
+      ...(concurrency !== undefined ? { concurrency } : {}),
+      ...(timeoutSeconds !== undefined ? { timeoutSeconds } : {}),
+    });
   }
   return out;
+}
+
+/**
+ * Env vars for a worker process (concurrency + timeout).
+ * HTTP services get an empty object.
+ */
+export function workerProcessEnv(
+  service: Pick<PythonService, 'kind' | 'concurrency' | 'timeoutSeconds'>,
+): Record<string, string> {
+  if (service.kind !== 'worker') return {};
+  const env: Record<string, string> = {};
+  if (service.concurrency !== undefined) {
+    env[WORKER_CONCURRENCY_ENV] = String(service.concurrency);
+  }
+  if (service.timeoutSeconds !== undefined) {
+    env[WORKER_TIMEOUT_SECONDS_ENV] = String(service.timeoutSeconds);
+  }
+  return env;
 }
 
 function pythonHasUvicorn(pythonBin: string): boolean {

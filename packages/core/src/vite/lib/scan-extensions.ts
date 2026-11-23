@@ -73,6 +73,23 @@ function parseMetaApi(raw: unknown): ExtensionMetaApi | undefined {
   if (typeof api.routesDir === 'string') result.routesDir = api.routesDir;
   if (typeof api.root === 'string') result.root = api.root;
   if (typeof api.health === 'string') result.health = api.health;
+  if (api.kind === 'worker' || api.kind === 'http') {
+    result.kind = api.kind;
+  }
+  if (
+    typeof api.concurrency === 'number' &&
+    Number.isFinite(api.concurrency) &&
+    api.concurrency >= 1
+  ) {
+    result.concurrency = Math.floor(api.concurrency);
+  }
+  if (
+    typeof api.timeoutSeconds === 'number' &&
+    Number.isFinite(api.timeoutSeconds) &&
+    api.timeoutSeconds > 0
+  ) {
+    result.timeoutSeconds = Math.floor(api.timeoutSeconds);
+  }
   return result;
 }
 
@@ -208,6 +225,13 @@ function scanOneExtension(
       resolvedRoot,
       port: meta.api.port,
       ...(meta.api.health ? { health: meta.api.health } : {}),
+      ...(meta.api.kind ? { kind: meta.api.kind } : {}),
+      ...(meta.api.concurrency !== undefined
+        ? { concurrency: meta.api.concurrency }
+        : {}),
+      ...(meta.api.timeoutSeconds !== undefined
+        ? { timeoutSeconds: meta.api.timeoutSeconds }
+        : {}),
     };
     if (!isDirectory(resolvedRoot)) {
       console.warn(

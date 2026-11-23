@@ -1,0 +1,22 @@
+# Optional fragment for Python *worker* services that need a headless browser
+# (ChannelGuard crawler, Playwright scrapes, etc.). Do NOT bake this into the
+# default AgentOS production image — compose it when building a browser worker.
+#
+# Usage (after FROM your AgentOS/python runtime base):
+#   COPY deploy/docker/Dockerfile.playwright.fragment /tmp/pw.fragment
+#   or paste the RUN block below into a service-specific Dockerfile.
+#
+# Then in the service: `uv add playwright` / `playwright install --with-deps chromium`
+# (install browsers into the image layer that runs the worker).
+
+USER root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+       libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+       libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+       libgbm1 libasound2 libpango-1.0-0 libcairo2 \
+  && rm -rf /var/lib/apt/lists/*
+
+# Prefer installing Playwright into the service venv, then:
+#   playwright install chromium
+# Browsers land under the Playwright cache; set PLAYWRIGHT_BROWSERS_PATH if needed.

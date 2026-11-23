@@ -5,6 +5,7 @@ import {
   discoverBunApis,
   discoverPythonServices,
   resolvePythonCmd,
+  workerProcessEnv,
 } from './discover-extensions';
 import { corePackageRoot, repoRoot } from './paths';
 import type { ProcessManager } from './process-manager';
@@ -57,15 +58,29 @@ export function spawnAgentOsStack(options: SpawnStackOptions): void {
 
   const pythonServices = discoverPythonServices(extensionsDir);
   const pyEnv = builtinApiEnv(gatewayUrl);
+  const httpServices = pythonServices.filter((s) => s.kind === 'http');
+  const workerServices = pythonServices.filter((s) => s.kind === 'worker');
+
   if (pythonServices.length === 0) {
     console.log(`[agentos] no python services under ${extensionsDir}`);
   } else {
-    console.log(
-      `[agentos] starting ${pythonServices.length} python service(s)…`,
-    );
+    if (httpServices.length > 0) {
+      console.log(
+        `[agentos] starting ${httpServices.length} python HTTP service(s)…`,
+      );
+    }
+    if (workerServices.length > 0) {
+      console.log(
+        `[agentos] starting ${workerServices.length} python worker(s)…`,
+      );
+    }
   }
+
   for (const service of pythonServices) {
-    const resolved = resolvePythonCmd(service.resolvedRoot, root, pyEnv);
+    const resolved = resolvePythonCmd(service.resolvedRoot, root, {
+      ...pyEnv,
+      ...workerProcessEnv(service),
+    });
     if (!resolved) {
       console.warn(
         `[agentos] skip ${service.id}: no python/.venv or uv — install packages/python .venv or run uv sync in ${service.resolvedRoot}`,
@@ -75,9 +90,23 @@ export function spawnAgentOsStack(options: SpawnStackOptions): void {
     const cmd = resolved.cmd.map((part) =>
       part === 'PORT' ? String(service.port) : part,
     );
-    console.log(
-      `[agentos] ${service.id} → http://127.0.0.1:${service.port} (proxy /api/ext/${service.id}/*)`,
-    );
+    if (service.kind === 'worker') {
+      const caps: string[] = [];
+      if (service.concurrency !== undefined) {
+        caps.push(`concurrency=${service.concurrency}`);
+      }
+      if (service.timeoutSeconds !== undefined) {
+        caps.push(`timeout=${service.timeoutSeconds}s`);
+      }
+      const capNote = caps.length > 0 ? ` (${caps.join(', ')})` : '';
+      console.log(
+        `[agentos] worker ${service.id} → http://127.0.0.1:${service.port} (health/triggers; proxy /api/ext/${service.id}/*)${capNote}`,
+      );
+    } else {
+      console.log(
+        `[agentos] ${service.id} → http://127.0.0.1:${service.port} (proxy /api/ext/${service.id}/*)`,
+      );
+    }
     pm.spawn({
       name: service.id,
       cmd,

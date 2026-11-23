@@ -4,6 +4,13 @@ export type ExtensionKind = 'builtin' | 'customer';
 /** API language from meta.json. */
 export type ApiLanguage = 'bun' | 'python';
 
+/**
+ * Python process role from `meta.json` `api.kind`.
+ * - `http` (default) — request/response FastAPI
+ * - `worker` — long jobs (crawl, etc.) with concurrency/timeout env
+ */
+export type PythonServiceKind = 'http' | 'worker';
+
 /** Parsed `meta.json` api block. */
 export type ExtensionMetaApi = {
   language: ApiLanguage;
@@ -12,6 +19,12 @@ export type ExtensionMetaApi = {
   /** Python service root, relative to the extension directory. */
   root?: string;
   health?: string;
+  /** Python only; omitted / unknown → `http`. */
+  kind?: PythonServiceKind;
+  /** Max overlapping worker jobs (worker kind). */
+  concurrency?: number;
+  /** Per-job timeout in seconds (worker kind). */
+  timeoutSeconds?: number;
 };
 
 /** Activity Bar vertical region (`meta.json` `activityBarSection`). */
@@ -116,6 +129,9 @@ export type ScannedExtension = {
     resolvedRoot: string;
     port: number;
     health?: string;
+    kind?: PythonServiceKind;
+    concurrency?: number;
+    timeoutSeconds?: number;
   };
 };
 
