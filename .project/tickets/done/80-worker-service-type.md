@@ -1,6 +1,6 @@
 # 80 — Worker service type (long jobs / headless browser)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

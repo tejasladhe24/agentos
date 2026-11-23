@@ -1,6 +1,6 @@
 # 77 — Per-tenant credential vault (secrets)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

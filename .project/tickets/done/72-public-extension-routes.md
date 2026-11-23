@@ -1,6 +1,6 @@
 # 72 — Public (unauthenticated) extension routes
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

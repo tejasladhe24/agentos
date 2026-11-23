@@ -1,6 +1,6 @@
 # 71 — Tenancy: org model + org-scoped db-store
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

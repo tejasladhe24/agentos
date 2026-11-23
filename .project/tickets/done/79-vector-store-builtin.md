@@ -1,6 +1,6 @@
 # 79 — `vector-store` builtin (pgvector)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

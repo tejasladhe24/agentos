@@ -1,6 +1,6 @@
 # 74 — Durable event queue + job scheduler
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

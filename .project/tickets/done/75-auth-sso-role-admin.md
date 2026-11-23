@@ -1,6 +1,6 @@
 # 75 — Auth: SAML/OIDC SSO + role admin API
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

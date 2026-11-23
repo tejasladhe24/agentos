@@ -1,6 +1,6 @@
 # 82 — SDK parity: files, events, audit, secrets, notifications
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

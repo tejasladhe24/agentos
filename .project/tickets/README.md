@@ -88,34 +88,35 @@ Agents must never promote tickets to `done/` themselves.
 68. Deploy workflow command smoke (`pnpm run ci`) — **done**
 69. GitHub Actions Node 22 for Wrangler — **done**
 70. Solo freelancer portfolio + $5k–$10k pipeline (personal; not AgentOS platform)
-71. Tenancy: org model + org-scoped db-store — **in-progress**
-72. Public (unauthenticated) extension routes
-73. Notifications: email and SMS delivery channels
-74. Durable event queue + job scheduler (+ `hitl.resolved`)
-75. Auth: SAML/OIDC SSO + role admin API
-76. db-store query operators, sort, and indexes
-77. Per-tenant credential vault (secrets)
-78. OAuth connect + inbound webhook kits
-79. `vector-store` builtin (pgvector)
-80. Worker service type (long jobs / headless browser)
-81. cache-store Redis backend
-82. SDK parity: files, events, audit, secrets, notifications
-83. `meta.json`: Bun API + linked Python service per extension
-84. db-store bulk insert + retention/TTL
-85. AI: structured JSON output + file/image inputs
-86. Inbound email per org
-87. Retention policies + subject deletion
+71. Tenancy: org model + org-scoped db-store — **done**
+72. Public (unauthenticated) extension routes — **done**
+73. Notifications: email and SMS delivery channels — **done**
+74. Durable event queue + job scheduler (+ `hitl.resolved`) — **done**
+75. Auth: SAML/OIDC SSO + role admin API — **done**
+76. db-store query operators, sort, and indexes — **done**
+77. Per-tenant credential vault (secrets) — **done**
+78. OAuth connect + inbound webhook kits — **done**
+79. `vector-store` builtin (pgvector) — **done**
+80. Worker service type (long jobs / headless browser) — **done**
+81. cache-store Redis backend — **done**
+82. SDK parity: files, events, audit, secrets, notifications — **done**
+83. `meta.json`: Bun API + linked Python service per extension — **done**
+84. db-store bulk insert + retention/TTL — **done**
+85. AI: structured JSON output + file/image inputs — **done**
+86. Inbound email per org — **done**
+87. Retention policies + subject deletion — **done**
 88. TrustDesk MVP (`examples/trustdesk`)
 89. CloseDesk MVP (`examples/closedesk`)
 90. VendorGate MVP (`examples/vendorgate`)
 91. PlacementOS MVP (`examples/placementos`)
 92. ChannelGuard MVP (`examples/channelguard`)
+93. Ticket reconciliation: promote covered in-progress → done — **done** (71–87 → `done/`)
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **72**–**92**. `in-progress/` — **71** (tenancy).
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**. `in-progress/` — empty.
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 
-**Portfolio platform order (framework first):** **71 → 72 → 73 → 74** (close-first), then **75**–**87** as needed; product MVPs **88 → 89 → 90 → 91 → 92**. Source: [`.project/portfolio/portfolio-briefs.md`](../portfolio/portfolio-briefs.md). Do not start build tickets until the user explicitly asks.
+**Portfolio platform capabilities:** **71**–**87** done (reconciled in **93**). Product MVPs next: **88 → 89 → 90 → 91 → 92**. Source: [`.project/portfolio/portfolio-briefs.md`](../portfolio/portfolio-briefs.md). Do not start build tickets until the user explicitly asks.
 
 **Runtime policy:** `pnpm install` for the monorepo; `bun run` / `bun` for all TS/JS services (never Node).
 

@@ -1,6 +1,6 @@
 # 85 — AI: structured JSON output + file/image inputs
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
