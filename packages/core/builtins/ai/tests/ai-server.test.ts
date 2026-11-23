@@ -30,6 +30,137 @@ describe('builtin ai server', () => {
     expect(body.text).toContain('hello');
   });
 
+  test('generate-text with schema returns structured object', async () => {
+    const res = await handleAiRequest(
+      { models, gatewayUrl },
+      new Request('http://127.0.0.1:6113/generate-text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'extract COI',
+          schema: {
+            type: 'object',
+            properties: {
+              summary: { type: 'string' },
+              limit: { type: 'number' },
+            },
+            required: ['summary', 'limit'],
+            additionalProperties: false,
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      object: { summary: string; limit: number };
+    };
+    expect(body.object.summary).toContain('extract COI');
+    expect(typeof body.object.limit).toBe('number');
+  });
+
+  test('generate-text with image base64 marks multimodal', async () => {
+    // 1x1 PNG
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const res = await handleAiRequest(
+      { models, gatewayUrl },
+      new Request('http://127.0.0.1:6113/generate-text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'describe',
+          files: [{ base64: pngBase64, mediaType: 'image/png' }],
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { text: string };
+    expect(body.text).toContain('describe');
+    expect(body.text).toContain('[files:1]');
+  });
+
+  test('generate-text with schema + files key resolves via files builtin', async () => {
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const fetchImpl = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/ext/files/blobs/')) {
+        return new Response(
+          JSON.stringify({
+            key: 'coi.png',
+            base64: pngBase64,
+            bytes: 68,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('not found', { status: 404 });
+    };
+
+    const res = await handleAiRequest(
+      { models, gatewayUrl, fetchImpl },
+      new Request('http://127.0.0.1:6113/generate-text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'parse',
+          files: [{ key: 'coi.png', mediaType: 'image/png' }],
+          schema: {
+            type: 'object',
+            properties: {
+              summary: { type: 'string' },
+              hasFiles: { type: 'boolean' },
+              fileCount: { type: 'number' },
+            },
+            required: ['summary', 'hasFiles', 'fileCount'],
+            additionalProperties: false,
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      object: { summary: string; hasFiles: boolean; fileCount: number };
+    };
+    expect(body.object.hasFiles).toBe(true);
+    expect(body.object.fileCount).toBe(1);
+    expect(body.object.summary).toContain('parse');
+  });
+
+  test('generate-text rejects oversized / invalid files', async () => {
+    const res = await handleAiRequest(
+      { models, gatewayUrl },
+      new Request('http://127.0.0.1:6113/generate-text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'x',
+          files: [{ base64: 'not-base64!!!', mediaType: 'image/png' }],
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/base64|invalid/i);
+  });
+
+  test('generate-text rejects disallowed media type', async () => {
+    const res = await handleAiRequest(
+      { models, gatewayUrl },
+      new Request('http://127.0.0.1:6113/generate-text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'x',
+          files: [{ base64: 'YQ==', mediaType: 'text/plain' }],
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/not allowed/i);
+  });
+
   test('generate-image returns mock image payload', async () => {
     const res = await handleAiRequest(
       { models, gatewayUrl },

@@ -1,10 +1,10 @@
-"""agentos.ai — HTTP client for builtin `ai` (ticket 24)."""
+"""agentos.ai — HTTP client for builtin `ai` (ticket 24 / 85)."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agentos.http import EnvMap, get_json, post_json, resolve_ext_api_base
 
@@ -14,16 +14,29 @@ def resolve_ai_api_base(env: EnvMap | None = None) -> str:
     return resolve_ext_api_base("ai", "AGENT_OS_AI_API_BASE", env)
 
 
+class AiFileInput(BaseModel):
+    """File/image input: files-builtin key or inline base64."""
+
+    mediaType: str
+    key: str | None = None
+    base64: str | None = None
+
+
 class GenerateTextInput(BaseModel):
     prompt: str | None = None
     message: str | None = None
     text: str | None = None
     temperature: float | None = None
     maxTokens: int | None = None
+    schema_: dict[str, Any] | None = Field(default=None, alias="schema")
+    files: list[AiFileInput] | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class GenerateTextResult(BaseModel):
-    text: str
+    text: str | None = None
+    object: Any | None = None
 
 
 class GenerateImageResult(BaseModel):
@@ -61,7 +74,7 @@ class AiHealth(BaseModel):
 
 def _body(model: BaseModel | dict[str, Any]) -> dict[str, Any]:
     if isinstance(model, BaseModel):
-        return model.model_dump(exclude_none=True)
+        return model.model_dump(exclude_none=True, by_alias=True)
     return model
 
 

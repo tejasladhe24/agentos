@@ -1,6 +1,6 @@
 # 85 — AI: structured JSON output + file/image inputs
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,11 +15,11 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Generate endpoint accepts optional JSON schema / zod-like schema and returns parsed object or validation error
-- [ ] Prompt path accepts file/image references (files builtin keys or inline base64 with size limits)
-- [ ] TS + Python clients expose the new options
-- [ ] Mock provider supports structured + image paths in tests
-- [ ] Docs: provider requirements and size limits
+- [x] Generate endpoint accepts optional JSON schema / zod-like schema and returns parsed object or validation error
+- [x] Prompt path accepts file/image references (files builtin keys or inline base64 with size limits)
+- [x] TS + Python clients expose the new options
+- [x] Mock provider supports structured + image paths in tests
+- [x] Docs: provider requirements and size limits
 
 ## Notes
 

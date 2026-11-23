@@ -1,7 +1,19 @@
-import { embed, generateImage, generateText } from 'ai';
+import {
+  embed,
+  generateImage,
+  generateText,
+  jsonSchema,
+  NoObjectGeneratedError,
+  Output,
+} from 'ai';
 
 import type { AiModels } from './create-model';
 import type { FetchLike } from './fetch-like';
+import {
+  isResolveAttachmentsError,
+  resolveAttachments,
+  type ResolvedAttachment,
+} from './resolve-attachments';
 import { fetchAgentRegistry, runChat } from './run-chat';
 
 export type AiHandlerContext = {
@@ -46,6 +58,37 @@ function readPrompt(body: Record<string, unknown> | null): string | null {
   return null;
 }
 
+function readSchema(
+  body: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!body) return null;
+  const schema = body.schema;
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return null;
+  }
+  return schema as Record<string, unknown>;
+}
+
+function buildUserContent(
+  prompt: string,
+  attachments: ResolvedAttachment[],
+):
+  | string
+  | Array<
+      | { type: 'text'; text: string }
+      | { type: 'file'; data: Uint8Array; mediaType: string }
+    > {
+  if (attachments.length === 0) return prompt;
+  return [
+    { type: 'text', text: prompt },
+    ...attachments.map((file) => ({
+      type: 'file' as const,
+      data: file.data,
+      mediaType: file.mediaType,
+    })),
+  ];
+}
+
 /**
  * Thin Bun request router for `/api/ext/ai/*` upstream paths.
  */
@@ -74,15 +117,65 @@ export async function handleAiRequest(
         if (!prompt) {
           return json({ error: 'prompt required' }, { status: 400 });
         }
+
+        const attachments = await resolveAttachments(
+          body?.files,
+          ctx.gatewayUrl,
+          fetchImpl,
+        );
+        if (isResolveAttachmentsError(attachments)) {
+          return json(
+            { error: attachments.error },
+            { status: attachments.status },
+          );
+        }
+
+        const schema = readSchema(body);
+        const temperature =
+          typeof body?.temperature === 'number'
+            ? { temperature: body.temperature }
+            : {};
+        const maxTokens =
+          typeof body?.maxTokens === 'number'
+            ? { maxOutputTokens: body.maxTokens }
+            : {};
+        const content = buildUserContent(prompt, attachments);
+
+        if (schema) {
+          try {
+            const result = await generateText({
+              model: ctx.models.language,
+              messages: [{ role: 'user', content }],
+              output: Output.object({
+                schema: jsonSchema(schema),
+              }),
+              ...temperature,
+              ...maxTokens,
+            });
+            return json({ object: result.output });
+          } catch (error) {
+            if (NoObjectGeneratedError.isInstance(error)) {
+              return json(
+                {
+                  error: 'structured output validation failed',
+                  cause: error.cause instanceof Error
+                    ? error.cause.message
+                    : String(error.cause ?? error.message),
+                },
+                { status: 400 },
+              );
+            }
+            throw error;
+          }
+        }
+
         const result = await generateText({
           model: ctx.models.language,
-          prompt,
-          ...(typeof body?.temperature === 'number'
-            ? { temperature: body.temperature }
-            : {}),
-          ...(typeof body?.maxTokens === 'number'
-            ? { maxOutputTokens: body.maxTokens }
-            : {}),
+          ...(typeof content === 'string'
+            ? { prompt: content }
+            : { messages: [{ role: 'user', content }] }),
+          ...temperature,
+          ...maxTokens,
         });
         return json({ text: result.text });
       }

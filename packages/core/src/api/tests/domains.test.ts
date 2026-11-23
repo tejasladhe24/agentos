@@ -173,6 +173,38 @@ describe('ai client', () => {
     expect(seen).toContain('POST http://ai.test/generate-text');
   });
 
+  test('generateText forwards schema and files', async () => {
+    mockFetch(({ url, body }) => {
+      if (url.endsWith('/generate-text')) {
+        expect(body).toEqual({
+          prompt: 'parse',
+          schema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+          files: [{ key: 'coi.png', mediaType: 'image/png' }],
+        });
+        return Response.json({ object: { name: 'Acme' } });
+      }
+      return new Response('nope', { status: 404 });
+    });
+
+    const result = await generateText(
+      {
+        prompt: 'parse',
+        schema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+        files: [{ key: 'coi.png', mediaType: 'image/png' }],
+      },
+      { AGENT_OS_AI_API_BASE: 'http://ai.test' },
+    );
+    expect(result).toEqual({ object: { name: 'Acme' } });
+  });
+
   test('throws on non-OK', async () => {
     mockFetch(() =>
       Response.json({ error: 'prompt required' }, { status: 400 }),
