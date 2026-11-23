@@ -385,6 +385,105 @@ describe('builtin auth server', () => {
     expect(denied.status).toBe(403);
   });
 
+  test('role admin: viewer denied; admin can list/assign', async () => {
+    const viewerSignIn = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-in', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: DEMO_VIEWER.email,
+          password: DEMO_VIEWER.password,
+        }),
+      }),
+    );
+    expect(viewerSignIn.status).toBe(200);
+    const viewerCookie = cookieHeaderFrom(viewerSignIn);
+
+    const denied = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/members/roles', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: viewerCookie,
+        },
+        body: JSON.stringify({
+          userId: 'anyone',
+          role: 'admin',
+        }),
+      }),
+    );
+    expect(denied.status).toBe(403);
+
+    const adminSignIn = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-in', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: DEMO_ADMIN.email,
+          password: DEMO_ADMIN.password,
+        }),
+      }),
+    );
+    expect(adminSignIn.status).toBe(200);
+    const adminCookie = cookieHeaderFrom(adminSignIn);
+
+    const rolesRes = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/roles', {
+        headers: { cookie: adminCookie },
+      }),
+    );
+    expect(rolesRes.status).toBe(200);
+    const rolesBody = (await rolesRes.json()) as {
+      roles: string[];
+      permissions: Array<{ role: string; permission: string }>;
+    };
+    expect(rolesBody.roles).toContain('admin');
+    expect(rolesBody.roles).toContain('external_viewer');
+    expect(rolesBody.roles).toContain('reviewer');
+
+    const membersRes = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/members', {
+        headers: { cookie: adminCookie },
+      }),
+    );
+    expect(membersRes.status).toBe(200);
+    const membersBody = (await membersRes.json()) as {
+      orgId: string;
+      members: Array<{ userId: string; email: string; role: string }>;
+    };
+    const viewerMember = membersBody.members.find(
+      (m) => m.email === DEMO_VIEWER.email,
+    );
+    expect(viewerMember).toBeTruthy();
+
+    const assigned = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/members/roles', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: adminCookie,
+        },
+        body: JSON.stringify({
+          userId: viewerMember!.userId,
+          role: 'reviewer',
+        }),
+      }),
+    );
+    expect(assigned.status).toBe(200);
+    const assignedBody = (await assigned.json()) as {
+      members: Array<{ userId: string; role: string }>;
+    };
+    expect(
+      assignedBody.members.find((m) => m.userId === viewerMember!.userId)?.role,
+    ).toBe('reviewer');
+  });
+
   test('forgot-password + reset-password round-trip', async () => {
     let capturedToken: string | null = null;
     const resetDir = mkdtempSync(join(tmpdir(), 'agentos-auth-reset-'));

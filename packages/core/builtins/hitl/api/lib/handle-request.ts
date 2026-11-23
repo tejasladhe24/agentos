@@ -16,6 +16,17 @@ export type HitlHandlerOptions = {
   publishResolved?: HitlResolvePublisher;
 };
 
+type HitlDeps = {
+  store: ApprovalsStore;
+  options: HitlHandlerOptions;
+};
+
+type HitlRouteHandler = (
+  deps: HitlDeps,
+  request: Request,
+  url: URL,
+) => Promise<Response>;
+
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
   if (!headers.has('content-type')) {
@@ -74,6 +85,105 @@ async function emitResolved(
   }
 }
 
+async function handleHealth(): Promise<Response> {
+  return json({ ok: true, backend: 'db-store' });
+}
+
+async function handleListApprovals(
+  deps: HitlDeps,
+  _request: Request,
+  url: URL,
+): Promise<Response> {
+  const statusParam = url.searchParams.get('status');
+  const status =
+    statusParam === 'pending' ||
+    statusParam === 'approved' ||
+    statusParam === 'rejected'
+      ? (statusParam as ApprovalStatus)
+      : undefined;
+  try {
+    return json({ approvals: await deps.store.list(status) });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+async function handleCreateApproval(
+  deps: HitlDeps,
+  request: Request,
+): Promise<Response> {
+  const body = await readJsonBody(request);
+  const title = typeof body?.title === 'string' ? body.title.trim() : '';
+  if (!title) {
+    return json({ error: 'title required' }, { status: 400 });
+  }
+  try {
+    const approval = await deps.store.create({
+      title,
+      body: typeof body?.body === 'string' ? body.body : undefined,
+      metadata:
+        body?.metadata &&
+        typeof body.metadata === 'object' &&
+        !Array.isArray(body.metadata)
+          ? (body.metadata as Record<string, unknown>)
+          : undefined,
+    });
+    return json(approval, { status: 201 });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+async function handleResolveApproval(
+  deps: HitlDeps,
+  request: Request,
+  resolveId: string,
+): Promise<Response> {
+  const body = await readJsonBody(request);
+  const decision = body?.decision;
+  if (decision !== 'approved' && decision !== 'rejected') {
+    return json(
+      { error: 'decision must be "approved" or "rejected"' },
+      { status: 400 },
+    );
+  }
+  try {
+    const existing = await deps.store.get(resolveId);
+    if (!existing) {
+      return json({ error: 'not found' }, { status: 404 });
+    }
+    if (existing.status !== 'pending') {
+      return json(
+        { error: 'already resolved', approval: existing },
+        { status: 409 },
+      );
+    }
+    const approval = (await deps.store.resolve(resolveId, decision))!;
+    await emitResolved(deps.options.publishResolved, approval);
+    return json(approval);
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+const HITL_EXACT_ROUTES: ReadonlyArray<{
+  method: string;
+  path: string;
+  handle: HitlRouteHandler;
+}> = [
+  { method: 'GET', path: '/health', handle: () => handleHealth() },
+  {
+    method: 'GET',
+    path: '/approvals',
+    handle: (d, r, u) => handleListApprovals(d, r, u),
+  },
+  {
+    method: 'POST',
+    path: '/approvals',
+    handle: (d, r) => handleCreateApproval(d, r),
+  },
+];
+
 /**
  * Thin Bun request router for `/api/ext/hitl/*` upstream paths.
  * Persistence goes through db-store only (ADR 004).
@@ -86,76 +196,17 @@ export async function handleHitlRequest(
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const method = request.method.toUpperCase();
+  const deps: HitlDeps = { store, options };
 
-  if (method === 'GET' && path === '/health') {
-    return json({ ok: true, backend: 'db-store' });
-  }
-
-  if (method === 'GET' && path === '/approvals') {
-    const statusParam = url.searchParams.get('status');
-    const status =
-      statusParam === 'pending' ||
-      statusParam === 'approved' ||
-      statusParam === 'rejected'
-        ? (statusParam as ApprovalStatus)
-        : undefined;
-    try {
-      return json({ approvals: await store.list(status) });
-    } catch (error) {
-      return unavailable(error);
-    }
-  }
-
-  if (method === 'POST' && path === '/approvals') {
-    const body = await readJsonBody(request);
-    const title = typeof body?.title === 'string' ? body.title.trim() : '';
-    if (!title) {
-      return json({ error: 'title required' }, { status: 400 });
-    }
-    try {
-      const approval = await store.create({
-        title,
-        body: typeof body?.body === 'string' ? body.body : undefined,
-        metadata:
-          body?.metadata &&
-          typeof body.metadata === 'object' &&
-          !Array.isArray(body.metadata)
-            ? (body.metadata as Record<string, unknown>)
-            : undefined,
-      });
-      return json(approval, { status: 201 });
-    } catch (error) {
-      return unavailable(error);
+  for (const route of HITL_EXACT_ROUTES) {
+    if (route.method === method && route.path === path) {
+      return route.handle(deps, request, url);
     }
   }
 
   const resolveId = parseResolvePath(path);
   if (method === 'POST' && resolveId) {
-    const body = await readJsonBody(request);
-    const decision = body?.decision;
-    if (decision !== 'approved' && decision !== 'rejected') {
-      return json(
-        { error: 'decision must be "approved" or "rejected"' },
-        { status: 400 },
-      );
-    }
-    try {
-      const existing = await store.get(resolveId);
-      if (!existing) {
-        return json({ error: 'not found' }, { status: 404 });
-      }
-      if (existing.status !== 'pending') {
-        return json(
-          { error: 'already resolved', approval: existing },
-          { status: 409 },
-        );
-      }
-      const approval = (await store.resolve(resolveId, decision))!;
-      await emitResolved(options.publishResolved, approval);
-      return json(approval);
-    } catch (error) {
-      return unavailable(error);
-    }
+    return handleResolveApproval(deps, request, resolveId);
   }
 
   return json({ error: 'not found' }, { status: 404 });

@@ -5,6 +5,7 @@ import {
   getPublicAccess,
   isPublicApiPath,
   requirePublicToken,
+  resolvePublicTokenRole,
   signPublicToken,
   verifyPublicToken,
 } from '@agentos/core/api/public-token';
@@ -54,8 +55,24 @@ describe('public token', () => {
       extensionId: 'demo',
       purpose: 'portal',
       pathPrefix: '/portal/',
+      role: 'external_viewer',
     });
     expect(payload!.exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
+    expect(resolvePublicTokenRole(payload!)).toBe('external_viewer');
+  });
+
+  test('explicit role overrides purpose default', async () => {
+    const token = await signPublicToken({
+      orgId: 'org-1',
+      extensionId: 'demo',
+      purpose: 'portal',
+      role: 'sales',
+      ttlSeconds: 60,
+      secret: SECRET,
+    });
+    const payload = await verifyPublicToken(token, { secret: SECRET });
+    expect(payload?.role).toBe('sales');
+    expect(resolvePublicTokenRole(payload!)).toBe('sales');
   });
 
   test('rejects expired and tampered tokens', async () => {

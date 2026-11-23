@@ -1,6 +1,6 @@
 # 75 — Auth: SAML/OIDC SSO + role admin API
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,12 +15,12 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] OIDC and/or SAML sign-in path documented and tested (WorkOS/Auth0/similar via Better Auth plugins or equivalent)
-- [ ] Admin API (permission-gated) to list/assign roles and permissions per org member
-- [ ] External / limited roles usable with ticket **72** signed links where appropriate
-- [ ] Existing email/password path remains
-- [ ] Tests for SSO callback happy path (mocked) + role assignment denial without permission
-- [ ] Docs: env + IdP setup for demo
+- [x] OIDC and/or SAML sign-in path documented and tested (WorkOS/Auth0/similar via Better Auth plugins or equivalent)
+- [x] Admin API (permission-gated) to list/assign roles and permissions per org member
+- [x] External / limited roles usable with ticket **72** signed links where appropriate
+- [x] Existing email/password path remains
+- [x] Tests for SSO callback happy path (mocked) + role assignment denial without permission
+- [x] Docs: env + IdP setup for demo
 
 ## Notes
 

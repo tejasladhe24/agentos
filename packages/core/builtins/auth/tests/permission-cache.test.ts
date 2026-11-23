@@ -53,6 +53,7 @@ describe('auth permission check + cache-store', () => {
   let ctx: Awaited<ReturnType<typeof createAuth>>;
   let adminCookie = '';
   let adminUserId = '';
+  let adminOrgId: string | null = null;
 
   test('setup auth with in-process cache-store fetch', async () => {
     ctx = await createAuth({
@@ -79,8 +80,12 @@ describe('auth permission check + cache-store', () => {
     );
     expect(signIn.status).toBe(200);
     adminCookie = cookieHeaderFrom(signIn);
-    const body = (await signIn.json()) as { user: { id: string } };
+    const body = (await signIn.json()) as {
+      user: { id: string };
+      orgId: string | null;
+    };
     adminUserId = body.user.id;
+    adminOrgId = body.orgId;
   });
 
   test('miss → SQLite then cache hit on second check', async () => {
@@ -101,7 +106,8 @@ describe('auth permission check + cache-store', () => {
       permission: PERMISSION_ADMIN_ONLY,
     });
 
-    const key = permissionCacheKey(adminUserId, PERMISSION_ADMIN_ONLY);
+    const cacheUser = adminOrgId ? `${adminUserId}:${adminOrgId}` : adminUserId;
+    const key = permissionCacheKey(cacheUser, PERMISSION_ADMIN_ONLY);
     expect(memory.get(key)).toEqual({ allowed: true });
 
     // Overwrite cache to prove subsequent reads skip SQLite.
