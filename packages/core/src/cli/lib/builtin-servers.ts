@@ -30,6 +30,11 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
     entry: './builtins/vector-store/api/server.ts',
     port: 6120,
   },
+  {
+    name: 'inbound-email',
+    entry: './builtins/inbound-email/api/server.ts',
+    port: 6121,
+  },
 ] as const;
 
 /** Direct builtin bases so Python kits skip the Vite hop during local dev. */

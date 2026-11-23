@@ -33,6 +33,8 @@ export const PLATFORM_COLLECTIONS = new Set([
   'notifications',
   'events_outbox',
   'events_jobs',
+  /** Inbound email address → orgId directory (ticket 86). */
+  'inbound_addresses',
   RETENTION_POLICIES_COLLECTION,
 ]);
 

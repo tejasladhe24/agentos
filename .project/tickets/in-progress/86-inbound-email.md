@@ -1,6 +1,6 @@
 # 86 — Inbound email per org
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -17,12 +17,13 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Provision or document inbound address mapping → `orgId`
-- [ ] Provider webhook verifies signature and ingests message + attachments
-- [ ] Attachments land in `files`; event published (e.g. `email.received`)
-- [ ] Tests with mocked provider payloads
-- [ ] Docs: DNS / provider setup for demo
+- [x] Provision or document inbound address mapping → `orgId`
+- [x] Provider webhook verifies signature and ingests message + attachments
+- [x] Attachments land in `files`; event published (e.g. `email.received`)
+- [x] Tests with mocked provider payloads
+- [x] Docs: DNS / provider setup for demo
 
 ## Notes
 
 - Pick one provider for v1 (e.g. inbound parse webhook); keep adapter boundary clean.
+- v1 providers: **Mailgun** Inbound Parse + **fixture** (HMAC JSON) for local/tests.

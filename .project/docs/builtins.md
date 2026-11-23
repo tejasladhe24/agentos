@@ -23,6 +23,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | **secrets**       | Per-tenant credential vault (encrypted) + env fallback                                                                         |
 | **audit**         | Append-only audit via db-store                                                                                                 |
 | **vector-store**  | Org-scoped embedding upsert / similarity query (pgvector; in-memory for local/tests)                                           |
+| **inbound-email** | Per-org inbound address → attachments in `files` + durable `email.received` event                                              |
 
 ## Access pattern
 
@@ -353,3 +354,41 @@ Builtin **`vector-store`** owns embedding **storage and similarity search** only
 | `AGENT_OS_EXT_VECTOR_STORE_DIMENSIONS`   | Embedding length (default `1536`); must match `ai.embed` output     |
 
 **Postgres required for RAG:** set `DATABASE_URL` + install pgvector. Without a Postgres URL, `auto` falls back to an **in-memory** cosine index (fine for local/tests; not durable / not multi-replica). Non-Postgres URLs and missing pgvector return **501** with a clear error. Kit: `@agentos/core/api/vector-store` / `agentos.vector_store`.
+
+## Inbound email (per org)
+
+Builtin **`inbound-email`** receives provider webhooks, maps the **To / recipient** address to an `orgId`, stores attachments in **`files`**, persists message metadata in org-scoped `inbound_messages`, and publishes durable topic **`email.received`** (via builtin `events`). VendorGate COI intake and similar flows subscribe / claim that event — they never talk to the ESP directly.
+
+`meta.json` declares `public.openApiPrefixes: ["/webhooks/"]` so the gateway skips session/public-token gates; handlers verify the provider signature themselves (ticket 78).
+
+| Method | Path                                | Role                                                          |
+| ------ | ----------------------------------- | ------------------------------------------------------------- |
+| `GET`  | `/api/ext/inbound-email/health`     | `{ ok, provider, backend }`                                   |
+| `GET`  | `/api/ext/inbound-email/addresses`  | List address → org mappings (db + env)                        |
+| `POST` | `/api/ext/inbound-email/addresses`  | Provision `{ address, orgId, purpose? }`                      |
+| `POST` | `/api/ext/inbound-email/webhooks/*` | Provider webhook (`fixture`, `mailgun`, or generic `inbound`) |
+
+**Address mapping:** prefer `POST /addresses`, or demo env `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP=coi@inbound.example.com=org_demo`. Directory rows live in platform collection `inbound_addresses`.
+
+**`email.received` payload (stable):** `{ orgId, messageId, deliveryId, provider, from, to, subject, attachmentKeys, attachments, receivedAt }`.
+
+| Variable                                         | Role                                         |
+| ------------------------------------------------ | -------------------------------------------- |
+| `AGENT_OS_EXT_INBOUND_EMAIL_PORT`                | Upstream port (default `6121`)               |
+| `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER`            | `fixture` (default) or `mailgun`             |
+| `AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET`      | HMAC secret for fixture webhooks             |
+| `AGENT_OS_EXT_INBOUND_EMAIL_MAILGUN_SIGNING_KEY` | Mailgun HTTP webhook signing key             |
+| `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP`         | Demo `address=orgId` pairs (comma-separated) |
+
+### Demo DNS / Mailgun setup
+
+1. Create (or reuse) a subdomain for inbound, e.g. `inbound.example.com`.
+2. In Mailgun: add the domain, set the MX records Mailgun shows in DNS.
+3. Routes → **store and notify** / Inbound Parse → URL  
+   `https://<app>/api/ext/inbound-email/webhooks/mailgun`.
+4. Set `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER=mailgun` and the signing key env var.
+5. Provision per-org locals: `coi@inbound.example.com` → that tenant’s `orgId`  
+   (`POST /addresses` or `ADDRESS_MAP`).
+6. Send a test message with a PDF; confirm a blob under `orgs/<orgId>/inbound/…` and an `email.received` outbox row.
+
+**Local without Mailgun:** keep `PROVIDER=fixture`, set `WEBHOOK_SECRET`, and POST a signed JSON body to `/webhooks/fixture` (see builtin tests).

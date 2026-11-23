@@ -8,6 +8,7 @@ import { keys as dbStoreKeys } from '@agentos/core/builtins/db-store/env';
 import { keys as eventsKeys } from '@agentos/core/builtins/events/env';
 import { keys as filesKeys } from '@agentos/core/builtins/files/env';
 import { keys as hitlKeys } from '@agentos/core/builtins/hitl/env';
+import { keys as inboundEmailKeys } from '@agentos/core/builtins/inbound-email/env';
 import { keys as notificationsKeys } from '@agentos/core/builtins/notifications/env';
 import { keys as secretsKeys } from '@agentos/core/builtins/secrets/env';
 import { keys as vectorStoreKeys } from '@agentos/core/builtins/vector-store/env';
@@ -32,6 +33,7 @@ export const env = createEnv({
     secretsKeys(),
     auditKeys(),
     vectorStoreKeys(),
+    inboundEmailKeys(),
     demoKeys(),
     crmHelperKeys(),
   ],
