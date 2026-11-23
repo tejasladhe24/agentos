@@ -21,7 +21,7 @@ Framework package. Parent exports:
 | `@agentos/core/api/notifications` | API routes          | Notify + recent inbox + delivery status                                   |
 | `@agentos/core/api/oauth`         | API routes          | Provider-agnostic OAuth state, authorize URL, code exchange, vault tokens |
 | `@agentos/core/api/webhook`       | API routes          | Inbound HMAC verify, timestamp skew, idempotency                          |
-| `@agentos/core/api/ai`            | API routes          | AI client                                                                 |
+| `@agentos/core/api/ai`            | API routes          | AI client (`generateText` + optional JSON Schema / files)                 |
 | `@agentos/core/api/hitl` …        | API routes          | Other builtin clients                                                     |
 | `@agentos/core/gateway`           | Hosts / CLI         | Portable fetch handlers (`/_public`, `/api/ext`, agent, HTML)             |
 | `@agentos/core/gateway/*`         | Framework           | Deep gateway modules                                                      |

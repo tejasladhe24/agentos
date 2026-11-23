@@ -27,6 +27,40 @@ async def test_ai_generate_text(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_ai_generate_text_structured_multimodal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGENT_OS_AI_API_BASE", "http://ai.test")
+    route = respx.post("http://ai.test/generate-text").mock(
+        return_value=httpx.Response(
+            200,
+            json={"object": {"summary": "ok", "hasFiles": True}},
+        ),
+    )
+    result = await ai.generate_text(
+        {
+            "prompt": "parse",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string"},
+                    "hasFiles": {"type": "boolean"},
+                },
+                "required": ["summary", "hasFiles"],
+            },
+            "files": [{"key": "coi.png", "mediaType": "image/png"}],
+        },
+    )
+    assert result.object == {"summary": "ok", "hasFiles": True}
+    assert result.text is None
+    assert route.calls.last.request.content is not None
+    body = route.calls.last.request.content.decode()
+    assert '"schema"' in body
+    assert '"files"' in body
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_hitl_approvals(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENT_OS_HITL_API_BASE", "http://hitl.test")
     approval = {

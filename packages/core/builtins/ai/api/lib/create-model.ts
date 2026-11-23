@@ -5,12 +5,30 @@ import {
   MockLanguageModelV4,
 } from 'ai/test';
 
+import { stubFromJsonSchema } from './stub-from-schema';
 import { MOCK_USAGE } from './usage';
 
 type PromptMessage = {
   role?: string;
   content?: unknown;
 };
+
+type ContentPart = {
+  type?: string;
+  text?: string;
+};
+
+function countFileParts(prompt: unknown): number {
+  if (!Array.isArray(prompt)) return 0;
+  let count = 0;
+  for (const msg of prompt as PromptMessage[]) {
+    if (!Array.isArray(msg.content)) continue;
+    for (const part of msg.content as ContentPart[]) {
+      if (part?.type === 'file' || part?.type === 'image') count += 1;
+    }
+  }
+  return count;
+}
 
 function extractLastUserText(prompt: unknown): string {
   if (!Array.isArray(prompt)) return '';
@@ -70,6 +88,7 @@ function summarizeToolResults(prompt: unknown): string {
 /**
  * Default language model: deterministic mock that echoes the user prompt and
  * optionally emits a single tool call for `/tool <extId>.<name> <json>`.
+ * Structured JSON (`responseFormat.type === 'json'`) returns a schema stub.
  */
 export function createMockLanguageModel(): LanguageModel {
   return new MockLanguageModelV4({
@@ -92,6 +111,28 @@ export function createMockLanguageModel(): LanguageModel {
       }
 
       const userText = extractLastUserText(options.prompt);
+      const fileCount = countFileParts(options.prompt);
+      const responseFormat = options.responseFormat;
+
+      if (responseFormat?.type === 'json') {
+        const stub = stubFromJsonSchema(responseFormat.schema, {
+          prompt: userText,
+          hasFiles: fileCount > 0,
+          fileCount,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(stub),
+            },
+          ],
+          finishReason: { unified: 'stop', raw: undefined },
+          usage: MOCK_USAGE,
+          warnings: [],
+        };
+      }
+
       const toolMatch = /^\/tool\s+([\w-]+)\.([\w-]+)\s*(.*)$/s.exec(
         userText.trim(),
       );
@@ -138,8 +179,14 @@ export function createMockLanguageModel(): LanguageModel {
       const prefix = digest
         ? `Mock (instructions: ${digest.replace(/\s+/g, ' ')})`
         : 'Mock';
+      const filesNote = fileCount > 0 ? ` [files:${fileCount}]` : '';
       return {
-        content: [{ type: 'text', text: `${prefix}: ${userText}` }],
+        content: [
+          {
+            type: 'text',
+            text: `${prefix}: ${userText}${filesNote}`,
+          },
+        ],
         finishReason: { unified: 'stop', raw: undefined },
         usage: MOCK_USAGE,
         warnings: [],

@@ -1,5 +1,5 @@
 /**
- * @agentos/core/api/ai — HTTP client for builtin `ai` (ticket 23).
+ * @agentos/core/api/ai — HTTP client for builtin `ai` (ticket 23 / 85).
  */
 
 import { getJson, postJson, resolveExtApiBase, type EnvMap } from './http';
@@ -9,15 +9,29 @@ export function resolveAiApiBase(env: EnvMap = Bun.env): string {
   return resolveExtApiBase('ai', 'AGENT_OS_AI_API_BASE', env);
 }
 
+/** File/image input: files-builtin key or inline base64. */
+export type AiFileInput = {
+  mediaType: string;
+  key?: string;
+  base64?: string;
+};
+
 export type GenerateTextInput = {
   prompt?: string;
   message?: string;
   text?: string;
   temperature?: number;
   maxTokens?: number;
+  /** JSON Schema for schema-constrained object output. */
+  schema?: Record<string, unknown>;
+  /** Multimodal attachments (PDF / images). */
+  files?: AiFileInput[];
 };
 
-export type GenerateTextResult = { text: string };
+export type GenerateTextResult = {
+  text?: string;
+  object?: unknown;
+};
 
 export type GenerateImageResult = {
   stub: boolean;
