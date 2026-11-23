@@ -36,6 +36,10 @@ class InsertInput(BaseModel):
     id: str | None = None
 
 
+class BulkInsertInput(BaseModel):
+    docs: list[InsertInput]
+
+
 class UpdateInput(BaseModel):
     id: str
     data: dict[str, Any]
@@ -47,11 +51,30 @@ class DeleteInput(BaseModel):
     ids: list[str] | None = None
 
 
+class RetentionPolicy(BaseModel):
+    ttlSeconds: int | None = None
+    maxCount: int | None = None
+    maxCountGroupBy: str | None = None
+
+
+class RetentionPolicyRecord(RetentionPolicy):
+    orgId: str
+    collection: str
+
+
 class QueryResult(BaseModel):
     items: list[DocumentRow] = Field(default_factory=list)
 
 
+class BulkInsertResult(BaseModel):
+    items: list[DocumentRow] = Field(default_factory=list)
+
+
 class DeleteResult(BaseModel):
+    deleted: int
+
+
+class PruneResult(BaseModel):
     deleted: int
 
 
@@ -118,6 +141,81 @@ class CollectionClient:
             "db-store insert",
         )
         return DocumentRow.model_validate(data)
+
+    async def insert_bulk(
+        self,
+        input: BulkInsertInput | dict[str, Any],
+        *,
+        env: EnvMap | None = None,
+    ) -> BulkInsertResult:
+        """All-or-nothing batch insert (bounded server-side)."""
+        base = resolve_db_store_api_base(env)
+        body = (
+            input.model_dump(exclude_none=True)
+            if isinstance(input, BulkInsertInput)
+            else input
+        )
+        data = await post_json(
+            f"{base}/collections/{self._encoded}/insert-bulk",
+            body,
+            "db-store insert-bulk",
+        )
+        return BulkInsertResult.model_validate(data)
+
+    async def get_retention(
+        self,
+        *,
+        env: EnvMap | None = None,
+    ) -> dict[str, Any]:
+        base = resolve_db_store_api_base(env)
+        return await post_json(
+            f"{base}/collections/{self._encoded}/retention",
+            {"get": True},
+            "db-store get retention",
+        )
+
+    async def set_retention(
+        self,
+        policy: RetentionPolicy | dict[str, Any],
+        *,
+        env: EnvMap | None = None,
+    ) -> dict[str, Any]:
+        base = resolve_db_store_api_base(env)
+        body = (
+            policy.model_dump(exclude_none=True)
+            if isinstance(policy, RetentionPolicy)
+            else policy
+        )
+        return await post_json(
+            f"{base}/collections/{self._encoded}/retention",
+            body,
+            "db-store set retention",
+        )
+
+    async def clear_retention(
+        self,
+        *,
+        env: EnvMap | None = None,
+    ) -> dict[str, Any]:
+        base = resolve_db_store_api_base(env)
+        return await post_json(
+            f"{base}/collections/{self._encoded}/retention",
+            {"clear": True},
+            "db-store clear retention",
+        )
+
+    async def prune(
+        self,
+        *,
+        env: EnvMap | None = None,
+    ) -> PruneResult:
+        base = resolve_db_store_api_base(env)
+        data = await post_json(
+            f"{base}/collections/{self._encoded}/prune",
+            {},
+            "db-store prune",
+        )
+        return PruneResult.model_validate(data)
 
     async def update(
         self,

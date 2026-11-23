@@ -287,6 +287,184 @@ describe('builtin db-store server', () => {
     expect(badWhere.status).toBe(400);
   });
 
+  test('insert-bulk all-or-nothing and size cap', async () => {
+    const ok = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snapshots/insert-bulk', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          docs: [
+            { id: 's1', data: { targetId: 't1', price: 10 } },
+            { id: 's2', data: { targetId: 't1', price: 11 } },
+          ],
+        }),
+      }),
+    );
+    expect(ok.status).toBe(201);
+    const okBody = (await ok.json()) as { items: Array<{ id: string }> };
+    expect(okBody.items.map((i) => i.id).sort()).toEqual(['s1', 's2']);
+
+    const conflict = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snapshots/insert-bulk', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          docs: [
+            { id: 's1', data: { price: 99 } },
+            { id: 's3', data: { price: 12 } },
+          ],
+        }),
+      }),
+    );
+    expect(conflict.status).toBe(409);
+
+    const afterConflict = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snapshots/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({}),
+      }),
+    );
+    const afterBody = (await afterConflict.json()) as {
+      items: Array<{ id: string }>;
+    };
+    expect(afterBody.items.some((i) => i.id === 's3')).toBe(false);
+
+    const tooMany = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snapshots/insert-bulk', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          docs: Array.from({ length: 101 }, (_, i) => ({
+            data: { n: i },
+          })),
+        }),
+      }),
+    );
+    expect(tooMany.status).toBe(400);
+  });
+
+  test('retention maxCount + TTL prune; org isolation', async () => {
+    const setPolicy = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snap_hist/retention', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({ maxCount: 2, maxCountGroupBy: 'targetId' }),
+      }),
+    );
+    expect(setPolicy.status).toBe(201);
+
+    const bulk = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snap_hist/insert-bulk', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          docs: [
+            { id: 'a1', data: { targetId: 't1', n: 1 } },
+            { id: 'a2', data: { targetId: 't1', n: 2 } },
+            { id: 'a3', data: { targetId: 't1', n: 3 } },
+            { id: 'b1', data: { targetId: 't2', n: 1 } },
+          ],
+        }),
+      }),
+    );
+    expect(bulk.status).toBe(201);
+
+    const listed = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snap_hist/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({ sort: { createdAt: 'desc' } }),
+      }),
+    );
+    const listedBody = (await listed.json()) as {
+      items: Array<{ id: string; data: { targetId: string } }>;
+    };
+    const t1 = listedBody.items.filter((i) => i.data.targetId === 't1');
+    expect(t1.length).toBe(2);
+    expect(listedBody.items.some((i) => i.id === 'b1')).toBe(true);
+
+    // Org B docs untouched by org A prune/policy
+    await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snap_hist/insert', {
+        method: 'POST',
+        headers: orgHeaders(ORG_B),
+        body: JSON.stringify({ id: 'b-only', data: { targetId: 't9', n: 1 } }),
+      }),
+    );
+    const pruneA = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snap_hist/prune', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(pruneA.status).toBe(200);
+    const queryB = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/snap_hist/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_B),
+        body: JSON.stringify({}),
+      }),
+    );
+    const bodyB = (await queryB.json()) as { items: Array<{ id: string }> };
+    expect(bodyB.items.some((i) => i.id === 'b-only')).toBe(true);
+
+    // Per-doc expiresAt
+    await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/ttl_docs/insert', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          id: 'old',
+          data: { expiresAt: '2000-01-01T00:00:00.000Z' },
+        }),
+      }),
+    );
+    await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/ttl_docs/insert', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          id: 'fresh',
+          data: { expiresAt: '2099-01-01T00:00:00.000Z' },
+        }),
+      }),
+    );
+    const prunedTtl = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/ttl_docs/prune', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(prunedTtl.status).toBe(200);
+    expect(await prunedTtl.json()).toEqual({ deleted: 1 });
+    const ttlQuery = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/ttl_docs/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({}),
+      }),
+    );
+    const ttlBody = (await ttlQuery.json()) as { items: Array<{ id: string }> };
+    expect(ttlBody.items.map((i) => i.id)).toEqual(['fresh']);
+  });
+
   test('query operators, sort, limit, offset', async () => {
     const seed = [
       { id: 't1', data: { amount: 10, status: 'open', day: '2026-01-01' } },

@@ -190,6 +190,39 @@ Permission checks resolve **active org membership role** plus global `user_roles
 
 Extra expression indexes for app-specific paths (e.g. `data->>'transactedAt'`) can be added in ops without changing the HTTP API — keep the single `documents` table ([ADR 004](./adr/004-db-store-sole-sql-owner.md)).
 
+### db-store bulk insert + retention (ticket 84)
+
+For append-only collections (crawl snapshots, audit-like logs):
+
+| Method | Path                             | Body                                           | Notes                                                                      |
+| ------ | -------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------- |
+| `POST` | `/collections/:name/insert-bulk` | `{ docs: [{ id?, data }] }`                    | **All-or-nothing** transaction; max **100** docs; 409 rolls back the batch |
+| `POST` | `/collections/:name/retention`   | `{ ttlSeconds?, maxCount?, maxCountGroupBy? }` | Set per-org policy (201)                                                   |
+| `POST` | `/collections/:name/retention`   | `{ get: true }` or `{}`                        | Read policy                                                                |
+| `POST` | `/collections/:name/retention`   | `{ clear: true }`                              | Remove policy                                                              |
+| `POST` | `/collections/:name/prune`       | `{}`                                           | Run TTL / `expiresAt` / maxCount prune for this org                        |
+| `POST` | `/prune-all`                     | —                                              | Background-style sweep of every registered policy                          |
+
+**Retention semantics**
+
+- `ttlSeconds` — delete rows whose meta `createdAt` is older than now − ttl
+- `data.expiresAt` (ISO string) — per-doc expiry, always honored on prune even without a collection policy
+- `maxCount` — keep newest N by `createdAt` (optional `maxCountGroupBy` field, e.g. `targetId`)
+- On-write: after `insert` / `insert-bulk`, maxCount prune runs automatically when a policy is set
+- Background: db-store process ticks every `AGENT_OS_EXT_DB_STORE_PRUNE_INTERVAL_MS` (default 60s; `0` disables)
+
+Policies live in platform collection `agentos_retention_policies` (doc id `${orgId}::${collection}`); org isolation still applies to the target collection rows.
+
+**Patterns**
+
+| Use case                                    | Approach                                                           |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| Append-only snapshots / logs                | `insertBulk` + `maxCount` / TTL (and optional `expiresAt`)         |
+| Mutable domain docs (SKU, violation status) | single `insert` / `update`; **do not** attach retention            |
+| “Latest” denorm on a parent                 | keep parent fields until history queries matter (ChannelGuard MVP) |
+
+TS: `dbStore.collection(name, { orgId }).insertBulk / setRetention / prune`. Python: `insert_bulk` / `set_retention` / `prune`.
+
 ## Secrets vault (per-tenant)
 
 Builtin **`secrets`** stores OAuth refresh tokens and API keys **per org** in db-store collection `secrets_vault` (tenant-scoped — not `__platform__`). Values are **AES-256-GCM** encrypted with a platform master key before insert. Plaintext is never written to db-store and must not be logged.

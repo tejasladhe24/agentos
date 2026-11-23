@@ -1,6 +1,6 @@
 # 84 — db-store bulk insert + retention/TTL
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,11 +15,11 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Bulk insert API (batch of docs, bounded size) with all-or-nothing or documented partial behavior
-- [ ] Per-collection or per-doc TTL / retention policy (time or max-count)
-- [ ] Background or on-write prune path; tests prove old rows disappear
-- [ ] Org scoping respected when ticket **71** is present
-- [ ] Docs: recommended patterns for snapshots vs mutable docs
+- [x] Bulk insert API (batch of docs, bounded size) with all-or-nothing or documented partial behavior
+- [x] Per-collection or per-doc TTL / retention policy (time or max-count)
+- [x] Background or on-write prune path; tests prove old rows disappear
+- [x] Org scoping respected when ticket **71** is present
+- [x] Docs: recommended patterns for snapshots vs mutable docs
 
 ## Notes
 
