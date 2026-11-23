@@ -17,6 +17,27 @@ export type ExtensionMetaApi = {
 /** Activity Bar vertical region (`meta.json` `activityBarSection`). */
 export type ActivityBarSection = 'primary' | 'secondary';
 
+export type UiViewName = 'page' | 'sidebar' | 'widget';
+export type AgentFileName = 'tools' | 'skills' | 'instructions';
+
+/** One public SPA UI entry from `meta.json` `public.ui`. */
+export type ExtensionPublicUiRoute = {
+  /** SPA pathname (exact) or prefix ending in `/*` (e.g. `/p/demo/*`). */
+  path: string;
+  /** Extension view to iframe; defaults to `page`. */
+  view: UiViewName;
+};
+
+/**
+ * Unauthenticated portal surface from `meta.json` `public`.
+ * Declaring this flips the Bun API to default-deny (session or public token).
+ */
+export type ExtensionMetaPublic = {
+  ui?: ExtensionPublicUiRoute[];
+  /** Upstream path prefixes (after `/api/ext/:id`) that accept public tokens. */
+  apiPrefixes?: string[];
+};
+
 /** Parsed `meta.json` (tolerant subset). */
 export type ExtensionMeta = {
   name?: string;
@@ -31,10 +52,9 @@ export type ExtensionMeta = {
    */
   activityBarSection?: ActivityBarSection;
   api?: ExtensionMetaApi;
+  /** Public (unauthenticated) UI paths and/or API prefixes. */
+  public?: ExtensionMetaPublic;
 };
-
-export type UiViewName = 'page' | 'sidebar' | 'widget';
-export type AgentFileName = 'tools' | 'skills' | 'instructions';
 
 /**
  * Tool descriptor from `agent/tools.json`.

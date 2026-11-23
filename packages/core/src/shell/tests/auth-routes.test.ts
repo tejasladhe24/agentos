@@ -1,13 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  collectPublicExtensionRoutes,
   isKnownAppPath,
   loginPathWithNext,
   matchPublicAuthRoute,
+  matchPublicExtensionRoute,
   normalizePathname,
   readNextParam,
   readResetToken,
+  type PublicExtensionRoute,
 } from '@agentos/core/shell/lib';
+import type { RegistryModel } from '@agentos/core/vite/lib/types';
 
 describe('auth routes', () => {
   const flags = { allowSignUp: true, allowPasswordReset: true };
@@ -51,5 +55,71 @@ describe('auth routes', () => {
     expect(readNextParam('?next=%2Fhome')).toBe('/home');
     expect(readNextParam('?next=https://evil')).toBeNull();
     expect(readResetToken('?token=abc')).toBe('abc');
+  });
+
+  test('matchPublicExtensionRoute exact and prefix', () => {
+    const routes: PublicExtensionRoute[] = [
+      {
+        path: '/p/demo',
+        extensionId: 'demo',
+        view: 'page',
+        iframeSrc: '/__agentos/ext/demo/page.html',
+      },
+      {
+        path: '/p/trust/*',
+        extensionId: 'trust',
+        view: 'page',
+        iframeSrc: '/__agentos/ext/trust/page.html',
+      },
+    ];
+    expect(matchPublicExtensionRoute('/p/demo', routes)?.extensionId).toBe(
+      'demo',
+    );
+    expect(matchPublicExtensionRoute('/p/demo/', routes)?.extensionId).toBe(
+      'demo',
+    );
+    expect(matchPublicExtensionRoute('/p/demo/extra', routes)).toBeNull();
+    expect(matchPublicExtensionRoute('/p/trust', routes)?.extensionId).toBe(
+      'trust',
+    );
+    expect(
+      matchPublicExtensionRoute('/p/trust/acme', routes)?.extensionId,
+    ).toBe('trust');
+    expect(matchPublicExtensionRoute('/login', routes)).toBeNull();
+  });
+
+  test('collectPublicExtensionRoutes reads meta.public.ui', () => {
+    const registry = {
+      scannedAt: 1,
+      extensions: [
+        {
+          id: 'demo',
+          kind: 'customer',
+          driven: false,
+          toggleable: true,
+          rootDir: '/tmp/demo',
+          name: 'Demo',
+          meta: {
+            public: {
+              ui: [{ path: '/p/demo', view: 'page' }],
+              apiPrefixes: ['/portal/'],
+            },
+          },
+          ui: {},
+          uiEntries: { page: '/__agentos/ext/demo/page.html' },
+          agent: {},
+          agentDescriptors: { tools: [], skills: [] },
+        },
+      ],
+    } as RegistryModel;
+
+    expect(collectPublicExtensionRoutes(registry)).toEqual([
+      {
+        path: '/p/demo',
+        extensionId: 'demo',
+        view: 'page',
+        iframeSrc: '/__agentos/ext/demo/page.html',
+      },
+    ]);
   });
 });

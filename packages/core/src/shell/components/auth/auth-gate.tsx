@@ -1,18 +1,23 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { config as virtualConfig } from 'virtual:agentos-config';
+import { registry as virtualRegistry } from 'virtual:agentos-registry';
 import {
   applyBranding,
+  collectPublicExtensionRoutes,
   fetchAuthSession,
   isKnownAppPath,
   loginPathWithNext,
   matchPublicAuthRoute,
+  matchPublicExtensionRoute,
   navigateApp,
   type PublicAuthRoute,
+  type PublicExtensionRoute,
 } from '@agentos/core/shell/lib';
 import { ShellRoot } from '../chrome/shell-root';
 import { ForgotPasswordPage } from './forgot-password-page';
 import { LoginPage } from './login-page';
 import { NotFoundPage } from './not-found-page';
+import { PublicPortalHost } from './public-portal-host';
 import { RegisterPage } from './register-page';
 import { ResetPasswordPage } from './reset-password-page';
 
@@ -41,6 +46,11 @@ export type AuthGateProps = {
   config?: AuthGateConfig;
   /** Initial pathname override (tests / SSR). */
   initialPathname?: string;
+  /**
+   * Override public extension SPA routes (tests).
+   * Defaults to routes collected from `virtual:agentos-registry`.
+   */
+  publicRoutes?: PublicExtensionRoute[];
 };
 
 function resolveConfig(override?: AuthGateConfig): AuthGateConfig {
@@ -106,8 +116,18 @@ export function AuthGate({
   dashboardSidebar,
   config: configOverride,
   initialPathname,
+  publicRoutes: publicRoutesOverride,
 }: AuthGateProps) {
   const config = resolveConfig(configOverride);
+  const publicRoutes = useMemo(() => {
+    if (publicRoutesOverride) return publicRoutesOverride;
+    try {
+      return collectPublicExtensionRoutes(virtualRegistry);
+    } catch {
+      return [];
+    }
+  }, [publicRoutesOverride]);
+
   const [pathname, setPathname] = useState(() => {
     if (initialPathname != null) return initialPathname;
     return typeof window !== 'undefined' ? window.location.pathname : '/';
@@ -132,14 +152,24 @@ export function AuthGate({
   }, []);
 
   const publicRoute = matchPublicAuthRoute(pathname, config.auth);
+  const publicExtensionRoute = matchPublicExtensionRoute(
+    pathname,
+    publicRoutes,
+  );
   const knownAppPath = isKnownAppPath(pathname);
-  const isNotFound = !publicRoute && !knownAppPath;
+  const isNotFound = !publicRoute && !knownAppPath && !publicExtensionRoute;
 
   useEffect(() => {
     let cancelled = false;
 
     async function run() {
       if (isNotFound) {
+        setAuthed(false);
+        setReady(true);
+        return;
+      }
+
+      if (publicExtensionRoute) {
         setAuthed(false);
         setReady(true);
         return;
@@ -185,11 +215,30 @@ export function AuthGate({
     return () => {
       cancelled = true;
     };
-  }, [pathname, publicRoute, isNotFound, config.auth.afterSignInPath]);
+  }, [
+    pathname,
+    publicRoute,
+    publicExtensionRoute,
+    isNotFound,
+    config.auth.afterSignInPath,
+  ]);
 
   if (isNotFound) {
     return (
       <NotFoundPage
+        branding={{
+          appName: config.branding.appName,
+          logoUrl: config.branding.logoUrl,
+        }}
+      />
+    );
+  }
+
+  if (publicExtensionRoute) {
+    // No session check — render immediately (SSR / first paint safe).
+    return (
+      <PublicPortalHost
+        route={publicExtensionRoute}
         branding={{
           appName: config.branding.appName,
           logoUrl: config.branding.logoUrl,

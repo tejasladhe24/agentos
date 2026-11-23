@@ -5,5 +5,9 @@
     "language": "bun",
     "port": 6101,
     "routesDir": "api/routes"
+  },
+  "public": {
+    "ui": [{ "path": "/p/crm", "view": "page" }],
+    "apiPrefixes": ["/portal/"]
   }
 }

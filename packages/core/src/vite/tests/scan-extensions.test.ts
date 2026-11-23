@@ -44,6 +44,10 @@ describe('scanExtensions', () => {
       port: 6101,
       routesDir: 'api/routes',
     });
+    expect(crm?.meta.public).toEqual({
+      ui: [{ path: '/p/crm', view: 'page' }],
+      apiPrefixes: ['/portal/'],
+    });
     expect(crm?.apiRoutesDir).toBe(join(extensionsDir, 'crm/api/routes'));
     expect(crm?.metaPath).toBe(join(extensionsDir, 'crm/meta.json'));
   });

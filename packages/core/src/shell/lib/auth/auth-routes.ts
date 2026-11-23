@@ -1,9 +1,21 @@
+import type { RegistryModel, UiViewName } from '@agentos/core/vite/lib/types';
+
 export type PublicAuthRoute =
   'login' | 'register' | 'forgot-password' | 'reset-password';
 
 export type AuthRouteFlags = {
   allowSignUp: boolean;
   allowPasswordReset: boolean;
+};
+
+/** Declared public extension SPA route (from registry `meta.public.ui`). */
+export type PublicExtensionRoute = {
+  /** Normalized match path or prefix pattern from meta (`/p/demo` or `/p/demo/*`). */
+  path: string;
+  extensionId: string;
+  view: UiViewName;
+  /** Iframe document URL (`/__agentos/ext/<id>/<view>.html`). */
+  iframeSrc: string;
 };
 
 const PUBLIC_PATHS: Record<string, PublicAuthRoute> = {
@@ -53,6 +65,57 @@ export function isPublicAuthPath(
  */
 export function isKnownAppPath(pathname: string): boolean {
   return normalizePathname(pathname) === '/';
+}
+
+/**
+ * Collect public extension UI routes from the registry for AuthGate matching.
+ */
+export function collectPublicExtensionRoutes(
+  registry: RegistryModel,
+): PublicExtensionRoute[] {
+  const out: PublicExtensionRoute[] = [];
+  for (const ext of registry.extensions) {
+    const ui = ext.meta.public?.ui;
+    if (!ui?.length) continue;
+    for (const entry of ui) {
+      const view = entry.view;
+      const iframeSrc = ext.uiEntries[view];
+      if (!iframeSrc) continue;
+      out.push({
+        path: entry.path,
+        extensionId: ext.id,
+        view,
+        iframeSrc,
+      });
+    }
+  }
+  return out;
+}
+
+function pathMatchesPublicPattern(pathname: string, pattern: string): boolean {
+  const path = normalizePathname(pathname);
+  const raw = pattern.trim();
+  if (raw.endsWith('/*')) {
+    const prefix = normalizePathname(raw.slice(0, -2));
+    return path === prefix || path.startsWith(`${prefix}/`);
+  }
+  return path === normalizePathname(raw);
+}
+
+/**
+ * Match a declared public extension SPA route (no session required).
+ * Returns null when the path is not a public extension route.
+ */
+export function matchPublicExtensionRoute(
+  pathname: string,
+  routes: readonly PublicExtensionRoute[],
+): PublicExtensionRoute | null {
+  for (const route of routes) {
+    if (pathMatchesPublicPattern(pathname, route.path)) {
+      return route;
+    }
+  }
+  return null;
 }
 
 /** Client navigation that keeps AuthGate in sync via popstate. */

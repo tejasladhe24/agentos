@@ -1,4 +1,13 @@
 {
   "name": "Demo",
-  "icon": "Sparkle"
+  "icon": "Sparkle",
+  "api": {
+    "language": "bun",
+    "port": 6103,
+    "routesDir": "api/routes"
+  },
+  "public": {
+    "ui": [{ "path": "/p/demo", "view": "page" }],
+    "apiPrefixes": ["/portal/"]
+  }
 }

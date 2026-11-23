@@ -1,6 +1,6 @@
 # 72 — Public (unauthenticated) extension routes
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -16,12 +16,12 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Config (or `meta.json`) can declare public UI paths and/or public API route prefixes per extension
-- [ ] Shell does not redirect those UI paths to `/login`
-- [ ] Gateway / API kit skips session requirement for declared public API routes; other routes still 401
-- [ ] Public access is constrained (signed expiring token, magic link, or similar) — not a wide-open bypass
-- [ ] Tests: public path ok without cookie; private path still gated
-- [ ] Docs: how TrustDesk-style portals use public routes safely
+- [x] Config (or `meta.json`) can declare public UI paths and/or public API route prefixes per extension
+- [x] Shell does not redirect those UI paths to `/login`
+- [x] Gateway / API kit skips session requirement for declared public API routes; other routes still 401
+- [x] Public access is constrained (signed expiring token, magic link, or similar) — not a wide-open bypass
+- [x] Tests: public path ok without cookie; private path still gated
+- [x] Docs: how TrustDesk-style portals use public routes safely
 
 ## Notes
 

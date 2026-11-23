@@ -90,6 +90,65 @@ Server-side only — never put secrets in `@agentos/core/client` / iframe UI.
 }
 ```
 
+## Public (unauthenticated) routes
+
+TrustDesk trust centers, CloseDesk client links, and similar portals need SPA
+paths and API routes that work **without** a Better Auth session — but must
+not be a wide-open bypass. Declare them on the extension:
+
+```json
+{
+  "name": "Demo",
+  "api": { "language": "bun", "port": 6103 },
+  "public": {
+    "ui": [{ "path": "/p/demo", "view": "page" }],
+    "apiPrefixes": ["/portal/"]
+  }
+}
+```
+
+| Field                | Meaning                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| `public.ui[].path`   | SPA pathname AuthGate admits without login (exact, or prefix with `/*`) |
+| `public.ui[].view`   | Extension view to iframe (`page` default)                               |
+| `public.apiPrefixes` | Upstream path prefixes (after `/api/ext/:id`) that accept public tokens |
+
+**Shell:** AuthGate renders a minimal portal host (branding + iframe to
+`/__agentos/ext/<id>/<view>.html`) and forwards `?token=`. No Activity Bar /
+Cmd+K. Unknown paths stay Not Found; only `/` still redirects to `/login`.
+
+**API kit:** When `apiPrefixes` is set, pass them into `createApp`:
+
+```ts
+import { createApp, loadRoutes } from '@agentos/core/api';
+
+const app = createApp({ publicApiPrefixes: ['/portal/'] });
+await loadRoutes(app, `${import.meta.dir}/routes`);
+```
+
+- `GET /health` stays open
+- Paths under a public prefix require a signed token (`Authorization: Bearer` or `?token=`)
+- All other routes require a session (401 without cookie)
+
+**Tokens:** Mint short-lived HMAC links with `@agentos/core/api/public-token`:
+
+```ts
+import { signPublicToken } from '@agentos/core/api/public-token';
+
+const token = await signPublicToken({
+  orgId, // bind to tenant (ticket 71)
+  extensionId: 'demo',
+  purpose: 'portal',
+  pathPrefix: '/portal/',
+  ttlSeconds: 3600,
+});
+// Share: `${AGENT_OS_GLOBAL_APP_ORIGIN}/p/demo?token=${token}`
+```
+
+Set `AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET` (≥16 chars) in platform env. Prefer
+expiring signed links over anonymous cookies. Public handlers read
+`getPublicAccess(c)` and pass `orgId` into `dbStore.collection(name, { orgId })`.
+
 ## meta.json (Python service)
 
 ```json
@@ -162,6 +221,7 @@ Folder segments map to the path; `[param]` becomes `:param`. `createApp` registe
 // api/server.ts
 import { createApp, loadRoutes } from '@agentos/core/api';
 
+// Pass publicApiPrefixes when meta.json declares public.apiPrefixes (ticket 72).
 const app = createApp();
 await loadRoutes(app, `${import.meta.dir}/routes`);
 Bun.serve({ port: 6101, fetch: app.fetch });

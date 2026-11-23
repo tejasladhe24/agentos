@@ -8,6 +8,8 @@ import type {
   ExtensionKind,
   ExtensionMeta,
   ExtensionMetaApi,
+  ExtensionMetaPublic,
+  ExtensionPublicUiRoute,
   RegistryModel,
   ScannedExtension,
   ScanExtensionsOptions,
@@ -74,6 +76,44 @@ function parseMetaApi(raw: unknown): ExtensionMetaApi | undefined {
   return result;
 }
 
+function parsePublicUiRoute(raw: unknown): ExtensionPublicUiRoute | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const entry = raw as Record<string, unknown>;
+  if (typeof entry.path !== 'string' || !entry.path.startsWith('/')) {
+    return undefined;
+  }
+  const view =
+    entry.view === 'page' || entry.view === 'sidebar' || entry.view === 'widget'
+      ? entry.view
+      : 'page';
+  return { path: entry.path, view };
+}
+
+function parseMetaPublic(raw: unknown): ExtensionMetaPublic | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  const result: ExtensionMetaPublic = {};
+
+  if (Array.isArray(obj.ui)) {
+    const ui: ExtensionPublicUiRoute[] = [];
+    for (const item of obj.ui) {
+      const route = parsePublicUiRoute(item);
+      if (route) ui.push(route);
+    }
+    if (ui.length > 0) result.ui = ui;
+  }
+
+  if (Array.isArray(obj.apiPrefixes)) {
+    const prefixes = obj.apiPrefixes.filter(
+      (p): p is string => typeof p === 'string' && p.startsWith('/'),
+    );
+    if (prefixes.length > 0) result.apiPrefixes = prefixes;
+  }
+
+  if (!result.ui && !result.apiPrefixes) return undefined;
+  return result;
+}
+
 function readMeta(metaPath: string): ExtensionMeta | undefined {
   try {
     const text = readFileSync(metaPath, 'utf8');
@@ -96,6 +136,8 @@ function readMeta(metaPath: string): ExtensionMeta | undefined {
     }
     const api = parseMetaApi(obj.api);
     if (api) meta.api = api;
+    const pub = parseMetaPublic(obj.public);
+    if (pub) meta.public = pub;
     return meta;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

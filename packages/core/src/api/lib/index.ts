@@ -1,8 +1,21 @@
 /** @agentos/core/api — Bun API kit. */
 export { createApp } from './create-app';
+export type { CreateAppOptions } from './create-app';
 export { createContext } from './create-context';
 export { loadRoutes } from './load-routes';
 export { folderPathToPattern, matchRoute } from './match-route';
+export {
+  createDefaultAccessMiddleware,
+  extractPublicToken,
+  getPublicAccess,
+  isPublicApiPath,
+  requirePublicToken,
+  signPublicToken,
+  verifyPublicToken,
+  type PublicTokenPayload,
+  type RequirePublicTokenOptions,
+  type SignPublicTokenInput,
+} from './public-token';
 export type {
   App,
   AppContext,
