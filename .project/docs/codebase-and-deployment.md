@@ -43,7 +43,7 @@ agentos/
 | **`examples/client-app`** | A real product that mounts the Shell; prove the stack works end-to-end                               |
 | **`deploy/`**             | How the same Docker image is wired to a cloud (today: Cloudflare)                                    |
 
-**Tooling rule:** **pnpm** installs the monorepo; **Bun** runs all TypeScript/JavaScript; **uv** runs Python. Do not run product APIs with Node.
+**Tooling rule:** **Node ≥ 24** for the pnpm toolchain; **pnpm** installs the monorepo; **Bun** runs all TypeScript/JavaScript; **uv** runs Python. Do not run product APIs with Node.
 
 ---
 
