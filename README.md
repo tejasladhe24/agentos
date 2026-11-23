@@ -51,7 +51,7 @@ Modern products need to grow by **feature modules**, not by growing a monolith. 
 
 ## Quick start
 
-**Requirements:** Node ≥ 24 (for pnpm), [pnpm](https://pnpm.io), [Bun](https://bun.sh), and [uv](https://github.com/astral-sh/uv) for Python services.
+**Requirements:** Node ≥ 24 (for pnpm; use `nvm use` with the repo `.nvmrc`), [pnpm](https://pnpm.io), [Bun](https://bun.sh), and [uv](https://github.com/astral-sh/uv) for Python services.
 
 ```bash
 pnpm install
