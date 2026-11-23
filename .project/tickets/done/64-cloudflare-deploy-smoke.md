@@ -1,6 +1,6 @@
 # 64 — Cloudflare deploy smoke checks
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
