@@ -22,6 +22,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | **notifications** | Toast/fan-out + email/SMS delivery; recent inbox + delivery status via db-store                                                |
 | **secrets**       | Per-tenant credential vault (encrypted) + env fallback                                                                         |
 | **audit**         | Append-only audit via db-store                                                                                                 |
+| **vector-store**  | Org-scoped embedding upsert / similarity query (pgvector; in-memory for local/tests)                                           |
 
 ## Access pattern
 
@@ -108,7 +109,7 @@ When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, a
 
 **SSO (OIDC / SAML):** Better Auth `@better-auth/sso` plugin. Email/password stays enabled. Set the SSO env vars above for a demo/default OIDC IdP, or register providers at runtime via Better Auth (`POST /api/ext/auth/sso/register` — forwarded to the plugin). SAML ACS / OIDC callback URLs are under `/api/ext/auth/sso/…` (gateway → Bun). `POST /api/ext/auth/sign-in/sso` with `{ callbackURL, providerId | email | domain }` returns `{ url, redirect: true }` for the IdP.
 
-**Production storage:** prefer managed Postgres (Neon / RDS / Cloud SQL) via `AGENT_OS_EXT_AUTH_DB`. Same single env key as local SQLite — do not set a customer `DATABASE_URL`. Auth (like db-store’s `AGENT_OS_EXT_DB_STORE_DATABASE_URL`) is one of the only builtins allowed to hold SQL credentials ([ADR 004](./adr/004-db-store-sole-sql-owner.md)). On Neon, prefer the **direct** (non-pooler) host for startup migrations.
+**Production storage:** prefer managed Postgres (Neon / RDS / Cloud SQL) via `AGENT_OS_EXT_AUTH_DB`. Same single env key as local SQLite — do not set a customer `DATABASE_URL`. Auth, db-store, and **vector-store** are the builtins allowed to hold SQL credentials ([ADR 004](./adr/004-db-store-sole-sql-owner.md) — customers never get a product `DATABASE_URL`). On Neon, prefer the **direct** (non-pooler) host for startup migrations.
 
 ## Tenancy (org model + org-scoped db-store)
 
@@ -258,3 +259,25 @@ AGENT_OS_EXT_FILES_S3_REGION=auto
 AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID=…   # HMAC key
 AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY=…
 ```
+
+## Vector store (pgvector)
+
+Builtin **`vector-store`** owns embedding **storage and similarity search** only. Generate vectors with builtin **`ai`** (`embed` / `agentos.ai.embed`), then upsert. Customer code never holds a DB URL.
+
+| Method | Path                                         | Role                                                                                      |
+| ------ | -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `GET`  | `/api/ext/vector-store/health`               | `{ ok, mode, dimensions }` — `mode` is `memory` or `pgvector`                             |
+| `POST` | `/api/ext/vector-store/indexes/:name/upsert` | `{ items: [{ id, embedding, content?, metadata? }] }`                                     |
+| `POST` | `/api/ext/vector-store/indexes/:name/query`  | `{ embedding, topK?, filter? }` → cosine hits with optional flat metadata equality filter |
+| `POST` | `/api/ext/vector-store/indexes/:name/delete` | `{ id? \| ids? }`                                                                         |
+
+**Org context:** auth session cookie `orgId`, or peer header `X-AgentOS-Org-Id` (services / FDE). Rows are keyed by `(index_name, org_id, id)`.
+
+| Variable                                 | Role                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| `AGENT_OS_EXT_VECTOR_STORE_PORT`         | Upstream port (default `6120`)                                      |
+| `AGENT_OS_EXT_VECTOR_STORE_MODE`         | `auto` (default), `memory`, or `pgvector`                           |
+| `AGENT_OS_EXT_VECTOR_STORE_DATABASE_URL` | `postgres://…` for production RAG (requires **pgvector** extension) |
+| `AGENT_OS_EXT_VECTOR_STORE_DIMENSIONS`   | Embedding length (default `1536`); must match `ai.embed` output     |
+
+**Postgres required for RAG:** set `DATABASE_URL` + install pgvector. Without a Postgres URL, `auto` falls back to an **in-memory** cosine index (fine for local/tests; not durable / not multi-replica). Non-Postgres URLs and missing pgvector return **501** with a clear error. Kit: `@agentos/core/api/vector-store` / `agentos.vector_store`.

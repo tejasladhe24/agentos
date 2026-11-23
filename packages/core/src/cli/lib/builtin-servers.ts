@@ -25,6 +25,11 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
   },
   { name: 'secrets', entry: './builtins/secrets/api/server.ts', port: 6118 },
   { name: 'audit', entry: './builtins/audit/api/server.ts', port: 6119 },
+  {
+    name: 'vector-store',
+    entry: './builtins/vector-store/api/server.ts',
+    port: 6120,
+  },
 ] as const;
 
 /** Direct builtin bases so Python kits skip the Vite hop during local dev. */

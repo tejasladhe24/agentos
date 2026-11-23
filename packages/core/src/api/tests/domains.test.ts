@@ -35,6 +35,13 @@ import {
   resolveSecretsApiBase,
 } from '@agentos/core/api/secrets';
 import { callTool, resolveToolUrl } from '@agentos/core/api/tools';
+import {
+  deleteVectors,
+  health as vectorStoreHealth,
+  query as vectorStoreQuery,
+  resolveVectorStoreApiBase,
+  upsert as vectorStoreUpsert,
+} from '@agentos/core/api/vector-store';
 
 const originalFetch = globalThis.fetch;
 
@@ -90,6 +97,9 @@ describe('resolve*ApiBase', () => {
     expect(resolveFilesApiBase({})).toBe('http://127.0.0.1:5173/api/ext/files');
     expect(resolveSecretsApiBase({})).toBe(
       'http://127.0.0.1:5173/api/ext/secrets',
+    );
+    expect(resolveVectorStoreApiBase({})).toBe(
+      'http://127.0.0.1:5173/api/ext/vector-store',
     );
 
     expect(resolveAiApiBase({ AGENT_OS_AI_API_BASE: 'http://ai.test/' })).toBe(
@@ -378,6 +388,68 @@ describe('secrets client', () => {
       key: 'qbo',
       deleted: true,
     });
+  });
+});
+
+describe('vector-store client', () => {
+  test('health, upsert, query, deleteVectors forward orgId', async () => {
+    const env = { AGENT_OS_VECTOR_STORE_API_BASE: 'http://vs.test' };
+
+    mockFetch(({ url, method }) => {
+      expect(method).toBe('GET');
+      expect(url).toBe('http://vs.test/health');
+      return Response.json({ ok: true, mode: 'memory', dimensions: 4 });
+    });
+    expect(await vectorStoreHealth(env)).toEqual({
+      ok: true,
+      mode: 'memory',
+      dimensions: 4,
+    });
+
+    mockFetch(({ url, method, body, headers }) => {
+      expect(method).toBe('POST');
+      expect(url).toBe('http://vs.test/indexes/policies/upsert');
+      expect(body).toEqual({
+        items: [{ id: 'c1', embedding: [1, 0, 0, 0], content: 'a' }],
+      });
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({ upserted: 1 });
+    });
+    expect(
+      await vectorStoreUpsert(
+        'policies',
+        { items: [{ id: 'c1', embedding: [1, 0, 0, 0], content: 'a' }] },
+        { env, orgId: 'org_1' },
+      ),
+    ).toEqual({ upserted: 1 });
+
+    mockFetch(({ url, method, body, headers }) => {
+      expect(method).toBe('POST');
+      expect(url).toBe('http://vs.test/indexes/policies/query');
+      expect(body).toEqual({ embedding: [1, 0, 0, 0], topK: 3 });
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({
+        items: [{ id: 'c1', score: 0.99, content: 'a' }],
+      });
+    });
+    expect(
+      await vectorStoreQuery(
+        'policies',
+        { embedding: [1, 0, 0, 0], topK: 3 },
+        { env, orgId: 'org_1' },
+      ),
+    ).toEqual({ items: [{ id: 'c1', score: 0.99, content: 'a' }] });
+
+    mockFetch(({ url, method, body, headers }) => {
+      expect(method).toBe('POST');
+      expect(url).toBe('http://vs.test/indexes/policies/delete');
+      expect(body).toEqual({ ids: ['c1'] });
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({ deleted: 1 });
+    });
+    expect(
+      await deleteVectors('policies', { ids: ['c1'] }, { env, orgId: 'org_1' }),
+    ).toEqual({ deleted: 1 });
   });
 });
 

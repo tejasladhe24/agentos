@@ -10,6 +10,7 @@ import { keys as filesKeys } from '@agentos/core/builtins/files/env';
 import { keys as hitlKeys } from '@agentos/core/builtins/hitl/env';
 import { keys as notificationsKeys } from '@agentos/core/builtins/notifications/env';
 import { keys as secretsKeys } from '@agentos/core/builtins/secrets/env';
+import { keys as vectorStoreKeys } from '@agentos/core/builtins/vector-store/env';
 import { keys as crmHelperKeys } from '@extensions/crm-helper/api/env';
 import { keys as demoKeys } from '@extensions/demo/api/env';
 
@@ -30,6 +31,7 @@ export const env = createEnv({
     notificationsKeys(),
     secretsKeys(),
     auditKeys(),
+    vectorStoreKeys(),
     demoKeys(),
     crmHelperKeys(),
   ],
