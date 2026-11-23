@@ -50,18 +50,12 @@ async function orgIdFromSessionCookie(
 }
 
 /**
- * Resolve the org scope for a collection request.
- * Platform collections → `__platform__`.
- * Else cookie session orgId, else `X-AgentOS-Org-Id` peer header.
+ * Resolve tenant org from session cookie or `X-AgentOS-Org-Id` peer header.
+ * Does not short-circuit platform collections.
  */
-export async function resolveOrgForRequest(
-  collection: string,
+export async function resolveTenantOrgForRequest(
   request: Request,
 ): Promise<ResolveOrgResult> {
-  if (isPlatformCollection(collection)) {
-    return { ok: true, orgId: PLATFORM_ORG_ID };
-  }
-
   const fromSession = await orgIdFromSessionCookie(request);
   if (typeof fromSession === 'string') {
     return { ok: true, orgId: fromSession };
@@ -80,4 +74,20 @@ export async function resolveOrgForRequest(
     status: 401,
     error: 'org context required (session or X-AgentOS-Org-Id)',
   };
+}
+
+/**
+ * Resolve the org scope for a collection request.
+ * Platform collections → `__platform__`.
+ * Else cookie session orgId, else `X-AgentOS-Org-Id` peer header.
+ */
+export async function resolveOrgForRequest(
+  collection: string,
+  request: Request,
+): Promise<ResolveOrgResult> {
+  if (isPlatformCollection(collection)) {
+    return { ok: true, orgId: PLATFORM_ORG_ID };
+  }
+
+  return resolveTenantOrgForRequest(request);
 }

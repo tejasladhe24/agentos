@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, unlink } from 'node:fs/promises';
 import { join, normalize, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -40,6 +40,19 @@ export async function createFilesystemBlobStore(
       const file = Bun.file(path);
       if (!(await file.exists())) return null;
       return new Uint8Array(await file.arrayBuffer());
+    },
+    async delete(key) {
+      const path = resolveBlobPath(root, key);
+      try {
+        await unlink(path);
+      } catch (error) {
+        const code =
+          error && typeof error === 'object' && 'code' in error
+            ? (error as { code?: string }).code
+            : undefined;
+        if (code === 'ENOENT') return;
+        throw error;
+      }
     },
   };
 }

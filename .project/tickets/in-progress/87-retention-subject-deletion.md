@@ -1,6 +1,6 @@
 # 87 — Retention policies + subject deletion
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -16,11 +16,11 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Org-level retention config (default TTL / legal hold flag) documented and enforced for opted-in collections
-- [ ] Subject deletion API: given subject id (candidate/user email), delete or anonymize matching docs + file keys
-- [ ] Audit log entry for deletion requests
-- [ ] Tests for happy path + hold blocking delete
-- [ ] Docs: what is / isn’t covered (backups, provider logs)
+- [x] Org-level retention config (default TTL / legal hold flag) documented and enforced for opted-in collections
+- [x] Subject deletion API: given subject id (candidate/user email), delete or anonymize matching docs + file keys
+- [x] Audit log entry for deletion requests
+- [x] Tests for happy path + hold blocking delete
+- [x] Docs: what is / isn’t covered (backups, provider logs)
 
 ## Notes
 

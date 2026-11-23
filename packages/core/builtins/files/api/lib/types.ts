@@ -6,4 +6,6 @@ export type BlobStore = {
   label: string;
   put: (key: string, bytes: Uint8Array) => Promise<void>;
   get: (key: string) => Promise<Uint8Array | null>;
+  /** Remove object if present (idempotent). */
+  delete: (key: string) => Promise<void>;
 };

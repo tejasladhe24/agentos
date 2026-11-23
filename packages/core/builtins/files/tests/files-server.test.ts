@@ -37,6 +37,9 @@ function createMemoryS3Client(): S3ClientLike {
         async exists() {
           return objects.has(key);
         },
+        async delete() {
+          objects.delete(key);
+        },
       };
     },
   };
@@ -105,6 +108,29 @@ describe('builtin files server', () => {
       new Request('http://127.0.0.1:6116/blobs/missing.bin'),
     );
     expect(missing.status).toBe(404);
+
+    const del = await handleFilesRequest(
+      store,
+      new Request('http://127.0.0.1:6116/blobs/notes/hello.txt', {
+        method: 'DELETE',
+      }),
+    );
+    expect(del.status).toBe(200);
+    expect(await del.json()).toEqual({ ok: true, key: 'notes/hello.txt' });
+
+    const afterDel = await handleFilesRequest(
+      store,
+      new Request('http://127.0.0.1:6116/blobs/notes/hello.txt'),
+    );
+    expect(afterDel.status).toBe(404);
+
+    const delMissing = await handleFilesRequest(
+      store,
+      new Request('http://127.0.0.1:6116/blobs/notes/hello.txt', {
+        method: 'DELETE',
+      }),
+    );
+    expect(delMissing.status).toBe(200);
   });
 
   test('s3 backend: put → get and reject traversal (mocked client)', async () => {
@@ -163,6 +189,19 @@ describe('builtin files server', () => {
       new Request('http://127.0.0.1:6116/blobs/missing.bin'),
     );
     expect(missing.status).toBe(404);
+
+    const del = await handleFilesRequest(
+      store,
+      new Request('http://127.0.0.1:6116/blobs/docs/a.txt', {
+        method: 'DELETE',
+      }),
+    );
+    expect(del.status).toBe(200);
+    const afterDel = await handleFilesRequest(
+      store,
+      new Request('http://127.0.0.1:6116/blobs/docs/a.txt'),
+    );
+    expect(afterDel.status).toBe(404);
   });
 
   test('s3 requires credentials when bucket is set', async () => {

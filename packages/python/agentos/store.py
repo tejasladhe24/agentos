@@ -62,6 +62,31 @@ class RetentionPolicyRecord(RetentionPolicy):
     collection: str
 
 
+class OrgRetentionConfig(BaseModel):
+    defaultTtlSeconds: int | None = None
+    legalHold: bool = False
+    holdReason: str | None = None
+    optedInCollections: list[str] | None = None
+
+
+class OrgRetentionRecord(OrgRetentionConfig):
+    orgId: str
+
+
+class SubjectCollectionTarget(BaseModel):
+    name: str
+    where: dict[str, Any]
+    anonymizeFields: list[str] | None = None
+
+
+class SubjectDeleteInput(BaseModel):
+    subjectId: str
+    mode: str | None = None
+    collections: list[SubjectCollectionTarget] | None = None
+    fileKeys: list[str] | None = None
+    actor: str | None = None
+
+
 class QueryResult(BaseModel):
     items: list[DocumentRow] = Field(default_factory=list)
 
@@ -259,6 +284,74 @@ class CollectionClient:
 class _DbStore:
     def collection(self, name: str) -> CollectionClient:
         return CollectionClient(name)
+
+    async def get_org_retention(
+        self,
+        *,
+        env: EnvMap | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        base = resolve_db_store_api_base(env)
+        return await post_json(
+            f"{base}/org-retention",
+            {"get": True},
+            "db-store get org retention",
+            headers=headers,
+        )
+
+    async def set_org_retention(
+        self,
+        config: OrgRetentionConfig | dict[str, Any],
+        *,
+        env: EnvMap | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        base = resolve_db_store_api_base(env)
+        body = (
+            config.model_dump(exclude_none=True)
+            if isinstance(config, OrgRetentionConfig)
+            else config
+        )
+        return await post_json(
+            f"{base}/org-retention",
+            body,
+            "db-store set org retention",
+            headers=headers,
+        )
+
+    async def clear_org_retention(
+        self,
+        *,
+        env: EnvMap | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        base = resolve_db_store_api_base(env)
+        return await post_json(
+            f"{base}/org-retention",
+            {"clear": True},
+            "db-store clear org retention",
+            headers=headers,
+        )
+
+    async def delete_subject(
+        self,
+        input: SubjectDeleteInput | dict[str, Any],
+        *,
+        env: EnvMap | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        base = resolve_db_store_api_base(env)
+        body = (
+            input.model_dump(exclude_none=True)
+            if isinstance(input, SubjectDeleteInput)
+            else input
+        )
+        return await post_json(
+            f"{base}/subjects/delete",
+            body,
+            "db-store deleteSubject",
+            headers=headers,
+        )
 
 
 class _CacheStore:

@@ -52,6 +52,45 @@ export type RetentionPolicyRecord = RetentionPolicy & {
   collection: string;
 };
 
+export type OrgRetentionConfig = {
+  defaultTtlSeconds?: number;
+  legalHold: boolean;
+  holdReason?: string;
+  optedInCollections?: string[];
+};
+
+export type OrgRetentionRecord = OrgRetentionConfig & {
+  orgId: string;
+};
+
+export type SubjectCollectionTarget = {
+  name: string;
+  where: Record<string, unknown>;
+  anonymizeFields?: string[];
+};
+
+export type SubjectDeleteInput = {
+  subjectId: string;
+  mode?: 'delete' | 'anonymize';
+  collections?: SubjectCollectionTarget[];
+  fileKeys?: string[];
+  actor?: string;
+};
+
+export type SubjectDeleteResult = {
+  subjectId: string;
+  mode: 'delete' | 'anonymize';
+  orgId: string;
+  collections: Array<{
+    name: string;
+    matched: number;
+    deleted: number;
+    anonymized: number;
+  }>;
+  files: Array<{ key: string; ok: boolean; error?: string }>;
+  auditId?: string;
+};
+
 export type QueryResult = {
   items: DocumentRow[];
 };
@@ -256,10 +295,71 @@ function createCollection(name: string, options: CollectionOptions = {}) {
 
 export type CollectionClient = ReturnType<typeof createCollection>;
 
+function dbStoreRequestHeaders(options: CollectionOptions = {}): Headers {
+  return collectionRequestHeaders(options);
+}
+
+function resolveDbBase(options: CollectionOptions = {}): string {
+  if (options.apiBase) return options.apiBase.replace(/\/$/, '');
+  return resolveDbStoreApiBase();
+}
+
 /** Document store client → builtin db-store. */
 export const dbStore = {
   collection(name: string, options?: CollectionOptions): CollectionClient {
     return createCollection(name, options);
+  },
+
+  /** Read org-level retention / legal hold (`POST /org-retention` with `{ get: true }`). */
+  async getOrgRetention(
+    options: CollectionOptions = {},
+  ): Promise<{ config: OrgRetentionRecord | null }> {
+    return postJson<{ config: OrgRetentionRecord | null }>(
+      `${resolveDbBase(options)}/org-retention`,
+      { get: true },
+      'db-store get org retention',
+      dbStoreRequestHeaders(options),
+    );
+  },
+
+  /** Set org-level retention / legal hold. */
+  async setOrgRetention(
+    config: OrgRetentionConfig,
+    options: CollectionOptions = {},
+  ): Promise<{ config: OrgRetentionRecord }> {
+    return postJson<{ config: OrgRetentionRecord }>(
+      `${resolveDbBase(options)}/org-retention`,
+      config,
+      'db-store set org retention',
+      dbStoreRequestHeaders(options),
+    );
+  },
+
+  async clearOrgRetention(
+    options: CollectionOptions = {},
+  ): Promise<{ cleared: boolean }> {
+    return postJson<{ cleared: boolean }>(
+      `${resolveDbBase(options)}/org-retention`,
+      { clear: true },
+      'db-store clear org retention',
+      dbStoreRequestHeaders(options),
+    );
+  },
+
+  /**
+   * Delete or anonymize docs matching caller-declared collection filters,
+   * plus explicit file keys. Legal hold → error.
+   */
+  async deleteSubject(
+    input: SubjectDeleteInput,
+    options: CollectionOptions = {},
+  ): Promise<SubjectDeleteResult> {
+    return postJson<SubjectDeleteResult>(
+      `${resolveDbBase(options)}/subjects/delete`,
+      input,
+      'db-store deleteSubject',
+      dbStoreRequestHeaders(options),
+    );
   },
 };
 

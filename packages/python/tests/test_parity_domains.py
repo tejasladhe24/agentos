@@ -32,6 +32,9 @@ async def test_files_client(monkeypatch: pytest.MonkeyPatch) -> None:
     respx.get(url__regex=r"http://files\.test/blobs/doc%2F1.*").mock(
         side_effect=_get_blob,
     )
+    respx.delete("http://files.test/blobs/doc%2F1").mock(
+        return_value=httpx.Response(200, json={"ok": True, "key": "doc/1"}),
+    )
 
     put = await files.put_blob("doc/1", "YQ==")
     assert put.key == "doc/1"
@@ -43,6 +46,10 @@ async def test_files_client(monkeypatch: pytest.MonkeyPatch) -> None:
     b64 = await files.get_blob_base64("doc/1")
     assert b64.base64 == "YQ=="
     assert files.decode_base64(b64.base64) == b"a"
+
+    deleted = await files.delete_blob("doc/1")
+    assert deleted.ok is True
+    assert deleted.key == "doc/1"
 
 
 @pytest.mark.asyncio
