@@ -58,6 +58,7 @@ export type FilesClient = {
   putBlob: (
     key: string,
     data: Uint8Array,
+    orgId: string,
   ) => Promise<{ key: string; bytes: number }>;
 };
 

@@ -56,7 +56,7 @@ function mockFiles(
 ): FilesClient & { blobs: Map<string, Uint8Array> } {
   return {
     blobs,
-    async putBlob(key, data) {
+    async putBlob(key, data, _orgId) {
       blobs.set(key, data);
       return { key, bytes: data.byteLength };
     },

@@ -25,6 +25,8 @@ import {
   getBlob,
   getBlobBase64,
   deleteBlob,
+  listBlobs,
+  moveBlob,
   putBlob,
   resolveFilesApiBase,
 } from '@agentos/core/api/files';
@@ -391,6 +393,41 @@ describe('files client', () => {
     const bytes = await getBlob('doc/1', env);
     expect([...bytes]).toEqual([97]);
     expect(await deleteBlob('doc/1', env)).toEqual({ ok: true, key: 'doc/1' });
+  });
+
+  test('listBlobs / moveBlob with org header', async () => {
+    mockFetch(({ url, method, body, headers }) => {
+      expect(headers.get('x-agentos-org-id')).toBe('org1');
+      if (method === 'GET' && url.startsWith('http://files.test/blobs')) {
+        return Response.json({
+          items: [
+            {
+              key: 'orgs/org1/doc/1',
+              name: '1',
+              kind: 'file',
+              relativeKey: 'doc/1',
+            },
+          ],
+          cursor: null,
+          prefix: '',
+        });
+      }
+      if (method === 'POST' && url.endsWith('/blobs/move')) {
+        expect(body).toEqual({ from: 'a', to: 'b' });
+        return Response.json({ ok: true, from: 'a', to: 'b' });
+      }
+      return new Response('nope', { status: 404 });
+    });
+
+    const env = { AGENT_OS_FILES_API_BASE: 'http://files.test' };
+    expect(await listBlobs({}, env, { orgId: 'org1' })).toMatchObject({
+      items: [{ name: '1', kind: 'file' }],
+    });
+    expect(await moveBlob('a', 'b', env, { orgId: 'org1' })).toEqual({
+      ok: true,
+      from: 'a',
+      to: 'b',
+    });
   });
 });
 

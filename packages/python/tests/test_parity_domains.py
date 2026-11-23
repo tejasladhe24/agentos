@@ -51,6 +51,36 @@ async def test_files_client(monkeypatch: pytest.MonkeyPatch) -> None:
     assert deleted.ok is True
     assert deleted.key == "doc/1"
 
+    respx.get("http://files.test/blobs").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "key": "orgs/o/doc/1",
+                        "name": "1",
+                        "kind": "file",
+                        "relativeKey": "doc/1",
+                    },
+                ],
+                "cursor": None,
+                "prefix": "",
+            },
+        ),
+    )
+    listed = await files.list_blobs(org_id="o")
+    assert listed.items[0].name == "1"
+
+    respx.post("http://files.test/blobs/move").mock(
+        return_value=httpx.Response(
+            200,
+            json={"ok": True, "from": "a", "to": "b"},
+        ),
+    )
+    moved = await files.move_blob("a", "b", org_id="o")
+    assert moved.ok is True
+    assert moved.to == "b"
+
 
 @pytest.mark.asyncio
 @respx.mock

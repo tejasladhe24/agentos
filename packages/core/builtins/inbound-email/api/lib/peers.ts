@@ -3,10 +3,13 @@ import type { EventsClient, FilesClient } from './types';
 export function createFilesClient(baseUrl: string): FilesClient {
   const root = baseUrl.replace(/\/+$/, '');
   return {
-    async putBlob(key, data) {
+    async putBlob(key, data, orgId) {
       const res = await fetch(`${root}/blobs/${encodeURIComponent(key)}`, {
         method: 'PUT',
-        headers: { 'content-type': 'application/octet-stream' },
+        headers: {
+          'content-type': 'application/octet-stream',
+          'x-agentos-org-id': orgId,
+        },
         body: data,
       });
       if (!res.ok) {

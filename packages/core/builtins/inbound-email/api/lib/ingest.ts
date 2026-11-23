@@ -50,7 +50,7 @@ export async function ingestInboundEmail(
     for (let i = 0; i < email.attachments.length; i++) {
       const att = email.attachments[i]!;
       const key = `orgs/${orgId}/inbound/${messageId}/${i}-${safeFilename(att.filename)}`;
-      const put = await deps.files.putBlob(key, att.bytes);
+      const put = await deps.files.putBlob(key, att.bytes, orgId);
       attachments.push({
         filename: att.filename,
         contentType: att.contentType,

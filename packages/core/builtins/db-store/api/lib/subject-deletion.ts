@@ -181,11 +181,17 @@ export function parseSubjectDeleteInput(
   return { subjectId, mode, collections, fileKeys, actor };
 }
 
-async function deleteFileKey(key: string): Promise<SubjectFileResult> {
+async function deleteFileKey(
+  key: string,
+  orgId: string,
+): Promise<SubjectFileResult> {
   const base = resolveFilesApiBase();
   const url = `${base}/blobs/${encodeURIComponent(key)}`;
   try {
-    const res = await fetch(url, { method: 'DELETE' });
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'x-agentos-org-id': orgId },
+    });
     if (!res.ok) {
       const detail = await res.text();
       return {
@@ -287,7 +293,7 @@ export async function deleteSubject(
 
   const files: SubjectFileResult[] = [];
   for (const key of input.fileKeys ?? []) {
-    files.push(await deleteFileKey(key));
+    files.push(await deleteFileKey(key, orgId));
   }
 
   const action =
