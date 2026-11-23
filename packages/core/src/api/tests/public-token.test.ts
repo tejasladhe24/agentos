@@ -176,11 +176,16 @@ describe('public token', () => {
       secret: SECRET,
     });
 
-    const app = createApp({ publicApiPrefixes: ['/portal/'] });
+    const app = createApp({
+      publicApiPrefixes: ['/portal/'],
+      openApiPrefixes: ['/webhooks/', '/oauth/callback'],
+    });
     app.route('GET', '/portal/status', (c) =>
       c.json({ ok: true, orgId: getPublicAccess(c)?.orgId }),
     );
     app.route('GET', '/private', (c) => c.json({ ok: true }));
+    app.route('POST', '/webhooks/inbound', (c) => c.json({ open: true }));
+    app.route('GET', '/oauth/callback', (c) => c.json({ open: true }));
 
     const health = await app.fetch(new Request('http://localhost/health'));
     expect(health.status).toBe(200);
@@ -209,5 +214,16 @@ describe('public token', () => {
       }),
     );
     expect(privateOk.status).toBe(200);
+
+    const webhookOpen = await app.fetch(
+      new Request('http://localhost/webhooks/inbound', { method: 'POST' }),
+    );
+    expect(webhookOpen.status).toBe(200);
+    expect(await webhookOpen.json()).toEqual({ open: true });
+
+    const oauthOpen = await app.fetch(
+      new Request('http://localhost/oauth/callback'),
+    );
+    expect(oauthOpen.status).toBe(200);
   });
 });

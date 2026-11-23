@@ -4,6 +4,8 @@ const PORT = 6103;
 
 const app = createApp({
   publicApiPrefixes: ['/portal/'],
+  // OAuth callback + inbound webhooks: no session/token; verify state/HMAC.
+  openApiPrefixes: ['/oauth/callback', '/webhooks/'],
 });
 await loadRoutes(app, `${import.meta.dir}/routes`);
 

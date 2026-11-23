@@ -4,28 +4,31 @@
 
 Framework package. Parent exports:
 
-| Export                     | Who                 | Responsibility                                                          |
-| -------------------------- | ------------------- | ----------------------------------------------------------------------- |
-| `@agentos/core`            | App `main.tsx`      | `mountShell()`, shared types                                            |
-| `@agentos/core/config`     | `agentos.config.ts` | `defineConfig` — auth, branding, builtins (not secrets)                 |
-| `@agentos/core/client`     | `ui/*.tsx` only     | `HostProvider` + `useHost*` (never `api/routes`)                        |
-| `@agentos/core/api`        | `api/routes/**`     | `createApp`, `loadRoutes`                                               |
-| `@agentos/core/api/env`    | App / Bun APIs      | `platformKeys` + naming helpers (`AGENT_OS_GLOBAL_*`)                   |
-| `@agentos/core/api/auth`   | API routes          | Session + RBAC (Better Auth)                                            |
-| `@agentos/core/api/store`  | API routes          | `dbStore`, `cacheStore` clients                                         |
-| `@agentos/core/api/ai`     | API routes          | AI client                                                               |
-| `@agentos/core/api/hitl` … | API routes          | Other builtin clients                                                   |
-| `@agentos/core/gateway`    | Hosts / CLI         | Portable fetch handlers (`/_public`, `/api/ext`, agent, HTML)           |
-| `@agentos/core/gateway/*`  | Framework           | Deep gateway modules                                                    |
-| `@agentos/core/vite`       | `vite.config.ts`    | Scanner, virtual modules, Connect adapter over gateway                  |
-| `@agentos/core/vite/*`     | Framework           | Deep vite modules (`lib/types`, …)                                      |
-| `@agentos/core/sdk`        | Advanced            | Low-level Comlink                                                       |
-| `@agentos/core/shell`      | Framework           | `mountShell`                                                            |
-| `@agentos/core/shell/*`    | Framework           | Shell `lib` / `hooks` / `components`                                    |
-| `@agentos/core/client/*`   | Framework           | Deep client modules                                                     |
-| `@agentos/core/agent`      | Framework           | Agent registry helpers                                                  |
-| `@agentos/core/builtins/*` | Framework           | Builtin APIs / env (`auth/env`, `auth/api/lib/…`)                       |
-| `agentos` CLI              | Scripts             | `dev` / `build` / `start` (prod: static `dist/` + gateway on PORT/8080) |
+| Export                      | Who                 | Responsibility                                                            |
+| --------------------------- | ------------------- | ------------------------------------------------------------------------- |
+| `@agentos/core`             | App `main.tsx`      | `mountShell()`, shared types                                              |
+| `@agentos/core/config`      | `agentos.config.ts` | `defineConfig` — auth, branding, builtins (not secrets)                   |
+| `@agentos/core/client`      | `ui/*.tsx` only     | `HostProvider` + `useHost*` (never `api/routes`)                          |
+| `@agentos/core/api`         | `api/routes/**`     | `createApp`, `loadRoutes`                                                 |
+| `@agentos/core/api/env`     | App / Bun APIs      | `platformKeys` + naming helpers (`AGENT_OS_GLOBAL_*`)                     |
+| `@agentos/core/api/auth`    | API routes          | Session + RBAC (Better Auth)                                              |
+| `@agentos/core/api/store`   | API routes          | `dbStore`, `cacheStore` clients                                           |
+| `@agentos/core/api/secrets` | API routes          | Env + per-org vault (`getSecret` / `putSecret`)                           |
+| `@agentos/core/api/oauth`   | API routes          | Provider-agnostic OAuth state, authorize URL, code exchange, vault tokens |
+| `@agentos/core/api/webhook` | API routes          | Inbound HMAC verify, timestamp skew, idempotency                          |
+| `@agentos/core/api/ai`      | API routes          | AI client                                                                 |
+| `@agentos/core/api/hitl` …  | API routes          | Other builtin clients                                                     |
+| `@agentos/core/gateway`     | Hosts / CLI         | Portable fetch handlers (`/_public`, `/api/ext`, agent, HTML)             |
+| `@agentos/core/gateway/*`   | Framework           | Deep gateway modules                                                      |
+| `@agentos/core/vite`        | `vite.config.ts`    | Scanner, virtual modules, Connect adapter over gateway                    |
+| `@agentos/core/vite/*`      | Framework           | Deep vite modules (`lib/types`, …)                                        |
+| `@agentos/core/sdk`         | Advanced            | Low-level Comlink                                                         |
+| `@agentos/core/shell`       | Framework           | `mountShell`                                                              |
+| `@agentos/core/shell/*`     | Framework           | Shell `lib` / `hooks` / `components`                                      |
+| `@agentos/core/client/*`    | Framework           | Deep client modules                                                       |
+| `@agentos/core/agent`       | Framework           | Agent registry helpers                                                    |
+| `@agentos/core/builtins/*`  | Framework           | Builtin APIs / env (`auth/env`, `auth/api/lib/…`)                         |
+| `agentos` CLI               | Scripts             | `dev` / `build` / `start` (prod: static `dist/` + gateway on PORT/8080)   |
 
 **Container:** root [`Dockerfile`](../../Dockerfile) runs `agentos build` then `agentos start` for `examples/client-app` on port 8080. Local verify and `--platform` notes: [architecture.md — Container image](./architecture.md#container-image).
 
@@ -60,7 +63,7 @@ Shared **shadcn + Tailwind** primitives for Shell, builtins, and extension UI.
 
 ## `agentos` (Python)
 
-Separate pip/uv package under [`packages/python`](../../packages/python) (see package [README](../../packages/python/README.md)). Mirrors `/api` domains: `agentos.auth`, `agentos.store`, `agentos.ai`, `agentos.hitl`, etc. **Only** for `services/<id>/` — never under `extensions/`.
+Separate pip/uv package under [`packages/python`](../../packages/python) (see package [README](../../packages/python/README.md)). Mirrors `/api` domains: `agentos.auth`, `agentos.store`, `agentos.ai`, `agentos.hitl`, `agentos.oauth`, `agentos.webhook`, etc. **Only** for `services/<id>/` — never under `extensions/`.
 
 ## Consumer
 

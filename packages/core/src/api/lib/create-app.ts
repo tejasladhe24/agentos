@@ -21,14 +21,21 @@ const METHODS: HttpMethod[] = [
   'HEAD',
 ];
 
-/** Options for {@link createApp} when an extension declares public API prefixes. */
+/** Options for {@link createApp} when an extension declares public/open API prefixes. */
 export type CreateAppOptions = {
   /**
-   * When non-empty, every route except `GET /health` is default-deny:
-   * paths under these prefixes require a signed public token; all others
-   * require a Better Auth session.
+   * When non-empty (alone or with {@link CreateAppOptions.openApiPrefixes}),
+   * every route except `GET /health` is default-deny: paths under these
+   * prefixes require a signed public token; all others require a session
+   * (unless listed in `openApiPrefixes`).
    */
   publicApiPrefixes?: string[];
+  /**
+   * Path prefixes that skip session and public-token gates (OAuth callbacks,
+   * inbound webhooks — ticket 78). Enabling this (or `publicApiPrefixes`)
+   * turns on default-deny for the rest of the app.
+   */
+  openApiPrefixes?: string[];
 };
 
 /**
@@ -38,15 +45,16 @@ export type CreateAppOptions = {
  * Lifecycle hooks from `@agentos/core/api/hooks` run automatically for
  * onRequest / onResponse / onError. Call `runStartHooks()` before Bun.serve.
  *
- * Pass `publicApiPrefixes` (from `meta.json` `public.apiPrefixes`) to enable
- * default-deny auth for TrustDesk-style portals (ticket 72).
+ * Pass `publicApiPrefixes` (from `meta.json` `public.apiPrefixes`) and/or
+ * `openApiPrefixes` (OAuth callbacks / webhooks) to enable default-deny auth.
  */
 export function createApp(options: CreateAppOptions = {}): App {
   const routes: RouteRegistration[] = [];
   const publicApiPrefixes = options.publicApiPrefixes?.filter(Boolean) ?? [];
+  const openApiPrefixes = options.openApiPrefixes?.filter(Boolean) ?? [];
   const defaultAccess =
-    publicApiPrefixes.length > 0
-      ? createDefaultAccessMiddleware(publicApiPrefixes)
+    publicApiPrefixes.length > 0 || openApiPrefixes.length > 0
+      ? createDefaultAccessMiddleware(publicApiPrefixes, { openApiPrefixes })
       : null;
 
   const app: App = {

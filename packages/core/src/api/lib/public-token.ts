@@ -283,20 +283,32 @@ export function requirePublicToken(
   };
 }
 
+export type DefaultAccessMiddlewareOptions = RequirePublicTokenOptions & {
+  /**
+   * Path prefixes that skip session and public-token gates (OAuth callbacks,
+   * inbound webhooks). Callers must verify `state` / HMAC themselves (ticket 78).
+   */
+  openApiPrefixes?: readonly string[];
+};
+
 /**
- * Default-deny gate used when an extension declares `meta.public.apiPrefixes`.
- * Public prefixes require a signed token; everything else requires a session.
- * `GET /health` is always open.
+ * Default-deny gate used when an extension declares public/open API prefixes.
+ * Open prefixes skip auth; public prefixes require a signed token; everything
+ * else requires a session. `GET /health` is always open.
  */
 export function createDefaultAccessMiddleware(
   publicApiPrefixes: readonly string[],
-  options: RequirePublicTokenOptions = {},
+  options: DefaultAccessMiddlewareOptions = {},
 ): Middleware {
   const publicMw = requirePublicToken(options);
+  const openApiPrefixes = options.openApiPrefixes ?? [];
   return async (c: AppContext, next: Next) => {
     const url = new URL(c.req.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (path === '/health' && c.req.method.toUpperCase() === 'GET') {
+      return next();
+    }
+    if (openApiPrefixes.length > 0 && isPublicApiPath(path, openApiPrefixes)) {
       return next();
     }
     if (isPublicApiPath(path, publicApiPrefixes)) {

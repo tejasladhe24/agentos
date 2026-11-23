@@ -14,6 +14,7 @@ export {
   resolvePublicTokenRole,
   signPublicToken,
   verifyPublicToken,
+  type DefaultAccessMiddlewareOptions,
   type PublicTokenPayload,
   type RequirePublicTokenOptions,
   type SignPublicTokenInput,
