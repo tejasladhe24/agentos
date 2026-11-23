@@ -310,23 +310,23 @@ AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY=…
 
 Builtin **`ai`** owns platform LLM calls via Vercel AI SDK v7 ([ADR 006](./adr/006-vercel-ai-sdk.md)). Clients: `@agentos/core/api/ai` / `agentos.ai`. Default models are **mocks** (`AGENT_OS_EXT_AI_MODEL` unset). Real providers stay env-gated; keep provider/region configurable and do **not** use customer documents for model training.
 
-| Method | Path                         | Role                                                                                          |
-| ------ | ---------------------------- | --------------------------------------------------------------------------------------------- |
-| `GET`  | `/api/ext/ai/health`         | `{ ok, mode }` — `mock` or `configured`                                                       |
-| `POST` | `/api/ext/ai/generate-text`  | Text generate; optional **JSON Schema** + **file/image** inputs                               |
-| `POST` | `/api/ext/ai/generate-image` | Image stub / provider generate                                                                |
-| `POST` | `/api/ext/ai/embed`          | Embedding vector                                                                              |
-| `POST` | `/api/ext/ai/chat`           | Shell chat: composed instructions + tools                                                     |
+| Method | Path                         | Role                                                            |
+| ------ | ---------------------------- | --------------------------------------------------------------- |
+| `GET`  | `/api/ext/ai/health`         | `{ ok, mode }` — `mock` or `configured`                         |
+| `POST` | `/api/ext/ai/generate-text`  | Text generate; optional **JSON Schema** + **file/image** inputs |
+| `POST` | `/api/ext/ai/generate-image` | Image stub / provider generate                                  |
+| `POST` | `/api/ext/ai/embed`          | Embedding vector                                                |
+| `POST` | `/api/ext/ai/chat`           | Shell chat: composed instructions + tools                       |
 
 ### `POST /generate-text` body
 
-| Field         | Role                                                                                                      |
-| ------------- | --------------------------------------------------------------------------------------------------------- |
-| `prompt`      | Required user text (`message` / `text` aliases)                                                           |
-| `schema`      | Optional **JSON Schema** object. When set, response is `{ object }` (validated); failures → **400**       |
-| `files`       | Optional attachments: `{ mediaType, key? }` (files builtin) **or** `{ mediaType, base64? }` (inline)      |
-| `temperature` | Optional number                                                                                           |
-| `maxTokens`   | Optional max output tokens                                                                                |
+| Field         | Role                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `prompt`      | Required user text (`message` / `text` aliases)                                                      |
+| `schema`      | Optional **JSON Schema** object. When set, response is `{ object }` (validated); failures → **400**  |
+| `files`       | Optional attachments: `{ mediaType, key? }` (files builtin) **or** `{ mediaType, base64? }` (inline) |
+| `temperature` | Optional number                                                                                      |
+| `maxTokens`   | Optional max output tokens                                                                           |
 
 **Attachment limits:** max **8** files; **10 MB** each; **20 MB** total. Allowed MIME: `application/pdf`, `image/png`, `image/jpeg`, `image/webp`, `image/gif`. Keys resolve via gateway `GET /api/ext/files/blobs/:key?format=json`. Vision-capable providers are required for real image/PDF understanding; the mock path echoes prompt / marks `[files:N]` and fills schema stubs for tests.
 

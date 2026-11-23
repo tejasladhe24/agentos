@@ -158,9 +158,10 @@ export async function handleAiRequest(
               return json(
                 {
                   error: 'structured output validation failed',
-                  cause: error.cause instanceof Error
-                    ? error.cause.message
-                    : String(error.cause ?? error.message),
+                  cause:
+                    error.cause instanceof Error
+                      ? error.cause.message
+                      : String(error.cause ?? error.message),
                 },
                 { status: 400 },
               );
