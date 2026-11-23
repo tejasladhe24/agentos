@@ -225,6 +225,22 @@ async def test_secrets_client(monkeypatch: pytest.MonkeyPatch) -> None:
     assert value.value == "sk-test"
     assert get_route.called
 
+    list_route = respx.get("http://secrets.test/secrets").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "orgId": "org_1",
+                "canWrite": True,
+                "keys": [{"key": "qbo", "updatedAt": "t", "hasValue": True}],
+            },
+        ),
+    )
+    listed = await secrets.list_secrets(org_id="org_1")
+    assert listed.orgId == "org_1"
+    assert listed.canWrite is True
+    assert listed.keys[0].key == "qbo"
+    assert list_route.calls.last.request.headers["x-agentos-org-id"] == "org_1"
+
     meta = await secrets.put_secret(
         "qbo",
         {"value": "tok"},

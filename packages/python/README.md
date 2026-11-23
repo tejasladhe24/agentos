@@ -30,7 +30,7 @@ Services depend on this package from their own `pyproject.toml` (path or publish
 | `agentos.files`         | Blob put/get → `/api/ext/files`                                           |
 | `agentos.events`        | Publish, queue claim/ack, jobs → `/api/ext/events`                        |
 | `agentos.audit`         | Append/list audit entries → `/api/ext/audit`                              |
-| `agentos.secrets`       | Env + per-org vault get/put/delete → `/api/ext/secrets`                   |
+| `agentos.secrets`       | Env + per-org vault list/get/put/delete → `/api/ext/secrets`              |
 | `agentos.notifications` | Notify / recent / delivery → `/api/ext/notifications`                     |
 | `agentos.oauth`         | Provider-agnostic authorize URL + code exchange; vault tokens via secrets |
 | `agentos.webhook`       | HMAC signature verify, timestamp skew, idempotency (`cache_store`)        |

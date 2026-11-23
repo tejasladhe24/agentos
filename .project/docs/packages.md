@@ -14,7 +14,7 @@ Framework package. Parent exports:
 | `@agentos/core/api/auth`          | API routes          | Session + RBAC (Better Auth)                                              |
 | `@agentos/core/api/store`         | API routes          | `dbStore`, `cacheStore` clients                                           |
 | `@agentos/core/api/vector-store`  | API routes          | Org-scoped embedding upsert / similarity query (pgvector)                 |
-| `@agentos/core/api/secrets`       | API routes          | Env + per-org vault (`getSecret` / `putSecret` / `deleteSecret`)          |
+| `@agentos/core/api/secrets`       | API routes          | Env + per-org vault (`listSecrets` / `getSecret` / `putSecret` / `deleteSecret`) |
 | `@agentos/core/api/files`         | API routes          | Blob put/get/list/move/delete (`putBlob` / `listBlobs` / `moveBlob` / …)  |
 | `@agentos/core/api/events`        | API routes          | Publish, SSE subscribe URL, outbox claim/ack, scheduled jobs              |
 | `@agentos/core/api/audit`         | API routes          | Append-only audit entries (`appendEntry` / `listEntries`)                 |
