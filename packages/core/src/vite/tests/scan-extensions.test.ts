@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -105,6 +105,48 @@ describe('scanExtensions', () => {
       port: 6102,
       health: '/health',
     });
+  });
+
+  test('parses worker kind concurrency and timeout', () => {
+    const root = mkdtempSync(join(tmpdir(), 'agentos-scan-worker-'));
+    const extDir = join(root, 'extensions');
+    const builtinsEmpty = join(root, 'builtins');
+    const serviceRoot = join(root, 'services', 'crawler');
+    const mapMonitor = join(extDir, 'map-monitor');
+    try {
+      mkdirSync(mapMonitor, { recursive: true });
+      mkdirSync(builtinsEmpty, { recursive: true });
+      mkdirSync(serviceRoot, { recursive: true });
+      writeFileSync(
+        join(mapMonitor, 'meta.json'),
+        JSON.stringify({
+          name: 'MAP Monitor',
+          api: {
+            language: 'python',
+            kind: 'worker',
+            root: '../../services/crawler',
+            port: 6601,
+            health: '/health',
+            concurrency: 1,
+            timeoutSeconds: 300,
+          },
+        }),
+      );
+      const model = scanExtensions({
+        extensionsDir: extDir,
+        builtinsDir: builtinsEmpty,
+      });
+      const ext = model.extensions.find((e) => e.id === 'map-monitor');
+      expect(ext?.meta.api?.kind).toBe('worker');
+      expect(ext?.service).toMatchObject({
+        kind: 'worker',
+        concurrency: 1,
+        timeoutSeconds: 300,
+        port: 6601,
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test('falls back to id when meta is missing', () => {

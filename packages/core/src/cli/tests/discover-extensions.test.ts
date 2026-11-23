@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import {
   discoverBunApis,
   discoverPythonServices,
+  WORKER_CONCURRENCY_ENV,
+  WORKER_TIMEOUT_SECONDS_ENV,
+  workerProcessEnv,
 } from '../lib/discover-extensions';
 
 const exampleExtensions = fileURLToPath(
@@ -39,15 +42,60 @@ describe('discoverBunApis', () => {
 });
 
 describe('discoverPythonServices', () => {
-  test('finds invoice-bot in example app', () => {
+  test('finds invoice-bot in example app as http', () => {
     const services = discoverPythonServices(exampleExtensions);
     const invoice = services.find((s) => s.id === 'invoice-bot');
     expect(invoice).toBeDefined();
     expect(invoice!.port).toBe(6102);
     expect(invoice!.resolvedRoot).toContain('invoice-bot');
+    expect(invoice!.kind).toBe('http');
   });
 
   test('returns empty for missing dir', () => {
     expect(discoverPythonServices('/tmp/does-not-exist-agentos')).toEqual([]);
+  });
+
+  test('parses worker kind with concurrency and timeout', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentos-cli-'));
+    try {
+      const ext = join(dir, 'map-monitor');
+      const serviceRoot = join(dir, 'services', 'crawler');
+      mkdirSync(ext, { recursive: true });
+      mkdirSync(serviceRoot, { recursive: true });
+      writeFileSync(
+        join(ext, 'meta.json'),
+        JSON.stringify({
+          api: {
+            language: 'python',
+            root: '../services/crawler',
+            port: 6601,
+            kind: 'worker',
+            concurrency: 1,
+            timeoutSeconds: 300,
+          },
+        }),
+      );
+      const services = discoverPythonServices(dir);
+      expect(services).toHaveLength(1);
+      expect(services[0]).toMatchObject({
+        id: 'map-monitor',
+        kind: 'worker',
+        concurrency: 1,
+        timeoutSeconds: 300,
+        port: 6601,
+      });
+      expect(workerProcessEnv(services[0]!)).toEqual({
+        [WORKER_CONCURRENCY_ENV]: '1',
+        [WORKER_TIMEOUT_SECONDS_ENV]: '300',
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('workerProcessEnv empty for http', () => {
+    expect(
+      workerProcessEnv({ kind: 'http', concurrency: 2, timeoutSeconds: 10 }),
+    ).toEqual({});
   });
 });

@@ -54,6 +54,7 @@ export type {
   ExtensionMetaApi,
   ExtensionMetaPublic,
   ExtensionPublicUiRoute,
+  PythonServiceKind,
   RegistryModel,
   ScannedExtension,
   ScanExtensionsOptions,

@@ -40,7 +40,7 @@ Browser:  Shell (mountShell) + extension UI iframes
 
 ## Container image
 
-Root [`Dockerfile`](../../Dockerfile) builds a portable production image (Bun + pnpm + uv/Python): `pnpm install --frozen-lockfile`, `agentos build` for `examples/client-app` (override with `--build-arg CONSUMER_PATH=…`), then `CMD` → `agentos start` on **8080**. No Cloudflare/Wrangler tooling is baked in — cloud adapters live under [`deploy/`](../../deploy/README.md).
+Root [`Dockerfile`](../../Dockerfile) builds a portable production image (Bun + pnpm + uv/Python): `pnpm install --frozen-lockfile`, `agentos build` for `examples/client-app` (override with `--build-arg CONSUMER_PATH=…`), then `CMD` → `agentos start` on **8080**. No Cloudflare/Wrangler tooling is baked in — cloud adapters live under [`deploy/`](../../deploy/README.md). Headless-browser **worker** images (Playwright) use the optional fragment [`deploy/docker/Dockerfile.playwright.fragment`](../../deploy/docker/Dockerfile.playwright.fragment) — see [services.md](./services.md#headless-browser-image).
 
 ```bash
 # Match --platform to the target cloud CPU (amd64 vs arm64).

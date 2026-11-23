@@ -27,6 +27,7 @@ Adapters must not import into `packages/core` or builtins. Cloudflare tooling st
 ## Image contract
 
 - **Build:** root [`Dockerfile`](../Dockerfile) — Bun + pnpm + uv/Python; `agentos build` for the consumer; pruned runtime.
+- **Browser workers:** optional [`docker/Dockerfile.playwright.fragment`](./docker/Dockerfile.playwright.fragment) for Playwright OS deps (not in the default image). See [services.md](../.project/docs/services.md#headless-browser-image).
 - **Platform:** match the target CPU (`docker build --platform linux/amd64` or `linux/arm64`).
 - **Consumer:** default `CONSUMER_PATH=examples/client-app`; override with `--build-arg CONSUMER_PATH=…`.
 - **Listen:** `PORT` default **8080** (`EXPOSE 8080`).

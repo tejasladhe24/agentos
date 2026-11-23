@@ -29,6 +29,7 @@ Services depend on this package from their own `pyproject.toml` (path or publish
 | `agentos.hitl`       | Approvals → `/api/ext/hitl`                                               |
 | `agentos.oauth`      | Provider-agnostic authorize URL + code exchange; vault tokens via secrets |
 | `agentos.webhook`    | HMAC signature verify, timestamp skew, idempotency (`cache_store`)        |
+| `agentos.worker`     | Concurrency + timeout for `meta.json` `api.kind: "worker"` (ticket 80)    |
 
 Gateway base: `AGENT_OS_GLOBAL_GATEWAY_URL` (default `http://127.0.0.1:5173`). Per-builtin overrides: `AGENT_OS_AUTH_API_BASE`, `AGENT_OS_DB_STORE_API_BASE`, `AGENT_OS_CACHE_STORE_API_BASE`, `AGENT_OS_AI_API_BASE`, `AGENT_OS_HITL_API_BASE`.
 

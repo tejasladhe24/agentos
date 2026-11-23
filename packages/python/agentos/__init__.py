@@ -1,6 +1,6 @@
 """AgentOS Python SDK for services/ (ticket 24)."""
 
-from agentos import ai, auth, hitl, oauth, store, vector_store, webhook
+from agentos import ai, auth, hitl, oauth, store, vector_store, webhook, worker
 from agentos.create_app import create_app
 
 __version__ = "0.0.0"
@@ -14,5 +14,6 @@ __all__ = [
     "store",
     "vector_store",
     "webhook",
+    "worker",
     "__version__",
 ]
