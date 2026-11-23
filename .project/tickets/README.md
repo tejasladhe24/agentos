@@ -111,13 +111,14 @@ Agents must never promote tickets to `done/` themselves.
 91. PlacementOS MVP (`examples/placementos`)
 92. ChannelGuard MVP (`examples/channelguard`)
 93. Ticket reconciliation: promote covered in-progress → done — **done** (71–87 → `done/`)
+94. Upgrade Node dependency to v24 — **in-progress**
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**. `in-progress/` — empty.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**. `in-progress/` — **94**.
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 
 **Portfolio platform capabilities:** **71**–**87** done (reconciled in **93**). Product MVPs next: **88 → 89 → 90 → 91 → 92**. Source: [`.project/portfolio/portfolio-briefs.md`](../portfolio/portfolio-briefs.md). Do not start build tickets until the user explicitly asks.
 
-**Runtime policy:** `pnpm install` for the monorepo; `bun run` / `bun` for all TS/JS services (never Node).
+**Runtime policy:** Node ≥ 24 for pnpm tooling; `pnpm install` for the monorepo; `bun run` / `bun` for all TS/JS services (never Node as a service runtime).
 
 **Agents:** load `agentos-architecture` + `agentos-ticket-planner` before planning any remaining todo ticket.
