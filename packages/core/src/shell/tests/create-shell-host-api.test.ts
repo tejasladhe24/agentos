@@ -70,6 +70,28 @@ describe('createShellHostApi notifications', () => {
     }
   });
 
+  test('api.fetch keeps absolute /api/ext/* paths', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return new Response('{"ok":true}', { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const host = createShellHostApi('inbound-email');
+      const res = await host.api.fetch('/api/ext/notifications/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channel: 'email', to: 'a@b.c', message: 'hi' }),
+      });
+      expect(calls).toEqual(['/api/ext/notifications/notify']);
+      expect(res.ok).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test('ai.generateText posts to /api/ext/ai/generate-text', async () => {
     const originalFetch = globalThis.fetch;
     const calls: Array<{ url: string; init?: RequestInit }> = [];

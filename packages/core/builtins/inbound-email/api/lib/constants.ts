@@ -18,3 +18,14 @@ export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 /** Max attachments per message. */
 export const MAX_ATTACHMENTS = 8;
+
+export const ORG_ID_HEADER = 'x-agentos-org-id';
+
+/** List inbox messages (builtin inbound-email). Admin/owner covered by `*`. */
+export const PERMISSION_EMAIL_READ = 'email.read';
+
+/** Compose / send via notifications + provision addresses. */
+export const PERMISSION_EMAIL_SEND = 'email.send';
+
+/** Max messages returned per inbox page. */
+export const MESSAGES_PAGE_MAX = 50;

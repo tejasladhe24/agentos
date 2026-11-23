@@ -101,6 +101,23 @@ export function createNotifyStore(db: DbStoreClient, max = NOTIFICATIONS_MAX) {
       const all = await db.query();
       return all.filter((e) => e.channel === 'in_app').slice(0, max);
     },
+
+    /** Org-scoped delivery list (email/SMS/in_app via channel filter). */
+    async listDeliveries(input: {
+      orgId: string;
+      channel?: DeliveryChannel;
+      limit?: number;
+      offset?: number;
+    }): Promise<NotificationEntry[]> {
+      const limit = Math.min(Math.max(input.limit ?? max, 1), max);
+      const offset = Math.max(input.offset ?? 0, 0);
+      const all = await db.query();
+      return all
+        .filter((e) => e.orgId === input.orgId)
+        .filter((e) => (input.channel ? e.channel === input.channel : true))
+        .sort((a, b) => b.at.localeCompare(a.at))
+        .slice(offset, offset + limit);
+    },
   };
   return store;
 }

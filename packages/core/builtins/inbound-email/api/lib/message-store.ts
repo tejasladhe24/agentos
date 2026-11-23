@@ -1,5 +1,14 @@
-import { MESSAGES_COLLECTION } from './constants';
+import { MESSAGES_COLLECTION, MESSAGES_PAGE_MAX } from './constants';
 import type { InboundMessage, StoredAttachment } from './types';
+
+export type ListMessagesQuery = {
+  orgId: string;
+  limit?: number;
+  offset?: number;
+  from?: string;
+  to?: string;
+  q?: string;
+};
 
 export type MessageDb = {
   insertMessage: (row: InboundMessage) => Promise<InboundMessage>;
@@ -7,6 +16,9 @@ export type MessageDb = {
     orgId: string,
     deliveryId: string,
   ) => Promise<InboundMessage | undefined>;
+  getById: (orgId: string, id: string) => Promise<InboundMessage | undefined>;
+  list: (query: ListMessagesQuery) => Promise<InboundMessage[]>;
+  markRead: (orgId: string, id: string) => Promise<InboundMessage | undefined>;
 };
 
 function parseAttachments(raw: unknown): StoredAttachment[] {
@@ -39,7 +51,7 @@ function parseRow(
   const to = Array.isArray(toRaw)
     ? toRaw.filter((v): v is string => typeof v === 'string')
     : [];
-  return {
+  const row: InboundMessage = {
     id: typeof data.id === 'string' ? data.id : id,
     orgId,
     deliveryId,
@@ -55,6 +67,33 @@ function parseRow(
         ? data.receivedAt
         : new Date(0).toISOString(),
   };
+  if (typeof data.readAt === 'string' && data.readAt.length > 0) {
+    row.readAt = data.readAt;
+  }
+  return row;
+}
+
+function matchesFilters(
+  row: InboundMessage,
+  query: ListMessagesQuery,
+): boolean {
+  if (query.from) {
+    const needle = query.from.trim().toLowerCase();
+    if (!row.from.toLowerCase().includes(needle)) return false;
+  }
+  if (query.to) {
+    const needle = query.to.trim().toLowerCase();
+    if (!row.to.some((addr) => addr.toLowerCase().includes(needle))) {
+      return false;
+    }
+  }
+  if (query.q) {
+    const needle = query.q.trim().toLowerCase();
+    const hay =
+      `${row.subject} ${row.from} ${row.to.join(' ')} ${row.text ?? ''}`.toLowerCase();
+    if (!hay.includes(needle)) return false;
+  }
+  return true;
 }
 
 export function createMessageDb(baseUrl: string): MessageDb {
@@ -106,6 +145,98 @@ export function createMessageDb(baseUrl: string): MessageDb {
       const doc = docs[0];
       if (!doc) return undefined;
       return parseRow(doc.id, doc.data ?? {}) ?? undefined;
+    },
+
+    async getById(orgId, id) {
+      const res = await fetch(`${root}/collections/${collection}/query`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': orgId,
+        },
+        body: JSON.stringify({
+          where: { id },
+          limit: 1,
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(
+          `db-store query failed (${res.status}): ${detail || res.statusText}`,
+        );
+      }
+      const payload = (await res.json()) as {
+        items?: Array<{ id: string; data: Record<string, unknown> }>;
+        documents?: Array<{ id: string; data: Record<string, unknown> }>;
+      };
+      const docs = payload.items ?? payload.documents ?? [];
+      const doc = docs[0];
+      if (!doc) return undefined;
+      const row = parseRow(doc.id, doc.data ?? {});
+      if (!row || row.orgId !== orgId) return undefined;
+      return row;
+    },
+
+    async list(query) {
+      const limit = Math.min(
+        Math.max(query.limit ?? MESSAGES_PAGE_MAX, 1),
+        MESSAGES_PAGE_MAX,
+      );
+      const offset = Math.max(query.offset ?? 0, 0);
+      const res = await fetch(`${root}/collections/${collection}/query`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': query.orgId,
+        },
+        body: JSON.stringify({
+          limit: 500,
+          orderBy: [{ field: 'receivedAt', direction: 'desc' }],
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(
+          `db-store query failed (${res.status}): ${detail || res.statusText}`,
+        );
+      }
+      const payload = (await res.json()) as {
+        items?: Array<{ id: string; data: Record<string, unknown> }>;
+        documents?: Array<{ id: string; data: Record<string, unknown> }>;
+      };
+      const docs = payload.items ?? payload.documents ?? [];
+      const rows = docs
+        .map((doc) => parseRow(doc.id, doc.data ?? {}))
+        .filter((r): r is InboundMessage => r !== null)
+        .filter((r) => r.orgId === query.orgId)
+        .filter((r) => matchesFilters(r, query))
+        .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+      return rows.slice(offset, offset + limit);
+    },
+
+    async markRead(orgId, id) {
+      const current = await this.getById(orgId, id);
+      if (!current) return undefined;
+      if (current.readAt) return current;
+      const updated: InboundMessage = {
+        ...current,
+        readAt: new Date().toISOString(),
+      };
+      const res = await fetch(`${root}/collections/${collection}/update`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': orgId,
+        },
+        body: JSON.stringify({ id: updated.id, data: updated }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(
+          `db-store update failed (${res.status}): ${detail || res.statusText}`,
+        );
+      }
+      return updated;
     },
   };
 }

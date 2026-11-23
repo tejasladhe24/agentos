@@ -15,7 +15,7 @@ export type AddressStore = {
     orgId: string;
     purpose?: string;
   }) => Promise<InboundAddress>;
-  list: () => Promise<InboundAddress[]>;
+  list: (orgId?: string) => Promise<InboundAddress[]>;
 };
 
 function parseRow(
@@ -146,21 +146,25 @@ export function createAddressStore(
       return db.insertAddress(row);
     },
 
-    async list() {
+    async list(orgId) {
       const rows = await db.listAddresses().catch(() => [] as InboundAddress[]);
       const seen = new Set(rows.map((r) => r.address));
       const merged = [...rows];
-      for (const [address, orgId] of envMap) {
+      for (const [address, mappedOrgId] of envMap) {
         if (seen.has(address)) continue;
         merged.push({
           id: `env:${address}`,
           address,
-          orgId,
+          orgId: mappedOrgId,
           purpose: 'env',
           createdAt: new Date(0).toISOString(),
         });
       }
-      return merged.sort((a, b) => a.address.localeCompare(b.address));
+      const filtered =
+        typeof orgId === 'string' && orgId.length > 0
+          ? merged.filter((row) => row.orgId === orgId)
+          : merged;
+      return filtered.sort((a, b) => a.address.localeCompare(b.address));
     },
   };
 }

@@ -113,3 +113,29 @@ export async function getDelivery(
   );
   return result.notification;
 }
+
+export type ListDeliveriesInput = {
+  channel?: DeliveryChannel;
+  limit?: number;
+  offset?: number;
+};
+
+/** Org-scoped deliveries (`GET /deliveries?channel=`). */
+export async function listDeliveries(
+  input: ListDeliveriesInput = {},
+  env?: EnvMap,
+  init?: NotificationsCallInit,
+): Promise<NotificationEntry[]> {
+  const base = resolveNotificationsApiBase(env ?? Bun.env);
+  const params = new URLSearchParams();
+  if (input.channel) params.set('channel', input.channel);
+  if (input.limit !== undefined) params.set('limit', String(input.limit));
+  if (input.offset !== undefined) params.set('offset', String(input.offset));
+  const qs = params.toString();
+  const result = await jsonFetch<{ notifications: NotificationEntry[] }>(
+    `${base}/deliveries${qs ? `?${qs}` : ''}`,
+    { method: 'GET', headers: notificationsHeaders(init) },
+    'notifications listDeliveries',
+  );
+  return result.notifications;
+}

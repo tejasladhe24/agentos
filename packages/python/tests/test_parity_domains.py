@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from agentos import audit, events, files, notifications, secrets
+from agentos import audit, events, files, inbound_email, notifications, secrets
 
 
 @pytest.mark.asyncio
@@ -290,6 +290,12 @@ async def test_notifications_client(monkeypatch: pytest.MonkeyPatch) -> None:
             json={"notification": notification},
         ),
     )
+    respx.get(url__regex=r"http://notify\.test/deliveries\?.*").mock(
+        return_value=httpx.Response(
+            200,
+            json={"notifications": [notification]},
+        ),
+    )
 
     sent = await notifications.notify(
         {"channel": "email", "message": "hello", "to": "a@b.co"},
@@ -303,3 +309,81 @@ async def test_notifications_client(monkeypatch: pytest.MonkeyPatch) -> None:
 
     delivery = await notifications.get_delivery("n1")
     assert delivery.status == "sent"
+
+    listed = await notifications.list_deliveries(
+        channel="email",
+        org_id="org_1",
+    )
+    assert listed[0].id == "n1"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_inbound_email_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "AGENT_OS_INBOUND_EMAIL_API_BASE",
+        "http://inbound.test",
+    )
+    message = {
+        "id": "m1",
+        "orgId": "org_1",
+        "deliveryId": "d1",
+        "provider": "fixture",
+        "from": "a@b.co",
+        "to": ["inbox@example.com"],
+        "subject": "Hi",
+        "attachments": [],
+        "receivedAt": "2026-01-01T00:00:00.000Z",
+    }
+    address = {
+        "id": "a1",
+        "address": "inbox@example.com",
+        "orgId": "org_1",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+    }
+
+    respx.get("http://inbound.test/messages/m1").mock(
+        return_value=httpx.Response(200, json={"message": message}),
+    )
+    respx.get(url__regex=r"http://inbound\.test/messages(\?.*)?").mock(
+        return_value=httpx.Response(200, json={"messages": [message]}),
+    )
+    respx.patch("http://inbound.test/messages/m1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "message": {
+                    **message,
+                    "readAt": "2026-01-01T00:01:00.000Z",
+                }
+            },
+        ),
+    )
+    respx.get("http://inbound.test/addresses").mock(
+        return_value=httpx.Response(200, json={"addresses": [address]}),
+    )
+    respx.post("http://inbound.test/addresses").mock(
+        return_value=httpx.Response(
+            200,
+            json={"ok": True, "address": address},
+        ),
+    )
+
+    listed = await inbound_email.list_messages(org_id="org_1", q="Hi")
+    assert listed[0].id == "m1"
+    assert listed[0].from_ == "a@b.co"
+
+    got = await inbound_email.get_message("m1", org_id="org_1")
+    assert got.subject == "Hi"
+
+    marked = await inbound_email.mark_message_read("m1", org_id="org_1")
+    assert marked.readAt is not None
+
+    addrs = await inbound_email.list_addresses(org_id="org_1")
+    assert addrs[0].address == "inbox@example.com"
+
+    provisioned = await inbound_email.provision_address(
+        {"address": "inbox@example.com"},
+        org_id="org_1",
+    )
+    assert provisioned.orgId == "org_1"
