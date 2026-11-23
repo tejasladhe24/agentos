@@ -99,13 +99,23 @@ def _build_invoice_data(body: ParseInvoiceInput) -> dict[str, Any]:
     return data
 
 
+def _invoices(session: auth.AuthSession):
+    """Org-scoped invoices collection (peer header; Python services do not forward cookies)."""
+    if not session.orgId:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "organization required"},
+        )
+    return store.db_store.collection(INVOICES, org_id=session.orgId)
+
+
 @app.get("/invoices")
 async def list_invoices(
-    _session: auth.AuthSession = Depends(auth.require_permissions("invoice.read")),
+    session: auth.AuthSession = Depends(auth.require_permissions("invoice.read")),
     limit: int = 50,
     offset: int = 0,
 ) -> dict[str, Any]:
-    result = await store.db_store.collection(INVOICES).query(
+    result = await _invoices(session).query(
         {"limit": limit, "offset": offset},
     )
     return {"items": [row.model_dump() for row in result.items]}
@@ -114,7 +124,7 @@ async def list_invoices(
 @app.post("/tools/parse_invoice")
 async def parse_invoice(
     body: ParseInvoiceInput,
-    _session: auth.AuthSession = Depends(auth.require_permissions("invoice.write")),
+    session: auth.AuthSession = Depends(auth.require_permissions("invoice.write")),
 ) -> dict[str, Any]:
     if not body.text and body.amount is None and not body.vendor:
         raise HTTPException(
@@ -123,7 +133,7 @@ async def parse_invoice(
         )
 
     data = _build_invoice_data(body)
-    doc = await store.db_store.collection(INVOICES).insert(
+    doc = await _invoices(session).insert(
         {"id": body.id, "data": data} if body.id else {"data": data},
     )
     return doc.model_dump()
@@ -132,14 +142,15 @@ async def parse_invoice(
 @app.post("/tools/request_payout_approval")
 async def request_payout_approval(
     body: RequestPayoutInput,
-    _session: auth.AuthSession = Depends(auth.require_permissions("invoice.write")),
+    session: auth.AuthSession = Depends(auth.require_permissions("invoice.write")),
 ) -> dict[str, Any]:
     invoice_id = body.invoiceId.strip()
     if not invoice_id:
         raise HTTPException(status_code=400, detail={"error": "invoiceId is required"})
 
+    invoices = _invoices(session)
     # Document id is top-level; query where filters document `data` only.
-    all_rows = await store.db_store.collection(INVOICES).query({"limit": 200})
+    all_rows = await invoices.query({"limit": 200})
     row = next((item for item in all_rows.items if item.id == invoice_id), None)
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "invoice not found"})
@@ -164,7 +175,7 @@ async def request_payout_approval(
         },
     )
 
-    updated = await store.db_store.collection(INVOICES).update(
+    updated = await invoices.update(
         {
             "id": invoice_id,
             "data": {

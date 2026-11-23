@@ -117,8 +117,9 @@ Agents must never promote tickets to `done/` themselves.
 97. Audit Activity manager UI (fully functional)
 98. Secrets manager UI (fully functional)
 99. Email manager UI (send + receive, fully functional) — **in-progress**
+100. Python store org context + invoice-bot tenancy fix — **in-progress**
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **96**–**99**. `in-progress/` — **94**, **95** (plus stale peers pending reconciliation).
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**. `in-progress/` — **94**–**100** (plus stale peers pending reconciliation).
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 

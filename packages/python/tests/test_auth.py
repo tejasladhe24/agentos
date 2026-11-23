@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from agentos.auth import (
     AuthSession,
+    require_org,
     require_permissions,
     require_roles,
     require_session,
@@ -20,6 +21,8 @@ SESSION = {
     "user": {"id": "u1", "email": "a@b.c", "name": "A"},
     "session": {"id": "s1", "expiresAt": "2099-01-01T00:00:00Z"},
     "roles": ["admin"],
+    "orgId": "org_1",
+    "orgs": [{"id": "org_1", "name": "Acme", "role": "admin"}],
 }
 
 
@@ -136,3 +139,40 @@ async def test_require_permissions_denied(monkeypatch: pytest.MonkeyPatch) -> No
     client = TestClient(_app_with_perms())
     res = client.get("/crm", headers={"cookie": "sid=1"})
     assert res.status_code == 403
+
+
+def _app_with_org() -> FastAPI:
+    app = FastAPI()
+
+    @app.get("/tenant")
+    async def tenant(session: AuthSession = Depends(require_org())) -> dict:
+        return {"orgId": session.orgId}
+
+    return app
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_require_org_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_OS_AUTH_API_BASE", "http://auth.test")
+    respx.get("http://auth.test/session").mock(
+        return_value=httpx.Response(200, json=SESSION),
+    )
+    client = TestClient(_app_with_org())
+    res = client.get("/tenant", headers={"cookie": "sid=1"})
+    assert res.status_code == 200
+    assert res.json() == {"orgId": "org_1"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_require_org_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_OS_AUTH_API_BASE", "http://auth.test")
+    session = {**SESSION, "orgId": None, "orgs": []}
+    respx.get("http://auth.test/session").mock(
+        return_value=httpx.Response(200, json=session),
+    )
+    client = TestClient(_app_with_org())
+    res = client.get("/tenant", headers={"cookie": "sid=1"})
+    assert res.status_code == 400
+    assert res.json()["detail"]["error"] == "organization required"

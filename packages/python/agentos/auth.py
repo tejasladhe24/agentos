@@ -28,10 +28,19 @@ class AuthSessionInfo(BaseModel):
     expiresAt: str | Any
 
 
+class AuthOrgMembership(BaseModel):
+    id: str
+    name: str
+    role: str
+
+
 class AuthSession(BaseModel):
     user: AuthUser
     session: AuthSessionInfo
     roles: list[str] = Field(default_factory=list)
+    # Active organization id, or null when the user has no memberships.
+    orgId: str | None = None
+    orgs: list[AuthOrgMembership] = Field(default_factory=list)
 
 
 def resolve_auth_api_base(env: EnvMap | None = None) -> str:
@@ -161,6 +170,22 @@ def require_permissions(*permissions: str) -> Callable[..., Any]:
                 )
             if result == "denied":
                 raise HTTPException(status_code=403, detail={"error": "forbidden"})
+        return session
+
+    return _dep
+
+
+def require_org() -> Callable[..., Any]:
+    """FastAPI Depends: require authenticated session with a non-null active orgId."""
+
+    async def _dep(request: Request) -> AuthSession:
+        base = resolve_auth_api_base()
+        session = await _ensure_session(request, base)
+        if not session.orgId:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "organization required"},
+            )
         return session
 
     return _dep
