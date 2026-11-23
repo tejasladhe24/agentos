@@ -1,4 +1,20 @@
-import type { ApprovalStatus, ApprovalsStore } from './approvals-store';
+import type {
+  Approval,
+  ApprovalStatus,
+  ApprovalsStore,
+} from './approvals-store';
+
+export type HitlResolvePublisher = (payload: {
+  approvalId: string;
+  decision: 'approved' | 'rejected';
+  title: string;
+  resolvedAt?: string;
+}) => Promise<void>;
+
+export type HitlHandlerOptions = {
+  /** Publish `hitl.resolved` after a successful approve/reject (ticket 74). */
+  publishResolved?: HitlResolvePublisher;
+};
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -40,6 +56,24 @@ function unavailable(error: unknown): Response {
   );
 }
 
+async function emitResolved(
+  publishResolved: HitlResolvePublisher | undefined,
+  approval: Approval,
+): Promise<void> {
+  if (!publishResolved) return;
+  if (approval.status !== 'approved' && approval.status !== 'rejected') return;
+  try {
+    await publishResolved({
+      approvalId: approval.id,
+      decision: approval.status,
+      title: approval.title,
+      ...(approval.resolvedAt ? { resolvedAt: approval.resolvedAt } : {}),
+    });
+  } catch (error) {
+    console.error('[agentos hitl] hitl.resolved publish failed', error);
+  }
+}
+
 /**
  * Thin Bun request router for `/api/ext/hitl/*` upstream paths.
  * Persistence goes through db-store only (ADR 004).
@@ -47,6 +81,7 @@ function unavailable(error: unknown): Response {
 export async function handleHitlRequest(
   store: ApprovalsStore,
   request: Request,
+  options: HitlHandlerOptions = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -116,6 +151,7 @@ export async function handleHitlRequest(
         );
       }
       const approval = (await store.resolve(resolveId, decision))!;
+      await emitResolved(options.publishResolved, approval);
       return json(approval);
     } catch (error) {
       return unavailable(error);

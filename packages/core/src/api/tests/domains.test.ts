@@ -9,8 +9,11 @@ import {
   resolveAiApiBase,
 } from '@agentos/core/api/ai';
 import {
+  ack,
+  claim,
   publish,
   resolveEventsApiBase,
+  scheduleJob,
   subscribeUrl,
 } from '@agentos/core/api/events';
 import {
@@ -193,6 +196,7 @@ describe('events client', () => {
       return Response.json({
         ok: true,
         event: {
+          id: 'e1',
           topic: 'orders',
           payload: { id: 1 },
           at: '2026-01-01T00:00:00.000Z',
@@ -209,6 +213,80 @@ describe('events client', () => {
     expect(subscribeUrl(['a', 'b'], env)).toBe(
       'http://events.test/subscribe?topics=a&topics=b',
     );
+  });
+
+  test('claim / ack / scheduleJob', async () => {
+    mockFetch(({ url, method, body }) => {
+      if (url.endsWith('/queue/claim')) {
+        expect(method).toBe('POST');
+        expect(body).toEqual({ limit: 2 });
+        return Response.json({
+          messages: [
+            {
+              id: 'm1',
+              topic: 'orders',
+              payload: {},
+              status: 'leased',
+              attempts: 0,
+              availableAt: '2026-01-01T00:00:00.000Z',
+              createdAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        });
+      }
+      if (url.endsWith('/queue/ack')) {
+        expect(body).toEqual({ id: 'm1' });
+        return Response.json({
+          message: {
+            id: 'm1',
+            topic: 'orders',
+            payload: {},
+            status: 'acked',
+            attempts: 0,
+            availableAt: '2026-01-01T00:00:00.000Z',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        });
+      }
+      if (url.endsWith('/jobs')) {
+        expect(body).toMatchObject({
+          kind: 'cron',
+          cron: '@every 30s',
+          action: 'publish',
+          topic: 'heartbeat',
+        });
+        return Response.json({
+          id: 'j1',
+          kind: 'cron',
+          cron: '@every 30s',
+          action: 'publish',
+          topic: 'heartbeat',
+          enabled: true,
+          nextRunAt: '2026-01-01T00:00:30.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        });
+      }
+      return new Response('unexpected', { status: 500 });
+    });
+
+    const env = { AGENT_OS_EVENTS_API_BASE: 'http://events.test' };
+    expect(await claim(2, env)).toMatchObject({
+      messages: [{ id: 'm1', status: 'leased' }],
+    });
+    expect(await ack('m1', env)).toMatchObject({
+      message: { id: 'm1', status: 'acked' },
+    });
+    expect(
+      await scheduleJob(
+        {
+          kind: 'cron',
+          cron: '@every 30s',
+          action: 'publish',
+          topic: 'heartbeat',
+        },
+        env,
+      ),
+    ).toMatchObject({ id: 'j1', topic: 'heartbeat' });
   });
 });
 

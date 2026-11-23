@@ -1,6 +1,6 @@
 # 74 — Durable event queue + job scheduler
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -18,13 +18,13 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Publish path writes durable records (outbox / queue table) in addition to or instead of memory-only fanout
-- [ ] Workers / consumers can claim, ack, and retry with backoff; poison-message story documented
-- [ ] Scheduler API: register cron or run-at jobs that emit events or call a configured HTTP route
-- [ ] SSE (or equivalent) live subscribe still works for Shell when a process is up
-- [ ] HITL approve/reject publishes `hitl.resolved` with approval id + decision
-- [ ] Tests: restart mid-queue does not drop undelivered events; cron fires in test clock or short interval
-- [ ] Docs: single-replica vs multi-replica guidance
+- [x] Publish path writes durable records (outbox / queue table) in addition to or instead of memory-only fanout
+- [x] Workers / consumers can claim, ack, and retry with backoff; poison-message story documented
+- [x] Scheduler API: register cron or run-at jobs that emit events or call a configured HTTP route
+- [x] SSE (or equivalent) live subscribe still works for Shell when a process is up
+- [x] HITL approve/reject publishes `hitl.resolved` with approval id + decision
+- [x] Tests: restart mid-queue does not drop undelivered events; cron fires in test clock or short interval
+- [x] Docs: single-replica vs multi-replica guidance
 
 ## Notes
 

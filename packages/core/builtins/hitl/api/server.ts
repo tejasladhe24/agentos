@@ -1,3 +1,5 @@
+import { publish } from '@agentos/core/api/events';
+
 import { keys } from './env';
 import { createApprovalsStore } from './lib/approvals-store';
 import { HITL_PORT } from './lib/constants';
@@ -16,7 +18,11 @@ const store = createApprovalsStore(db);
 const server = Bun.serve({
   port,
   async fetch(request) {
-    return handleHitlRequest(store, request);
+    return handleHitlRequest(store, request, {
+      publishResolved: async (payload) => {
+        await publish('hitl.resolved', payload);
+      },
+    });
   },
 });
 
