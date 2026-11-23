@@ -1,7 +1,12 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
+import { CollectionError } from './collection-error';
 import type { DbStoreContext } from './create-db';
 import { pgDocuments, sqliteDocuments } from './schema';
+import { applySort, parseSort, type SortClause } from './sort';
+import { matchesWhere, parseWhere, type FieldClause } from './where';
+
+export { CollectionError } from './collection-error';
 
 export type DocumentRow = {
   id: string;
@@ -12,6 +17,7 @@ export type DocumentRow = {
 
 export type QueryInput = {
   where?: Record<string, unknown>;
+  sort?: Record<string, 'asc' | 'desc'>;
   limit?: number;
   offset?: number;
 };
@@ -32,16 +38,6 @@ export type DeleteInput = {
   ids?: string[];
 };
 
-export class CollectionError extends Error {
-  constructor(
-    message: string,
-    readonly status: number = 400,
-  ) {
-    super(message);
-    this.name = 'CollectionError';
-  }
-}
-
 function assertDataObject(
   data: unknown,
   label = 'data',
@@ -50,38 +46,6 @@ function assertDataObject(
     throw new CollectionError(`${label} must be a JSON object`);
   }
   return data as Record<string, unknown>;
-}
-
-function assertWhere(where: unknown): Record<string, unknown> | undefined {
-  if (where === undefined || where === null) return undefined;
-  if (typeof where !== 'object' || Array.isArray(where)) {
-    throw new CollectionError(
-      'where must be a flat JSON object of equality filters',
-    );
-  }
-  const obj = where as Record<string, unknown>;
-  for (const [key, value] of Object.entries(obj)) {
-    if (key.startsWith('$')) {
-      throw new CollectionError(`unsupported where operator: ${key}`);
-    }
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      throw new CollectionError(
-        `where.${key}: nested objects / operators are not supported in v1 (flat equality only)`,
-      );
-    }
-  }
-  return obj;
-}
-
-function matchesWhere(
-  data: Record<string, unknown>,
-  where: Record<string, unknown> | undefined,
-): boolean {
-  if (!where) return true;
-  for (const [key, expected] of Object.entries(where)) {
-    if (data[key] !== expected) return false;
-  }
-  return true;
 }
 
 function nowIso(): string {
@@ -133,9 +97,28 @@ function stripOrgIdPatch(
   return rest;
 }
 
+function applyQueryPipeline(
+  items: DocumentRow[],
+  where: FieldClause[] | undefined,
+  sort: SortClause[] | undefined,
+  limit: number | undefined,
+  offset: number,
+): DocumentRow[] {
+  let result = items.filter((item) => matchesWhere(item.data, where));
+  result = applySort(result, sort);
+  if (offset > 0) result = result.slice(offset);
+  if (limit !== undefined) result = result.slice(0, limit);
+  return result;
+}
+
 /**
  * Collection CRUD over the shared `documents` table (logical partitions by name).
  * All reads/writes are scoped to `orgId` (SQL column is authoritative).
+ *
+ * Query filters/sort run in-process over the org+collection partition so SQLite
+ * and Postgres share the same operator semantics. Postgres expression / GIN
+ * indexes (see create-db + builtins docs) speed common path lookups when the
+ * planner can use them on larger tables; they do not change the API.
  */
 export async function queryCollection(
   ctx: DbStoreContext,
@@ -143,7 +126,8 @@ export async function queryCollection(
   input: QueryInput = {},
   orgId: string,
 ): Promise<{ items: DocumentRow[] }> {
-  const where = assertWhere(input.where);
+  const where = parseWhere(input.where);
+  const sort = parseSort(input.sort);
   const limit =
     typeof input.limit === 'number' && input.limit >= 0
       ? Math.floor(input.limit)
@@ -189,10 +173,7 @@ export async function queryCollection(
     }));
   }
 
-  items = items.filter((item) => matchesWhere(item.data, where));
-  if (offset > 0) items = items.slice(offset);
-  if (limit !== undefined) items = items.slice(0, limit);
-  return { items };
+  return { items: applyQueryPipeline(items, where, sort, limit, offset) };
 }
 
 export async function insertDocument(
@@ -251,7 +232,7 @@ export async function updateDocument(
   input: UpdateInput,
   orgId: string,
 ): Promise<DocumentRow> {
-  if (typeof input.id !== 'string' || !input.id) {
+  if (typeof input.id !== 'string' || input.id === '') {
     throw new CollectionError('id is required');
   }
   const patch = stripOrgIdPatch(assertDataObject(input.data), orgId);

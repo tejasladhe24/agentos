@@ -287,6 +287,82 @@ describe('builtin db-store server', () => {
     expect(badWhere.status).toBe(400);
   });
 
+  test('query operators, sort, limit, offset', async () => {
+    const seed = [
+      { id: 't1', data: { amount: 10, status: 'open', day: '2026-01-01' } },
+      { id: 't2', data: { amount: 25, status: 'open', day: '2026-01-15' } },
+      { id: 't3', data: { amount: 40, status: 'held', day: '2026-02-01' } },
+      { id: 't4', data: { amount: 5, status: 'open', day: '2025-12-01' } },
+    ];
+    for (const row of seed) {
+      const res = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/txns/insert', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify(row),
+        }),
+      );
+      expect(res.status).toBe(201);
+    }
+
+    const ranged = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/txns/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          where: {
+            amount: { $gte: 10, $lt: 40 },
+            status: { $in: ['open'] },
+          },
+          sort: { amount: 'desc' },
+        }),
+      }),
+    );
+    expect(ranged.status).toBe(200);
+    const rangedBody = (await ranged.json()) as {
+      items: Array<{ id: string }>;
+    };
+    expect(rangedBody.items.map((i) => i.id)).toEqual(['t2', 't1']);
+
+    const paged = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/txns/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          sort: { amount: 'asc' },
+          limit: 2,
+          offset: 1,
+        }),
+      }),
+    );
+    expect(paged.status).toBe(200);
+    const pagedBody = (await paged.json()) as { items: Array<{ id: string }> };
+    expect(pagedBody.items.map((i) => i.id)).toEqual(['t1', 't2']);
+
+    const unknownOp = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/txns/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({ where: { amount: { $regex: 'x' } } }),
+      }),
+    );
+    expect(unknownOp.status).toBe(400);
+
+    const badSort = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/txns/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({ sort: { amount: 'upward' } }),
+      }),
+    );
+    expect(badSort.status).toBe(400);
+  });
+
   afterAll(() => {
     ctx?.close();
   });

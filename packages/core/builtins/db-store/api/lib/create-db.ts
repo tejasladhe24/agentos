@@ -143,6 +143,22 @@ async function ensurePostgresSchema(db: PostgresDb): Promise<void> {
       USING (org_id = current_setting('app.current_org_id', true))
       WITH CHECK (org_id = current_setting('app.current_org_id', true))
   `);
+
+  // Optional JSON indexes for common portfolio path filters (ticket 76).
+  // Query still evaluates operators in-process; these help table scans / EXPLAIN
+  // when apps add SQL-side predicates later. Safe to IF NOT EXISTS on every boot.
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS documents_data_gin
+    ON documents USING GIN (data jsonb_path_ops)
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS documents_expiry_at_expr
+    ON documents (collection, org_id, ((data->>'expiryAt')))
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS documents_created_at_meta
+    ON documents (collection, org_id, created_at DESC)
+  `);
 }
 
 /**
