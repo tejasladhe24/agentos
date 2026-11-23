@@ -31,7 +31,32 @@ Extension Manager shows builtins as **locked**.
 
 ## Scale / replicas
 
-HITL approvals and the notifications recent inbox persist through **db-store** (SQLite or Postgres), so a **single-replica** restart keeps pending approvals and recent toasts. Keep Cloudflare `max_instances` / ECS/EKS replicas at **1** until **cache-store** (Redis) and **events** are also externalized — multi-instance would still diverge on in-memory cache/pubsub. Redis via cache-store is an optional follow-up for horizontal scale.
+HITL approvals, the notifications recent inbox, and the **events** durable outbox / job scheduler persist through **db-store** (SQLite or Postgres), so a **single-replica** restart keeps pending approvals, recent toasts, undelivered events, and scheduled jobs. **SSE live subscribe** on `events` is still process-local — multiple Shell/gateway replicas will not share one SSE fanout. Prefer `max_instances` / ECS/EKS replicas at **1** for live Shell SSE until a shared pub/sub (e.g. Redis via **cache-store**) exists; durable **claim / ack** consumers can already run multi-replica because leases live in db-store. Redis via cache-store remains an optional follow-up for horizontal live fanout.
+
+## Events (durable outbox + scheduler)
+
+Builtin **`events`** writes every `POST /publish` to platform collection `events_outbox`, then fans out to in-process SSE subscribers. Workers pull with lease-based claim:
+
+| Method   | Path                          | Role                                                                |
+| -------- | ----------------------------- | ------------------------------------------------------------------- |
+| `POST`   | `/api/ext/events/publish`     | Durable insert + SSE fanout                                         |
+| `GET`    | `/api/ext/events/subscribe`   | SSE (live, process-local)                                           |
+| `POST`   | `/api/ext/events/queue/claim` | Claim due messages (`limit`)                                        |
+| `POST`   | `/api/ext/events/queue/ack`   | Ack by `id`                                                         |
+| `POST`   | `/api/ext/events/queue/nack`  | Nack → backoff; after max attempts → `dead`                         |
+| `POST`   | `/api/ext/events/jobs`        | Register `kind: "at" \| "cron"` job (`action: "publish" \| "http"`) |
+| `GET`    | `/api/ext/events/jobs`        | List jobs                                                           |
+| `DELETE` | `/api/ext/events/jobs/:id`    | Delete job                                                          |
+| `POST`   | `/api/ext/events/jobs/tick`   | Run due jobs once (also on an internal timer)                       |
+
+**Cron expr:** `@every 30s` / `@every 5m` / `@every 1h`, or standard 5-field UTC cron. **Poison messages:** after `AGENT_OS_EXT_EVENTS_MAX_ATTEMPTS` (default 5) nacks, status becomes `dead` — inspect via claim/list tooling or db-store; replay is a manual re-publish for now. HITL approve/reject publishes topic **`hitl.resolved`** with `{ approvalId, decision, title, resolvedAt }`.
+
+| Variable                                      | Role                                      |
+| --------------------------------------------- | ----------------------------------------- |
+| `AGENT_OS_EXT_EVENTS_DB_STORE_HOST` / `_PORT` | Peer db-store (defaults `127.0.0.1:6111`) |
+| `AGENT_OS_EXT_EVENTS_LEASE_MS`                | Claim visibility timeout (default 30000)  |
+| `AGENT_OS_EXT_EVENTS_MAX_ATTEMPTS`            | Nacks before `dead` (default 5)           |
+| `AGENT_OS_EXT_EVENTS_TICK_MS`                 | Scheduler poll interval (default 1000)    |
 
 ## Notifications delivery env
 

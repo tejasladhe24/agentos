@@ -19,6 +19,8 @@ export const PLATFORM_COLLECTIONS = new Set([
   'hitl_approvals',
   'audit_entries',
   'notifications',
+  'events_outbox',
+  'events_jobs',
 ]);
 
 export function isPlatformCollection(name: string): boolean {

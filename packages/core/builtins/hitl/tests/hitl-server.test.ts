@@ -199,4 +199,41 @@ describe('builtin hitl server', () => {
     );
     expect(fail.status).toBe(502);
   });
+
+  test('resolve publishes hitl.resolved', async () => {
+    const store = createApprovalsStore(mockDb());
+    const published: unknown[] = [];
+    const created = await handleHitlRequest(
+      store,
+      new Request('http://127.0.0.1:6114/approvals', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Ship it' }),
+      }),
+    );
+    const { id } = (await created.json()) as { id: string };
+
+    const resolved = await handleHitlRequest(
+      store,
+      new Request(`http://127.0.0.1:6114/approvals/${id}/resolve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ decision: 'approved' }),
+      }),
+      {
+        publishResolved: async (payload) => {
+          published.push(payload);
+        },
+      },
+    );
+    expect(resolved.status).toBe(200);
+    expect(published).toEqual([
+      {
+        approvalId: id,
+        decision: 'approved',
+        title: 'Ship it',
+        resolvedAt: expect.any(String),
+      },
+    ]);
+  });
 });

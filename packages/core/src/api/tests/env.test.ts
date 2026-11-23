@@ -86,6 +86,11 @@ describe('createEnv extends keys()', () => {
     expect(env.AGENT_OS_EXT_HITL_DB_STORE_HOST).toBe('127.0.0.1');
     expect(env.AGENT_OS_EXT_HITL_DB_STORE_PORT).toBe(6111);
     expect(env.AGENT_OS_EXT_EVENTS_PORT).toBe(6115);
+    expect(env.AGENT_OS_EXT_EVENTS_DB_STORE_HOST).toBe('127.0.0.1');
+    expect(env.AGENT_OS_EXT_EVENTS_DB_STORE_PORT).toBe(6111);
+    expect(env.AGENT_OS_EXT_EVENTS_LEASE_MS).toBe(30_000);
+    expect(env.AGENT_OS_EXT_EVENTS_MAX_ATTEMPTS).toBe(5);
+    expect(env.AGENT_OS_EXT_EVENTS_TICK_MS).toBe(1_000);
     expect(env.AGENT_OS_EXT_FILES_PORT).toBe(6116);
     expect(env.AGENT_OS_EXT_NOTIFICATIONS_PORT).toBe(6117);
     expect(env.AGENT_OS_EXT_NOTIFICATIONS_DB_STORE_HOST).toBe('127.0.0.1');
