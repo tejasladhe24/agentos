@@ -480,8 +480,7 @@ describe('builtin auth server', () => {
       members: Array<{ userId: string; role: string }>;
     };
     expect(
-      assignedBody.members.find((m) => m.userId === viewerMember!.userId)
-        ?.role,
+      assignedBody.members.find((m) => m.userId === viewerMember!.userId)?.role,
     ).toBe('reviewer');
   });
 

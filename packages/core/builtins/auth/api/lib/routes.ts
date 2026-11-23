@@ -1,7 +1,4 @@
-import {
-  DEMO_VIEWER,
-  PERMISSION_ROLES_MANAGE,
-} from './constants';
+import { DEMO_VIEWER, PERMISSION_ROLES_MANAGE } from './constants';
 import type { AuthContext } from './create-auth';
 import {
   apiErrorResponse,
@@ -459,9 +456,7 @@ export async function handlePermissionsCheck(
   }
 
   const orgId = await resolveActiveOrgId(ctx.db, session.user.id);
-  const cacheKeyUser = orgId
-    ? `${session.user.id}:${orgId}`
-    : session.user.id;
+  const cacheKeyUser = orgId ? `${session.user.id}:${orgId}` : session.user.id;
 
   if (ctx.permissionCache) {
     const cached = await cacheGetAllowed(

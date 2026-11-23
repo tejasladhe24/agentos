@@ -106,9 +106,7 @@ describe('auth permission check + cache-store', () => {
       permission: PERMISSION_ADMIN_ONLY,
     });
 
-    const cacheUser = adminOrgId
-      ? `${adminUserId}:${adminOrgId}`
-      : adminUserId;
+    const cacheUser = adminOrgId ? `${adminUserId}:${adminOrgId}` : adminUserId;
     const key = permissionCacheKey(cacheUser, PERMISSION_ADMIN_ONLY);
     expect(memory.get(key)).toEqual({ allowed: true });
 

@@ -1,10 +1,7 @@
 import type { NotificationProviders } from './providers/create-providers';
 import type { NotifyStore } from './notify-store';
 import { json, parseDeliveryId } from './http';
-import {
-  handleGetDelivery,
-  NOTIFY_EXACT_ROUTES,
-} from './routes';
+import { handleGetDelivery, NOTIFY_EXACT_ROUTES } from './routes';
 
 /**
  * Thin Bun request router for `/api/ext/notifications/*` upstream paths.

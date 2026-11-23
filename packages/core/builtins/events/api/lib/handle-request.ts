@@ -2,10 +2,7 @@ import type { EventBus } from './event-bus';
 import { json, parseJobId } from './http';
 import type { JobsStore } from './jobs-store';
 import type { OutboxStore } from './outbox-store';
-import {
-  EVENTS_EXACT_ROUTES,
-  handleDeleteJob,
-} from './routes';
+import { EVENTS_EXACT_ROUTES, handleDeleteJob } from './routes';
 
 export type EventsHandlerDeps = {
   bus: EventBus;

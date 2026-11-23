@@ -53,7 +53,10 @@ export function apiErrorResponse(
   if (isAPIError(error)) {
     return json(
       { error: error.message ?? fallbackMessage },
-      { status: typeof error.status === 'number' ? error.status : fallbackStatus },
+      {
+        status:
+          typeof error.status === 'number' ? error.status : fallbackStatus,
+      },
     );
   }
   throw error;

@@ -1,4 +1,10 @@
-import { json, parseChannel, parseVars, readJsonBody, unavailable } from './http';
+import {
+  json,
+  parseChannel,
+  parseVars,
+  readJsonBody,
+  unavailable,
+} from './http';
 import type { NotificationProviders } from './providers/create-providers';
 import type { NotificationType, NotifyStore } from './notify-store';
 import { renderNotificationContent } from './templates/render';
@@ -17,9 +23,7 @@ export async function handleHealth(): Promise<Response> {
   return json({ ok: true, backend: 'db-store' });
 }
 
-export async function handleRecent(
-  deps: NotifyRouteDeps,
-): Promise<Response> {
+export async function handleRecent(deps: NotifyRouteDeps): Promise<Response> {
   try {
     return json({ notifications: await deps.store.list() });
   } catch (error) {

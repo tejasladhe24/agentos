@@ -124,12 +124,12 @@ When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, a
 
 **Role admin APIs** (require permission `auth.roles.manage` — seeded on `admin` / `owner`):
 
-| Method | Path                                   | Role                                                                 |
-| ------ | -------------------------------------- | -------------------------------------------------------------------- |
-| `GET`  | `/api/ext/auth/roles`                  | Role catalog + `role_permissions` rows                               |
-| `GET`  | `/api/ext/auth/orgs/members`           | Members of the active org with roles                                 |
-| `POST` | `/api/ext/auth/orgs/members/roles`     | `{ userId, role }` — set org membership role                         |
-| `PUT`  | `/api/ext/auth/roles/:role/permissions`| `{ permissions: string[] }` — replace grants for a role              |
+| Method | Path                                    | Role                                                    |
+| ------ | --------------------------------------- | ------------------------------------------------------- |
+| `GET`  | `/api/ext/auth/roles`                   | Role catalog + `role_permissions` rows                  |
+| `GET`  | `/api/ext/auth/orgs/members`            | Members of the active org with roles                    |
+| `POST` | `/api/ext/auth/orgs/members/roles`      | `{ userId, role }` — set org membership role            |
+| `PUT`  | `/api/ext/auth/roles/:role/permissions` | `{ permissions: string[] }` — replace grants for a role |
 
 Permission checks resolve **active org membership role** plus global `user_roles`. Seeded roles: `admin`, `owner`, `reviewer`, `sales`, `viewer`, `external_viewer`. Product permissions (e.g. `trustdesk.*`) are added by apps via the permissions PUT.
 

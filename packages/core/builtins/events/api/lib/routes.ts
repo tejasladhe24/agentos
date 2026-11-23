@@ -22,9 +22,7 @@ export type EventsRouteHandler = (
   path: string,
 ) => Promise<Response>;
 
-export async function handleHealth(
-  deps: EventsRouteDeps,
-): Promise<Response> {
+export async function handleHealth(deps: EventsRouteDeps): Promise<Response> {
   return json({
     ok: true,
     backend: 'db-store',
@@ -130,9 +128,7 @@ export async function handleQueueNack(
   }
 }
 
-export async function handleListJobs(
-  deps: EventsRouteDeps,
-): Promise<Response> {
+export async function handleListJobs(deps: EventsRouteDeps): Promise<Response> {
   try {
     return json({ jobs: await deps.jobs.list() });
   } catch (error) {
@@ -198,9 +194,7 @@ export async function handleDeleteJob(
   }
 }
 
-export async function handleJobsTick(
-  deps: EventsRouteDeps,
-): Promise<Response> {
+export async function handleJobsTick(deps: EventsRouteDeps): Promise<Response> {
   try {
     const ran = await runSchedulerTick({
       jobs: deps.jobs,
