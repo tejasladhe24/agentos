@@ -7,6 +7,9 @@ export const ORG_ID_HEADER = 'x-agentos-org-id';
 /** Org-scoped db-store collection for blob metadata (content-type, size, mtime). */
 export const FILES_OBJECTS_COLLECTION = 'files_objects';
 
+/** Org-scoped db-store collection for Files settings (bin retention). */
+export const FILES_SETTINGS_COLLECTION = 'files_org_settings';
+
 /** Permission to list/get blobs (admin/owner covered by `*`). */
 export const PERMISSION_FILES_READ = 'files.read';
 

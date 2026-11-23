@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join, normalize, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -8,6 +8,12 @@ import type { BlobListOptions, BlobListResult, BlobStore } from './types';
 
 function defaultRoot(): string {
   return join(tmpdir(), 'agentos-files');
+}
+
+function errnoCode(error: unknown): string | undefined {
+  return error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: string }).code
+    : undefined;
 }
 
 /** Resolve a blob key under root; reject path traversal. */
@@ -30,11 +36,7 @@ async function walkFiles(
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch (error) {
-    const code =
-      error && typeof error === 'object' && 'code' in error
-        ? (error as { code?: string }).code
-        : undefined;
-    if (code === 'ENOENT') return out;
+    if (errnoCode(error) === 'ENOENT') return out;
     throw error;
   }
   for (const entry of entries) {
@@ -53,6 +55,49 @@ async function walkFiles(
     });
   }
   return out;
+}
+
+/** True when `dir` has at least one file anywhere beneath it. */
+async function directoryHasFiles(dir: string): Promise<boolean> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if (errnoCode(error) === 'ENOENT') return false;
+    throw error;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isFile()) return true;
+    if (entry.isDirectory() && (await directoryHasFiles(full))) return true;
+  }
+  return false;
+}
+
+/**
+ * Remove empty parent directories after a file delete, up to (not including) root.
+ * Soft-delete leaves empty folder dirs on disk; delimited list would otherwise
+ * keep showing those empty prefixes in My Files.
+ */
+async function pruneEmptyParents(
+  rootDir: string,
+  deletedFilePath: string,
+): Promise<void> {
+  const root = resolve(rootDir);
+  let dir = resolve(join(deletedFilePath, '..'));
+  while (dir !== root && dir.startsWith(root + sep)) {
+    try {
+      const entries = await readdir(dir);
+      if (entries.length > 0) break;
+      await rmdir(dir);
+    } catch (error) {
+      const code = errnoCode(error);
+      if (code === 'ENOENT') break;
+      // Not empty / busy — stop pruning.
+      break;
+    }
+    dir = resolve(join(dir, '..'));
+  }
 }
 
 export async function createFilesystemBlobStore(
@@ -80,13 +125,10 @@ export async function createFilesystemBlobStore(
       try {
         await unlink(path);
       } catch (error) {
-        const code =
-          error && typeof error === 'object' && 'code' in error
-            ? (error as { code?: string }).code
-            : undefined;
-        if (code === 'ENOENT') return;
+        if (errnoCode(error) === 'ENOENT') return;
         throw error;
       }
+      await pruneEmptyParents(root, path);
     },
     async list(options: BlobListOptions): Promise<BlobListResult> {
       const prefix = options.prefix.replace(/^\/+/, '');
@@ -102,11 +144,7 @@ export async function createFilesystemBlobStore(
         try {
           entries = await readdir(dirPath, { withFileTypes: true });
         } catch (error) {
-          const code =
-            error && typeof error === 'object' && 'code' in error
-              ? (error as { code?: string }).code
-              : undefined;
-          if (code === 'ENOENT') {
+          if (errnoCode(error) === 'ENOENT') {
             return { objects: [], prefixes: [], cursor: null };
           }
           throw error;
@@ -124,6 +162,15 @@ export async function createFilesystemBlobStore(
           const rel = relative(root, full).split(sep).join('/');
           const entry = entries.find((e) => e.name === name)!;
           if (entry.isDirectory()) {
+            // Skip empty dirs left behind after soft-delete / purge.
+            if (!(await directoryHasFiles(full))) {
+              try {
+                await rm(full, { recursive: true, force: true });
+              } catch {
+                // ignore
+              }
+              continue;
+            }
             prefixes.push(`${rel}/`);
           } else if (entry.isFile()) {
             const st = await stat(full);

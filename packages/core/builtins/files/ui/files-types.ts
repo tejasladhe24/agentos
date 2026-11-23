@@ -8,6 +8,9 @@ export type FilesListItem = {
   contentType?: string;
   updatedAt?: string;
   relativeKey: string;
+  trashedAt?: string;
+  purgeAt?: string | null;
+  originalKey?: string;
 };
 
 export type FilesListResponse = {
@@ -15,9 +18,19 @@ export type FilesListResponse = {
   cursor: string | null;
   prefix: string;
   q?: string;
+  view?: FilesSection;
 };
 
 export type FilesViewMode = 'grid' | 'list';
+
+/** Left-nav sections in the Files extension. */
+export type FilesSection = 'files' | 'bin' | 'storage';
+
+export type BinRetentionDays = 15 | 30 | null;
+
+export type FilesOrgSettings = {
+  binRetentionDays: BinRetentionDays;
+};
 
 export type FilesBlobJson = {
   key: string;
@@ -36,6 +49,9 @@ export type UploadProgressItem = {
 
 export const FILES_PREFIX_STORAGE_KEY = 'files:prefix';
 export const FILES_PREFIX_CHANNEL = 'agentos-files-prefix';
+
+export const FILES_SECTION_STORAGE_KEY = 'files:section';
+export const FILES_SECTION_CHANNEL = 'agentos-files-section';
 
 export function parseErrorBody(body: string, fallback: string): string {
   try {
@@ -67,10 +83,34 @@ export function formatBytes(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+const MONTHS_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+/** Format as `DD MMM YYYY, HH:MM:SS` (local time). */
 export function formatDate(iso?: string): string {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString();
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mmm = MONTHS_SHORT[d.getMonth()]!;
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${dd} ${mmm} ${yyyy}, ${hh}:${mm}:${ss}`;
   } catch {
     return iso;
   }

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHostApi, useHostNotifications } from '@agentos/core/client';
-import { Separator } from '@agentos/ui/components/separator';
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@agentos/ui/components/resizable';
 
 import { FilesBrowser } from './files-browser';
 import { FilesDetail } from './files-detail';
@@ -16,6 +20,11 @@ import {
   type UploadProgressItem,
 } from './files-types';
 import { useFilesPrefix } from './use-files-prefix';
+import { useFilesSection } from './use-files-section';
+
+const DETAIL_DEFAULT_SIZE_PX = 320;
+const DETAIL_MIN_SIZE_PX = 240;
+const DETAIL_MAX_SIZE = '45%';
 
 function folderPrefixFor(item: FilesListItem): string {
   if (item.kind !== 'folder') return '';
@@ -49,6 +58,7 @@ export default function FilesPage() {
   const api = useHostApi();
   const notifications = useHostNotifications();
   const [prefix, setPrefix] = useFilesPrefix();
+  const [section] = useFilesSection();
 
   const [items, setItems] = useState<FilesListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,8 +67,9 @@ export default function FilesPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
-  const [viewMode, setViewMode] = useState<FilesViewMode>('grid');
+  const [viewMode, setViewMode] = useState<FilesViewMode>('list');
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgressItem[]>(
     [],
@@ -92,9 +103,15 @@ export default function FilesPage() {
     setUnauthenticated(false);
 
     const params = new URLSearchParams();
-    params.set('prefix', prefix);
     params.set('limit', '100');
-    if (activeSearch) params.set('q', activeSearch);
+    if (section === 'bin') {
+      params.set('view', 'bin');
+    } else if (section === 'storage') {
+      params.set('view', 'storage');
+    } else {
+      params.set('prefix', prefix);
+      if (activeSearch) params.set('q', activeSearch);
+    }
 
     const res = await api.fetch(`/blobs?${params.toString()}`);
     if (res.status === 401) {
@@ -112,7 +129,12 @@ export default function FilesPage() {
     const list = parseListResponse(res.body);
     setItems(list.items);
     setLoading(false);
-  }, [activeSearch, api, prefix]);
+  }, [activeSearch, api, prefix, section]);
+
+  useEffect(() => {
+    setSelectedKeys(new Set());
+    setDetailOpen(false);
+  }, [section]);
 
   useEffect(() => {
     void loadList();
@@ -123,7 +145,7 @@ export default function FilesPage() {
     setPreviewBlob(null);
     setPreviewError(null);
 
-    if (!primary || primary.kind !== 'file') {
+    if (!detailOpen || !primary || primary.kind !== 'file') {
       setPreviewLoading(false);
       return;
     }
@@ -165,7 +187,7 @@ export default function FilesPage() {
       cancelled = true;
       revokePreviewUrl();
     };
-  }, [api, primary, revokePreviewUrl]);
+  }, [api, detailOpen, primary, revokePreviewUrl]);
 
   async function downloadItem(item: FilesListItem) {
     if (item.kind === 'folder') return;
@@ -198,7 +220,7 @@ export default function FilesPage() {
   }
 
   async function onUploadFiles(files: File[]) {
-    if (unauthenticated) return;
+    if (unauthenticated || section !== 'files') return;
     const jobs: UploadProgressItem[] = files.map((file, i) => ({
       id: `${Date.now()}-${i}`,
       name: file.name,
@@ -273,7 +295,29 @@ export default function FilesPage() {
       }
     }
     setSelectedKeys(new Set());
-    await notifications.show('Deleted selected items', 'info');
+    await notifications.show(
+      section === 'bin' ? 'Permanently deleted' : 'Moved to Bin',
+      'info',
+    );
+    await loadList();
+  }
+
+  async function onRestore(itemsToRestore: FilesListItem[]) {
+    for (const item of itemsToRestore) {
+      const res = await api.fetch('/blobs/restore', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: item.relativeKey }),
+      });
+      if (!res.ok) {
+        await notifications.show(
+          parseErrorBody(res.body, `Failed to restore ${item.name}`),
+          'error',
+        );
+      }
+    }
+    setSelectedKeys(new Set());
+    await notifications.show('Restored from Bin', 'info');
     await loadList();
   }
 
@@ -326,84 +370,116 @@ export default function FilesPage() {
 
   const disabled = unauthenticated;
 
+  const browser = (
+    <FilesBrowser
+      section={section}
+      prefix={prefix}
+      items={items}
+      loading={loading}
+      error={error}
+      searchQuery={searchQuery}
+      viewMode={viewMode}
+      selectedKeys={selectedKeys}
+      detailOpen={detailOpen}
+      disabled={disabled}
+      upload={{ progress: uploadProgress, onUploadFiles }}
+      onSearchQueryChange={setSearchQuery}
+      onSearchSubmit={() => setActiveSearch(searchQuery.trim())}
+      onClearSearch={() => {
+        setSearchQuery('');
+        setActiveSearch('');
+      }}
+      onViewModeChange={setViewMode}
+      onToggleDetail={() => setDetailOpen((open) => !open)}
+      onPrefixChange={(next) => void setPrefix(next)}
+      onOpenItem={(item) => {
+        if (section === 'files' && item.kind === 'folder') {
+          void setPrefix(folderPrefixFor(item));
+          setSelectedKeys(new Set());
+          return;
+        }
+        setSelectedKeys(new Set([item.key]));
+      }}
+      onToggleSelect={(item) => {
+        setSelectedKeys((prev) => {
+          const next = new Set(prev);
+          if (next.has(item.key)) next.delete(item.key);
+          else next.add(item.key);
+          return next;
+        });
+      }}
+      onSelectAll={() => setSelectedKeys(new Set(items.map((i) => i.key)))}
+      onClearSelection={() => setSelectedKeys(new Set())}
+      onDownloadSelected={() => {
+        void (async () => {
+          for (const item of selectedItems.filter((i) => i.kind === 'file')) {
+            await downloadItem(item);
+          }
+        })();
+      }}
+      onRename={onRename}
+      onMove={onMove}
+      onDelete={onDelete}
+      onRestore={section === 'bin' ? onRestore : undefined}
+    />
+  );
+
+  const detail = (
+    <FilesDetail
+      open={detailOpen}
+      selection={selectedItems}
+      primary={primary}
+      blob={previewBlob}
+      blobUrl={previewUrl}
+      previewLoading={previewLoading}
+      previewError={previewError}
+      onDownload={downloadItem}
+      onClose={() => setDetailOpen(false)}
+    />
+  );
+
   return (
     <div
-      className="flex h-full min-h-full flex-col gap-4 bg-background p-6 text-foreground"
+      className="fixed inset-0 flex min-h-0 flex-col overflow-hidden bg-background text-foreground"
       data-slot="files-page"
     >
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Files</h1>
-        <p className="text-sm text-muted-foreground">
-          Org-scoped storage — upload, preview, and manage blobs.
-        </p>
-      </header>
-      <Separator />
       {unauthenticated ? (
-        <p className="text-sm text-destructive" role="alert">
+        <p
+          className="shrink-0 border-b border-border px-4 py-3 text-sm text-destructive"
+          role="alert"
+        >
           You are not signed in. Open{' '}
           <span className="font-medium">/login</span> to access org files.
         </p>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-        <FilesBrowser
-          prefix={prefix}
-          items={items}
-          loading={loading}
-          error={error}
-          searchQuery={searchQuery}
-          viewMode={viewMode}
-          selectedKeys={selectedKeys}
-          disabled={disabled}
-          upload={{ progress: uploadProgress, onUploadFiles }}
-          onSearchQueryChange={setSearchQuery}
-          onSearchSubmit={() => setActiveSearch(searchQuery.trim())}
-          onClearSearch={() => {
-            setSearchQuery('');
-            setActiveSearch('');
-          }}
-          onViewModeChange={setViewMode}
-          onPrefixChange={(next) => void setPrefix(next)}
-          onOpenItem={(item) => {
-            if (item.kind === 'folder') {
-              void setPrefix(folderPrefixFor(item));
-              setSelectedKeys(new Set());
-              return;
-            }
-            setSelectedKeys(new Set([item.key]));
-          }}
-          onToggleSelect={(item) => {
-            setSelectedKeys((prev) => {
-              const next = new Set(prev);
-              if (next.has(item.key)) next.delete(item.key);
-              else next.add(item.key);
-              return next;
-            });
-          }}
-          onSelectAll={() => setSelectedKeys(new Set(items.map((i) => i.key)))}
-          onClearSelection={() => setSelectedKeys(new Set())}
-          onDownloadSelected={() => {
-            void (async () => {
-              for (const item of selectedItems.filter(
-                (i) => i.kind === 'file',
-              )) {
-                await downloadItem(item);
-              }
-            })();
-          }}
-          onRename={onRename}
-          onMove={onMove}
-          onDelete={onDelete}
-        />
-        <FilesDetail
-          selection={selectedItems}
-          primary={primary}
-          blob={previewBlob}
-          blobUrl={previewUrl}
-          previewLoading={previewLoading}
-          previewError={previewError}
-          onDownload={downloadItem}
-        />
-      </div>
+      {detailOpen ? (
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 min-w-0 flex-1"
+          data-slot="files-layout"
+        >
+          <ResizablePanel
+            id="files-browser"
+            defaultSize="70%"
+            minSize="40%"
+            className="min-h-0 min-w-0"
+          >
+            {browser}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel
+            id="files-detail"
+            defaultSize={DETAIL_DEFAULT_SIZE_PX}
+            minSize={DETAIL_MIN_SIZE_PX}
+            maxSize={DETAIL_MAX_SIZE}
+            className="min-h-0"
+          >
+            {detail}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{browser}</div>
+      )}
     </div>
   );
 }

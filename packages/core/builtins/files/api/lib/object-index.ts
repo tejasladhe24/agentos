@@ -6,6 +6,12 @@ export type ObjectMetaRecord = {
   bytes: number;
   contentType: string;
   updatedAt: string;
+  /** Soft-delete / bin metadata (absent when live). */
+  trashedAt?: string;
+  /** ISO timestamp when bin item is permanently deleted; null = keep forever. */
+  purgeAt?: string | null;
+  /** Live absolute key before trash (for restore). */
+  originalKey?: string;
 };
 
 export type FilesObjectIndex = {
@@ -50,13 +56,20 @@ function parseRecord(
       ? data.updatedAt
       : new Date(0).toISOString();
   if (!key) return null;
-  return {
+  const record: ObjectMetaRecord = {
     key,
     name: name || key.split('/').pop() || key,
     bytes,
     contentType,
     updatedAt,
   };
+  if (typeof data.trashedAt === 'string') record.trashedAt = data.trashedAt;
+  if (data.purgeAt === null) record.purgeAt = null;
+  else if (typeof data.purgeAt === 'string') record.purgeAt = data.purgeAt;
+  if (typeof data.originalKey === 'string') {
+    record.originalKey = data.originalKey;
+  }
+  return record;
 }
 
 /**
@@ -96,6 +109,11 @@ export function createFilesObjectIndex(baseUrl: string): FilesObjectIndex {
         contentType: record.contentType,
         updatedAt: record.updatedAt,
       };
+      if (record.trashedAt !== undefined) data.trashedAt = record.trashedAt;
+      if (record.purgeAt !== undefined) data.purgeAt = record.purgeAt;
+      if (record.originalKey !== undefined) {
+        data.originalKey = record.originalKey;
+      }
 
       if (existing) {
         const res = await fetch(`${root}/collections/${collection}/update`, {

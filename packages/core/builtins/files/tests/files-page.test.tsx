@@ -47,25 +47,30 @@ describe('FilesPage', () => {
       }),
     );
     expect(html).toContain('data-slot="files-page"');
-    expect(html).toContain('Files');
+    expect(html).not.toContain('Org-scoped storage');
     expect(html).toContain('data-slot="files-browser"');
     expect(html).toContain('Loading files');
-    expect(html).toContain('data-slot="files-detail"');
+    expect(html).not.toContain('data-slot="files-detail"');
+    expect(html).toContain('data-slot="files-info-button"');
     expect(html).toContain('data-slot="files-upload-zone"');
+    expect(html).toContain('My files');
   });
 });
 
 describe('FilesBrowser states', () => {
   const baseProps = {
+    section: 'files' as const,
     prefix: '',
     searchQuery: '',
-    viewMode: 'grid' as const,
+    viewMode: 'list' as const,
     selectedKeys: new Set<string>(),
+    detailOpen: false,
     upload: { progress: [], onUploadFiles: noopAsync },
     onSearchQueryChange: () => {},
     onSearchSubmit: () => {},
     onClearSearch: () => {},
     onViewModeChange: () => {},
+    onToggleDetail: () => {},
     onPrefixChange: () => {},
     onOpenItem: () => {},
     onToggleSelect: () => {},
@@ -90,7 +95,7 @@ describe('FilesBrowser states', () => {
     expect(html).toContain('This folder is empty');
   });
 
-  test('renders loaded grid items', () => {
+  test('renders loaded list items', () => {
     const html = renderToStaticMarkup(
       createElement(FilesBrowser, {
         ...baseProps,
@@ -115,6 +120,7 @@ describe('FilesBrowser states', () => {
     );
     expect(html).toContain('readme.txt');
     expect(html).toContain('docs');
+    expect(html).toContain('Name');
     expect(html).not.toContain('data-slot="files-empty"');
   });
 
@@ -129,5 +135,28 @@ describe('FilesBrowser states', () => {
     );
     expect(html).toContain('data-slot="files-error"');
     expect(html).toContain('forbidden');
+  });
+
+  test('storage view shows name and size columns only', () => {
+    const html = renderToStaticMarkup(
+      createElement(FilesBrowser, {
+        ...baseProps,
+        section: 'storage',
+        items: [
+          {
+            key: 'orgs/o1/big.bin',
+            name: 'big.bin',
+            kind: 'file',
+            bytes: 2048,
+            relativeKey: 'big.bin',
+          },
+        ],
+        loading: false,
+        error: null,
+      }),
+    );
+    expect(html).toContain('data-slot="files-storage"');
+    expect(html).toContain('big.bin');
+    expect(html).toContain('2.0 KB');
   });
 });
