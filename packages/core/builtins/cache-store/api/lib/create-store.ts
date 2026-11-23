@@ -1,11 +1,5 @@
-import {
-  createMemoryCache,
-  type CacheBackend,
-} from './create-cache';
-import {
-  createRedisCache,
-  type RedisCacheClient,
-} from './create-redis-cache';
+import { createMemoryCache, type CacheBackend } from './create-cache';
+import { createRedisCache, type RedisCacheClient } from './create-redis-cache';
 
 export type CreateCacheStoreOptions = {
   /** When set, use Redis; otherwise in-memory. */

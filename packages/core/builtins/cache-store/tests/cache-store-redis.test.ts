@@ -11,7 +11,9 @@ function createMockRedisClient(): RedisCacheClient & {
 } {
   const store = new Map<string, { value: string; expiresAt: number | null }>();
 
-  function live(key: string): { value: string; expiresAt: number | null } | undefined {
+  function live(
+    key: string,
+  ): { value: string; expiresAt: number | null } | undefined {
     const entry = store.get(key);
     if (!entry) return undefined;
     if (entry.expiresAt !== null && entry.expiresAt <= Date.now()) {

@@ -40,10 +40,10 @@ HITL approvals, the notifications recent inbox, and the **events** durable outbo
 
 Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default backend is **in-memory**. When `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` is set, the builtin uses Bun’s portable `RedisClient` (no Cloudflare KV in core).
 
-| Variable                             | Role                                                                 |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` | Enables Redis backend (`redis://…` / `rediss://…`)                   |
-| `AGENT_OS_EXT_CACHE_STORE_PORT`      | Upstream listen port (default `6112`)                                |
+| Variable                             | Role                                               |
+| ------------------------------------ | -------------------------------------------------- |
+| `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` | Enables Redis backend (`redis://…` / `rediss://…`) |
+| `AGENT_OS_EXT_CACHE_STORE_PORT`      | Upstream listen port (default `6112`)              |
 
 Keys are stored under the prefix `agentos:cache:`. Customers never hold Redis credentials — only this builtin.
 

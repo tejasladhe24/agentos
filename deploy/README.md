@@ -77,10 +77,10 @@ Again: **no** customer `DATABASE_URL`. Extensions use `dbStore` / cache-store, n
 
 ### cache-store
 
-| Variable                              | Role                                                                                          |
-| ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `AGENT_OS_EXT_CACHE_STORE_REDIS_URL`  | Optional. When set, shared Redis (`redis://` / `rediss://`) for get/set/del. Omit → in-memory |
-| `AGENT_OS_EXT_CACHE_STORE_PORT`       | Upstream port (default `6112`)                                                                |
+| Variable                             | Role                                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` | Optional. When set, shared Redis (`redis://` / `rediss://`) for get/set/del. Omit → in-memory |
+| `AGENT_OS_EXT_CACHE_STORE_PORT`      | Upstream port (default `6112`)                                                                |
 
 Set the Redis URL before raising `max_instances` / replicas above **1** when replicas must share permission caches, rate limits, or page fingerprints. Health reports `backend: "memory" | "redis"`.
 
