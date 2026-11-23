@@ -70,6 +70,7 @@
     "secrets:dev": "bun ./builtins/secrets/api/server.ts",
     "audit:dev": "bun ./builtins/audit/api/server.ts",
     "vector-store:dev": "bun ./builtins/vector-store/api/server.ts",
+    "inbound-email:dev": "bun ./builtins/inbound-email/api/server.ts",
     "clean": "rm -rf dist node_modules .turbo .venv __pycache__ .pytest_cache *.egg-info .ruff_cache .mypy_cache *.tsbuildinfo"
   },
   "dependencies": {

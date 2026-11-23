@@ -1,0 +1,10 @@
+{
+  "name": "Inbound Email",
+  "api": {
+    "language": "bun",
+    "port": 6121
+  },
+  "public": {
+    "openApiPrefixes": ["/webhooks/"]
+  }
+}
