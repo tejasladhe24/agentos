@@ -19,6 +19,12 @@ export const MAX_BULK_INSERT = 100;
  */
 export const RETENTION_POLICIES_COLLECTION = 'agentos_retention_policies';
 
+/**
+ * Platform collection storing org-level retention / legal hold (ticket 87).
+ * Doc id = `orgId`.
+ */
+export const ORG_RETENTION_COLLECTION = 'agentos_org_retention';
+
 /** Default background prune interval (ms). Override with env. */
 export const DEFAULT_PRUNE_INTERVAL_MS = 60_000;
 
@@ -36,6 +42,7 @@ export const PLATFORM_COLLECTIONS = new Set([
   /** Inbound email address → orgId directory (ticket 86). */
   'inbound_addresses',
   RETENTION_POLICIES_COLLECTION,
+  ORG_RETENTION_COLLECTION,
 ]);
 
 export function isPlatformCollection(name: string): boolean {

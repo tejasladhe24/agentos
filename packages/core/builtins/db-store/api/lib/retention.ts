@@ -1,4 +1,5 @@
 import {
+  ORG_RETENTION_COLLECTION,
   PLATFORM_ORG_ID,
   RETENTION_POLICIES_COLLECTION,
   retentionPolicyDocId,
@@ -12,6 +13,13 @@ import {
   type DocumentRow,
 } from './collections';
 import { setRequestOrgId, type DbStoreContext } from './create-db';
+import {
+  assertNotOnLegalHold,
+  getOrgRetention,
+  isOptedInForDefaultTtl,
+  listOrgRetentions,
+  type OrgRetentionRecord,
+} from './org-retention';
 import { applySort } from './sort';
 
 export type RetentionPolicy = {
@@ -210,9 +218,39 @@ function isExpiredByTtl(
   return created < nowMs - ttlSeconds * 1000;
 }
 
+async function resolveEffectivePolicy(
+  ctx: DbStoreContext,
+  collection: string,
+  orgId: string,
+  policy: RetentionPolicy | null | undefined,
+  orgConfig?: OrgRetentionRecord | null,
+): Promise<RetentionPolicy | null> {
+  const collectionPolicy =
+    policy === undefined
+      ? await getRetentionPolicy(ctx, collection, orgId)
+      : policy;
+  if (collectionPolicy) {
+    if (
+      collectionPolicy.ttlSeconds === undefined &&
+      isOptedInForDefaultTtl(orgConfig, collection) &&
+      orgConfig?.defaultTtlSeconds
+    ) {
+      return {
+        ...collectionPolicy,
+        ttlSeconds: orgConfig.defaultTtlSeconds,
+      };
+    }
+    return collectionPolicy;
+  }
+  if (isOptedInForDefaultTtl(orgConfig, collection) && orgConfig) {
+    return { ttlSeconds: orgConfig.defaultTtlSeconds };
+  }
+  return null;
+}
+
 /**
  * Prune a collection+org partition for time TTL, per-doc expiresAt, and maxCount.
- * Returns number of deleted rows.
+ * Returns number of deleted rows. Legal hold → 423.
  */
 export async function pruneCollection(
   ctx: DbStoreContext,
@@ -220,15 +258,34 @@ export async function pruneCollection(
   orgId: string,
   policy?: RetentionPolicy | null,
   now: Date = new Date(),
+  options?: {
+    skipLegalHoldCheck?: boolean;
+    orgConfig?: OrgRetentionRecord | null;
+  },
 ): Promise<{ deleted: number }> {
-  if (collection === RETENTION_POLICIES_COLLECTION) {
+  if (
+    collection === RETENTION_POLICIES_COLLECTION ||
+    collection === ORG_RETENTION_COLLECTION
+  ) {
     return { deleted: 0 };
   }
 
-  const resolved =
-    policy === undefined
-      ? await getRetentionPolicy(ctx, collection, orgId)
-      : policy;
+  if (!options?.skipLegalHoldCheck) {
+    await assertNotOnLegalHold(ctx, orgId);
+  }
+
+  const orgConfig =
+    options?.orgConfig !== undefined
+      ? options.orgConfig
+      : await getOrgRetention(ctx, orgId);
+
+  const resolved = await resolveEffectivePolicy(
+    ctx,
+    collection,
+    orgId,
+    policy,
+    orgConfig,
+  );
 
   await setRequestOrgId(ctx, orgId);
   const { items } = await queryCollection(ctx, collection, {}, orgId);
@@ -298,29 +355,77 @@ export async function pruneAfterWrite(
 ): Promise<void> {
   const policy = await getRetentionPolicy(ctx, collection, orgId);
   if (!policy?.maxCount) return;
+  const orgConfig = await getOrgRetention(ctx, orgId);
+  // Legal hold: keep writes succeeding; skip destructive on-write prune.
+  if (orgConfig?.legalHold) return;
   await setRequestOrgId(ctx, orgId);
-  await pruneCollection(ctx, collection, orgId, {
-    maxCount: policy.maxCount,
-    maxCountGroupBy: policy.maxCountGroupBy,
-  });
+  await pruneCollection(
+    ctx,
+    collection,
+    orgId,
+    {
+      maxCount: policy.maxCount,
+      maxCountGroupBy: policy.maxCountGroupBy,
+    },
+    new Date(),
+    { skipLegalHoldCheck: true, orgConfig },
+  );
 }
 
-/** Sweep every registered retention policy (background tick). */
+/** Sweep every registered retention policy + org default-TTL opted-ins (background tick). */
 export async function pruneAllPolicies(
   ctx: DbStoreContext,
   now: Date = new Date(),
 ): Promise<{ deleted: number; collections: number }> {
   const policies = await listRetentionPolicies(ctx);
+  const orgConfigs = await listOrgRetentions(ctx);
+  const heldOrgs = new Set(
+    orgConfigs.filter((c) => c.legalHold).map((c) => c.orgId),
+  );
+  const orgById = new Map(orgConfigs.map((c) => [c.orgId, c]));
+
   let deleted = 0;
+  let collections = 0;
+  const pruned = new Set<string>();
+
   for (const policy of policies) {
+    if (heldOrgs.has(policy.orgId)) continue;
+    const key = `${policy.orgId}::${policy.collection}`;
     const result = await pruneCollection(
       ctx,
       policy.collection,
       policy.orgId,
       policy,
       now,
+      {
+        skipLegalHoldCheck: true,
+        orgConfig: orgById.get(policy.orgId) ?? null,
+      },
     );
     deleted += result.deleted;
+    collections += 1;
+    pruned.add(key);
   }
-  return { deleted, collections: policies.length };
+
+  for (const org of orgConfigs) {
+    if (org.legalHold) continue;
+    if (!org.defaultTtlSeconds || !org.optedInCollections?.length) continue;
+    for (const collection of org.optedInCollections) {
+      const key = `${org.orgId}::${collection}`;
+      if (pruned.has(key)) continue;
+      const result = await pruneCollection(
+        ctx,
+        collection,
+        org.orgId,
+        null,
+        now,
+        { skipLegalHoldCheck: true, orgConfig: org },
+      );
+      deleted += result.deleted;
+      collections += 1;
+      pruned.add(key);
+    }
+  }
+
+  return { deleted, collections };
 }

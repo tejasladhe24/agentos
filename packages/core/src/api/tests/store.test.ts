@@ -218,6 +218,75 @@ describe('dbStore', () => {
     ]);
   });
 
+  test('org retention + deleteSubject', async () => {
+    const calls: Captured[] = [];
+    mockStoreFetch((req) => {
+      calls.push(req);
+      if (
+        req.url.endsWith('/org-retention') &&
+        req.body &&
+        typeof req.body === 'object' &&
+        'legalHold' in (req.body as object)
+      ) {
+        return Response.json(
+          {
+            config: {
+              orgId: 'org-1',
+              legalHold: true,
+              holdReason: 'litigation',
+            },
+          },
+          { status: 201 },
+        );
+      }
+      if (req.url.endsWith('/org-retention')) {
+        return Response.json({
+          config: { orgId: 'org-1', legalHold: true },
+        });
+      }
+      if (req.url.endsWith('/subjects/delete')) {
+        return Response.json({
+          subjectId: 'ada@example.com',
+          mode: 'delete',
+          orgId: 'org-1',
+          collections: [
+            { name: 'candidates', matched: 1, deleted: 1, anonymized: 0 },
+          ],
+          files: [{ key: 'r.pdf', ok: true }],
+          auditId: 'a1',
+        });
+      }
+      return Response.json({ error: 'unexpected' }, { status: 500 });
+    });
+
+    expect(
+      await dbStore.setOrgRetention(
+        { legalHold: true, holdReason: 'litigation' },
+        { orgId: 'org-1' },
+      ),
+    ).toMatchObject({ config: { legalHold: true } });
+    expect(await dbStore.getOrgRetention({ orgId: 'org-1' })).toMatchObject({
+      config: { orgId: 'org-1', legalHold: true },
+    });
+    expect(
+      await dbStore.deleteSubject(
+        {
+          subjectId: 'ada@example.com',
+          collections: [
+            { name: 'candidates', where: { email: 'ada@example.com' } },
+          ],
+          fileKeys: ['r.pdf'],
+        },
+        { orgId: 'org-1' },
+      ),
+    ).toMatchObject({ auditId: 'a1' });
+    expect(calls.map((c) => c.url)).toEqual([
+      'http://db.test/org-retention',
+      'http://db.test/org-retention',
+      'http://db.test/subjects/delete',
+    ]);
+  });
+
   test('encodes collection name in URL', async () => {
     mockStoreFetch(({ url }) => {
       expect(url).toBe('http://db.test/collections/a%2Fb/query');

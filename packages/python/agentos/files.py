@@ -9,7 +9,13 @@ from urllib.parse import quote
 import httpx
 from pydantic import BaseModel
 
-from agentos.http import EnvMap, get_json, put_json, resolve_ext_api_base
+from agentos.http import (
+    EnvMap,
+    delete_json,
+    get_json,
+    put_json,
+    resolve_ext_api_base,
+)
 
 
 def resolve_files_api_base(env: EnvMap | None = None) -> str:
@@ -113,6 +119,27 @@ async def get_blob_base64(
         client=client,
     )
     return GetBlobBase64Result.model_validate(data)
+
+
+class DeleteBlobResult(BaseModel):
+    ok: bool
+    key: str
+
+
+async def delete_blob(
+    key: str,
+    env: EnvMap | None = None,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> DeleteBlobResult:
+    """Delete a blob by key (idempotent when missing)."""
+    base = resolve_files_api_base(env)
+    data = await delete_json(
+        _blob_url(base, key),
+        "files deleteBlob",
+        client=client,
+    )
+    return DeleteBlobResult.model_validate(data)
 
 
 def encode_bytes(data: bytes) -> str:

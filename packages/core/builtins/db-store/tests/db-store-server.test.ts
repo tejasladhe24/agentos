@@ -541,6 +541,255 @@ describe('builtin db-store server', () => {
     expect(badSort.status).toBe(400);
   });
 
+  test('org retention default TTL + legal hold blocks prune and subject delete', async () => {
+    const originalFetch = globalThis.fetch;
+    const auditCalls: unknown[] = [];
+    const deletedKeys: string[] = [];
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const url = String(input);
+      if (url.includes('/api/ext/audit/entries') || url.includes('/entries')) {
+        const body = init?.body ? JSON.parse(String(init.body)) : {};
+        auditCalls.push(body);
+        return Response.json(
+          {
+            id: 'audit-1',
+            ...body,
+            at: '2026-01-01T00:00:00.000Z',
+          },
+          { status: 201 },
+        );
+      }
+      if (
+        (url.includes('/blobs/') || url.includes('/api/ext/files/')) &&
+        (init?.method ?? 'GET').toUpperCase() === 'DELETE'
+      ) {
+        const key = decodeURIComponent(url.split('/blobs/')[1] ?? '');
+        deletedKeys.push(key);
+        return Response.json({ ok: true, key });
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    try {
+      Bun.env.AGENT_OS_AUDIT_API_BASE = 'http://audit.test';
+      Bun.env.AGENT_OS_FILES_API_BASE = 'http://files.test';
+
+      const setOrg = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/org-retention', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            defaultTtlSeconds: 60,
+            legalHold: false,
+            optedInCollections: ['cand_notes'],
+          }),
+        }),
+      );
+      expect(setOrg.status).toBe(201);
+
+      await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/insert', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            id: 'n1',
+            data: {
+              email: 'ada@example.com',
+              name: 'Ada',
+              expiresAt: '2000-01-01T00:00:00.000Z',
+            },
+          }),
+        }),
+      );
+      await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/insert', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            id: 'n2',
+            data: { email: 'grace@example.com', name: 'Grace' },
+          }),
+        }),
+      );
+
+      const pruned = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/prune', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(pruned.status).toBe(200);
+      expect(await pruned.json()).toEqual({ deleted: 1 });
+
+      await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/insert', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            id: 'n3',
+            data: { email: 'ada@example.com', name: 'Ada again' },
+          }),
+        }),
+      );
+
+      const deleted = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/subjects/delete', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            subjectId: 'ada@example.com',
+            mode: 'delete',
+            collections: [
+              { name: 'cand_notes', where: { email: 'ada@example.com' } },
+            ],
+            fileKeys: ['resumes/ada.pdf'],
+            actor: 'admin@agency.test',
+          }),
+        }),
+      );
+      expect(deleted.status).toBe(200);
+      const deletedBody = (await deleted.json()) as {
+        collections: Array<{ deleted: number }>;
+        files: Array<{ key: string; ok: boolean }>;
+        auditId?: string;
+      };
+      expect(deletedBody.collections[0]?.deleted).toBe(1);
+      expect(deletedBody.files).toEqual([{ key: 'resumes/ada.pdf', ok: true }]);
+      expect(deletedBody.auditId).toBe('audit-1');
+      expect(deletedKeys).toEqual(['resumes/ada.pdf']);
+      expect(auditCalls).toHaveLength(1);
+
+      const anonymizeSeed = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/insert', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            id: 'n4',
+            data: { email: 'anon@example.com', phone: '555' },
+          }),
+        }),
+      );
+      expect(anonymizeSeed.status).toBe(201);
+
+      const anonymized = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/subjects/delete', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            subjectId: 'anon@example.com',
+            mode: 'anonymize',
+            collections: [
+              {
+                name: 'cand_notes',
+                where: { email: 'anon@example.com' },
+                anonymizeFields: ['email', 'phone'],
+              },
+            ],
+          }),
+        }),
+      );
+      expect(anonymized.status).toBe(200);
+      const listed = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/query', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({}),
+        }),
+      );
+      const listedBody = (await listed.json()) as {
+        items: Array<{ id: string; data: Record<string, unknown> }>;
+      };
+      const n4 = listedBody.items.find((i) => i.id === 'n4');
+      expect(n4?.data.email).toBe('[redacted]');
+      expect(n4?.data.phone).toBe('[redacted]');
+
+      const hold = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/org-retention', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            legalHold: true,
+            holdReason: 'litigation',
+            defaultTtlSeconds: 60,
+            optedInCollections: ['cand_notes'],
+          }),
+        }),
+      );
+      expect(hold.status).toBe(201);
+
+      const pruneHeld = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/prune', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({}),
+        }),
+      );
+      expect(pruneHeld.status).toBe(423);
+
+      const deleteHeld = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/subjects/delete', {
+          method: 'POST',
+          headers: orgHeaders(ORG_A),
+          body: JSON.stringify({
+            subjectId: 'grace@example.com',
+            mode: 'delete',
+            collections: [
+              { name: 'cand_notes', where: { email: 'grace@example.com' } },
+            ],
+          }),
+        }),
+      );
+      expect(deleteHeld.status).toBe(423);
+
+      // Org B not held
+      await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/collections/cand_notes/insert', {
+          method: 'POST',
+          headers: orgHeaders(ORG_B),
+          body: JSON.stringify({
+            id: 'b1',
+            data: { email: 'bob@example.com' },
+          }),
+        }),
+      );
+      const deleteB = await handleDbStoreRequest(
+        ctx,
+        new Request('http://127.0.0.1:6111/subjects/delete', {
+          method: 'POST',
+          headers: orgHeaders(ORG_B),
+          body: JSON.stringify({
+            subjectId: 'bob@example.com',
+            collections: [
+              { name: 'cand_notes', where: { email: 'bob@example.com' } },
+            ],
+          }),
+        }),
+      );
+      expect(deleteB.status).toBe(200);
+    } finally {
+      globalThis.fetch = originalFetch;
+      delete Bun.env.AGENT_OS_AUDIT_API_BASE;
+      delete Bun.env.AGENT_OS_FILES_API_BASE;
+    }
+  });
+
   afterAll(() => {
     ctx?.close();
   });

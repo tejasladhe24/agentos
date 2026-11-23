@@ -94,6 +94,11 @@ export async function handleFilesRequest(
       });
     }
 
+    if (method === 'DELETE') {
+      await store.delete(key);
+      return json({ ok: true, key });
+    }
+
     return json({ error: 'method not allowed' }, { status: 405 });
   } catch (error) {
     if (error instanceof BlobStoreError) {

@@ -224,6 +224,42 @@ Policies live in platform collection `agentos_retention_policies` (doc id `${org
 
 TS: `dbStore.collection(name, { orgId }).insertBulk / setRetention / prune`. Python: `insert_bulk` / `set_retention` / `prune`.
 
+### Org retention + subject deletion (ticket 87)
+
+Org-level defaults and **legal hold** live beside collection policies (ticket 84). Not full GDPR automation — focused, auditable delete for pilots.
+
+| Method | Path               | Body                                                                  | Notes                                     |
+| ------ | ------------------ | --------------------------------------------------------------------- | ----------------------------------------- |
+| `POST` | `/org-retention`   | `{ defaultTtlSeconds?, legalHold, holdReason?, optedInCollections? }` | Set org config (201)                      |
+| `POST` | `/org-retention`   | `{ get: true }` or `{}`                                               | Read config                               |
+| `POST` | `/org-retention`   | `{ clear: true }`                                                     | Remove config                             |
+| `POST` | `/subjects/delete` | `{ subjectId, mode?, collections?, fileKeys?, actor? }`               | Delete or anonymize matching docs + files |
+
+**Org retention semantics**
+
+- `legalHold: true` → **423** on subject delete and on explicit `/prune` for that org; background `/prune-all` skips held orgs; on-write maxCount prune is skipped (writes still succeed)
+- `defaultTtlSeconds` applies only to collections listed in `optedInCollections` when those collections lack a ticket-84 `ttlSeconds`
+- Collection policies still win when they set `ttlSeconds` / `maxCount`
+- Platform doc: `agentos_org_retention` (id = `orgId`)
+
+**Subject deletion**
+
+- Caller declares matchers: `collections: [{ name, where, anonymizeFields? }]` using normal query `where`, plus optional explicit `fileKeys`
+- `mode: "delete"` (default) removes matching docs; `mode: "anonymize"` merges listed fields to `"[redacted]"`
+- Deletes file keys via builtin `files` `DELETE /blobs/:key` (best-effort per key)
+- Appends audit entry `subject.delete` / `subject.anonymize` via builtin `audit` (`auditId` in response when reachable)
+
+**Covered / not covered**
+
+| Covered                                          | Not covered (document for contracts)                    |
+| ------------------------------------------------ | ------------------------------------------------------- |
+| Opted-in db-store collections for the active org | DB backups / PITR snapshots                             |
+| Explicit file keys on the files builtin          | S3 versioning / soft-delete buckets                     |
+| Audit log of the request                         | Auth user rows, vector-store embeddings (unless listed) |
+| Legal hold gate                                  | Provider / ESP / CDN access logs                        |
+
+TS: `dbStore.setOrgRetention / getOrgRetention / deleteSubject`. Python: `set_org_retention` / `get_org_retention` / `delete_subject`. Files: `deleteBlob` / `delete_blob`.
+
 ## Secrets vault (per-tenant)
 
 Builtin **`secrets`** stores OAuth refresh tokens and API keys **per org** in db-store collection `secrets_vault` (tenant-scoped — not `__platform__`). Values are **AES-256-GCM** encrypted with a platform master key before insert. Plaintext is never written to db-store and must not be logged.

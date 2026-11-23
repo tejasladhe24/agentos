@@ -10,6 +10,7 @@ export type S3ClientLike = {
     write: (data: Blob | ArrayBuffer | Uint8Array | string) => Promise<number>;
     arrayBuffer: () => Promise<ArrayBuffer>;
     exists: () => Promise<boolean>;
+    delete: () => Promise<void>;
   };
 };
 
@@ -59,6 +60,10 @@ export function createS3BlobStore(config: S3BlobStoreConfig): BlobStore {
       const file = client.file(objectKey);
       if (!(await file.exists())) return null;
       return new Uint8Array(await file.arrayBuffer());
+    },
+    async delete(key) {
+      const objectKey = normalizeBlobKey(key);
+      await client.file(objectKey).delete();
     },
   };
 }

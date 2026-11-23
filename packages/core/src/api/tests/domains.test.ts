@@ -24,6 +24,7 @@ import {
 import {
   getBlob,
   getBlobBase64,
+  deleteBlob,
   putBlob,
   resolveFilesApiBase,
 } from '@agentos/core/api/files';
@@ -353,13 +354,17 @@ describe('events client', () => {
 });
 
 describe('files client', () => {
-  test('putBlob base64 / getBlob / getBlobBase64', async () => {
+  test('putBlob base64 / getBlob / getBlobBase64 / deleteBlob', async () => {
     mockFetch(({ url, method, body, headers }) => {
       if (method === 'PUT') {
         expect(url).toBe('http://files.test/blobs/doc%2F1');
         expect(headers.get('content-type')).toContain('application/json');
         expect(body).toEqual({ base64: 'YQ==' });
         return Response.json({ ok: true, key: 'doc/1', bytes: 1 });
+      }
+      if (method === 'DELETE') {
+        expect(url).toBe('http://files.test/blobs/doc%2F1');
+        return Response.json({ ok: true, key: 'doc/1' });
       }
       if (method === 'GET' && url.includes('format=json')) {
         return Response.json({ key: 'doc/1', base64: 'YQ==', bytes: 1 });
@@ -385,6 +390,7 @@ describe('files client', () => {
     });
     const bytes = await getBlob('doc/1', env);
     expect([...bytes]).toEqual([97]);
+    expect(await deleteBlob('doc/1', env)).toEqual({ ok: true, key: 'doc/1' });
   });
 });
 

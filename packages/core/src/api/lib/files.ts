@@ -76,3 +76,18 @@ export async function getBlobBase64(
     'files getBlobBase64',
   );
 }
+
+export type DeleteBlobResult = { ok: true; key: string };
+
+/** Delete a blob by key (idempotent when missing). */
+export async function deleteBlob(
+  key: string,
+  env?: EnvMap,
+): Promise<DeleteBlobResult> {
+  const base = resolveFilesApiBase(env ?? Bun.env);
+  return jsonFetch<DeleteBlobResult>(
+    blobUrl(base, key),
+    { method: 'DELETE', allowEmpty: false },
+    'files deleteBlob',
+  );
+}

@@ -15,7 +15,7 @@ Framework package. Parent exports:
 | `@agentos/core/api/store`         | API routes          | `dbStore`, `cacheStore` clients                                           |
 | `@agentos/core/api/vector-store`  | API routes          | Org-scoped embedding upsert / similarity query (pgvector)                 |
 | `@agentos/core/api/secrets`       | API routes          | Env + per-org vault (`getSecret` / `putSecret` / `deleteSecret`)          |
-| `@agentos/core/api/files`         | API routes          | Blob put/get (`putBlob` / `getBlob`)                                      |
+| `@agentos/core/api/files`         | API routes          | Blob put/get/delete (`putBlob` / `getBlob` / `deleteBlob`)                |
 | `@agentos/core/api/events`        | API routes          | Publish, SSE subscribe URL, outbox claim/ack, scheduled jobs              |
 | `@agentos/core/api/audit`         | API routes          | Append-only audit entries (`appendEntry` / `listEntries`)                 |
 | `@agentos/core/api/notifications` | API routes          | Notify + recent inbox + delivery status                                   |

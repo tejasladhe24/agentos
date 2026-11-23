@@ -7,7 +7,16 @@ import {
   updateDocument,
 } from './collections';
 import { setRequestOrgId, type DbStoreContext } from './create-db';
-import { resolveOrgForRequest } from './resolve-org';
+import {
+  clearOrgRetention,
+  getOrgRetention,
+  parseOrgRetentionConfig,
+  setOrgRetention,
+} from './org-retention';
+import {
+  resolveOrgForRequest,
+  resolveTenantOrgForRequest,
+} from './resolve-org';
 import {
   clearRetentionPolicy,
   getRetentionPolicy,
@@ -17,6 +26,7 @@ import {
   pruneCollection,
   setRetentionPolicy,
 } from './retention';
+import { deleteSubject, parseSubjectDeleteInput } from './subject-deletion';
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -73,6 +83,50 @@ export async function handleDbStoreRequest(
   if (method === 'POST' && path === '/prune-all') {
     try {
       const result = await pruneAllPolicies(ctx);
+      return json(result);
+    } catch (error) {
+      if (error instanceof CollectionError) {
+        return json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+  }
+
+  if (method === 'POST' && path === '/org-retention') {
+    const org = await resolveTenantOrgForRequest(request);
+    if (!org.ok) {
+      return json({ error: org.error }, { status: org.status });
+    }
+    const body = (await readJsonBody(request)) ?? {};
+    try {
+      if (body.clear === true) {
+        const result = await clearOrgRetention(ctx, org.orgId);
+        return json(result);
+      }
+      if (body.get === true || Object.keys(body).length === 0) {
+        const config = await getOrgRetention(ctx, org.orgId);
+        return json({ config });
+      }
+      const parsed = parseOrgRetentionConfig(body);
+      const config = await setOrgRetention(ctx, org.orgId, parsed);
+      return json({ config }, { status: 201 });
+    } catch (error) {
+      if (error instanceof CollectionError) {
+        return json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+  }
+
+  if (method === 'POST' && path === '/subjects/delete') {
+    const org = await resolveTenantOrgForRequest(request);
+    if (!org.ok) {
+      return json({ error: org.error }, { status: org.status });
+    }
+    const body = (await readJsonBody(request)) ?? {};
+    try {
+      const input = parseSubjectDeleteInput(body);
+      const result = await deleteSubject(ctx, org.orgId, input);
       return json(result);
     } catch (error) {
       if (error instanceof CollectionError) {
