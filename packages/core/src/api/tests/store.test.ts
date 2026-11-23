@@ -120,6 +120,22 @@ describe('dbStore', () => {
     expect(result.items).toEqual([SAMPLE_DOC]);
   });
 
+  test('collection.orgId sends X-AgentOS-Org-Id', async () => {
+    const seen: { org: string | null } = { org: null };
+    Bun.env.AGENT_OS_DB_STORE_API_BASE = 'http://db.test';
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const headers = new Headers(init?.headers);
+      seen.org = headers.get('x-agentos-org-id');
+      return Response.json({ items: [] });
+    }) as typeof fetch;
+
+    await dbStore.collection('contacts', { orgId: 'org-99' }).query({});
+    expect(seen.org).toBe('org-99');
+  });
+
   test('collection.insert / update / delete', async () => {
     const calls: Captured[] = [];
     mockStoreFetch((req) => {
@@ -236,6 +252,7 @@ describe('kit surface (no DATABASE_URL / drizzle)', () => {
       [
         'cacheStore',
         'dbStore',
+        'DB_STORE_ORG_ID_HEADER',
         'resolveCacheStoreApiBase',
         'resolveDbStoreApiBase',
       ].sort(),

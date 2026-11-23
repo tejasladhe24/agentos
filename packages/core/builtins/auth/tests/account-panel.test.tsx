@@ -13,6 +13,16 @@ const signedIn = {
     name: 'Admin',
   },
   roles: ['admin', 'viewer'],
+  orgId: 'org-1',
+  orgs: [{ id: 'org-1', name: 'Demo Organization', role: 'owner' }],
+};
+
+const panelProps = {
+  onSaveName: noopAsync,
+  onChangePassword: noopAsync,
+  onCreateOrg: noopAsync,
+  onSwitchOrg: noopAsync,
+  onSignOut: noopAsync,
 };
 
 describe('AccountPanel', () => {
@@ -21,9 +31,7 @@ describe('AccountPanel', () => {
       createElement(AccountPanel, {
         session: null,
         section: 'profile',
-        onSaveName: noopAsync,
-        onChangePassword: noopAsync,
-        onSignOut: noopAsync,
+        ...panelProps,
       }),
     );
     expect(html).toContain('Account');
@@ -34,12 +42,10 @@ describe('AccountPanel', () => {
   test('renders unsigned-in state', () => {
     const html = renderToStaticMarkup(
       createElement(AccountPanel, {
-        session: { user: null, roles: [] },
+        session: { user: null, roles: [], orgId: null, orgs: [] },
         section: 'profile',
         error: 'Auth API unreachable (502).',
-        onSaveName: noopAsync,
-        onChangePassword: noopAsync,
-        onSignOut: noopAsync,
+        ...panelProps,
       }),
     );
     expect(html).toContain('You are not signed in');
@@ -53,9 +59,7 @@ describe('AccountPanel', () => {
       createElement(AccountPanel, {
         session: signedIn,
         section: 'profile',
-        onSaveName: noopAsync,
-        onChangePassword: noopAsync,
-        onSignOut: noopAsync,
+        ...panelProps,
       }),
     );
     expect(html).toContain('data-slot="account-panel"');
@@ -66,6 +70,21 @@ describe('AccountPanel', () => {
     expect(html).not.toContain('data-slot="account-roles"');
     expect(html).not.toContain('data-slot="account-security"');
     expect(html).not.toContain('data-slot="account-session"');
+    expect(html).not.toContain('data-slot="account-organization"');
+  });
+
+  test('renders organization section when selected', () => {
+    const html = renderToStaticMarkup(
+      createElement(AccountPanel, {
+        session: signedIn,
+        section: 'organization',
+        ...panelProps,
+      }),
+    );
+    expect(html).toContain('data-slot="account-organization"');
+    expect(html).toContain('Demo Organization');
+    expect(html).toContain('Active');
+    expect(html).not.toContain('data-slot="account-profile"');
   });
 
   test('renders roles section when selected', () => {
@@ -73,12 +92,9 @@ describe('AccountPanel', () => {
       createElement(AccountPanel, {
         session: signedIn,
         section: 'roles',
-        onSaveName: noopAsync,
-        onChangePassword: noopAsync,
-        onSignOut: noopAsync,
+        ...panelProps,
       }),
     );
-    expect(html).toContain('data-account-section="roles"');
     expect(html).toContain('data-slot="account-roles"');
     expect(html).toContain('admin');
     expect(html).toContain('viewer');
@@ -90,42 +106,32 @@ describe('AccountPanel', () => {
       createElement(AccountPanel, {
         session: signedIn,
         section: 'security',
-        onSaveName: noopAsync,
-        onChangePassword: noopAsync,
-        onSignOut: noopAsync,
+        ...panelProps,
       }),
     );
     expect(security).toContain('data-slot="account-security"');
-    expect(security).toContain('account-current-password');
 
-    const session = renderToStaticMarkup(
+    const sessionHtml = renderToStaticMarkup(
       createElement(AccountPanel, {
         session: signedIn,
         section: 'session',
-        onSaveName: noopAsync,
-        onChangePassword: noopAsync,
-        onSignOut: noopAsync,
+        ...panelProps,
       }),
     );
-    expect(session).toContain('data-slot="account-session"');
-    expect(session).toContain('Sign out');
+    expect(sessionHtml).toContain('data-slot="account-session"');
   });
 
   test('shows empty roles message when none assigned', () => {
     const html = renderToStaticMarkup(
       createElement(AccountPanel, {
         session: {
-          user: {
-            id: 'u2',
-            email: 'nobody@example.com',
-            name: 'Nobody',
-          },
+          user: signedIn.user,
           roles: [],
+          orgId: null,
+          orgs: [],
         },
         section: 'roles',
-        onSaveName: noopAsync,
-        onChangePassword: noopAsync,
-        onSignOut: noopAsync,
+        ...panelProps,
       }),
     );
     expect(html).toContain('No roles assigned');

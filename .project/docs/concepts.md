@@ -57,14 +57,15 @@ Short definitions so humans and agents never confuse **extension**, **service**,
 2. **UI primitives** → `@agentos/ui` (shadcn) for buttons, inputs, checkboxes, selects, dropdowns, etc. Avoid native HTML controls unless specifically required.
 3. **TS routes** → `@agentos/core/api/*` only. No customer product DB URL / Redis — use `/api/store` (db-store may use `AGENT_OS_EXT_DB_STORE_DATABASE_URL` internally only).
 4. **Python** → `agentos.*` in `services/` only, linked from `meta.json`.
-5. **Auth/RBAC** → builtin `auth` + `@agentos/core/api/auth` (no second stack; no `/api/rbac`). Public sign-in/up/reset are **Shell gate** routes (`/login`, `/register`, `/forgot-password`, `/reset-password`); Auth secondary Activity Bar is **account settings** (profile / roles / security / sign-out), not app Settings.
-6. **App config** → consumer-root `agentos.config.ts` via `@agentos/core/config` (`defineConfig`). Holds FDE settings including **auth** flags and **branding** (`appName`, `logoUrl`, `faviconUrl`, fonts). Consumer `public/` assets are served at `/_public/<path>` by the gateway — use those URLs (or `https://…`) in branding, never filesystem paths. Secrets stay in `src/env.ts` / `createEnv` (never in branding).
-7. **SQL/cache** → `dbStore` / `cacheStore` → builtins only.
-8. **TS backend** stays in the extension (`api/`). **Python backend** is a **service**.
-9. **Builtins** locked; **customer** extensions toggleable.
-10. **pnpm** installs the monorepo; **Bun** runs all TS/JS. Never Node for services.
-11. **Env** → each extension exports `keys = () => createEnv(...)`; the app calls `createEnv({ extends: [keys(), ...] })`. Naming: `AGENT_OS_GLOBAL_*` (platform), `AGENT_OS_EXT_<DOMAIN>_*` (extensions). Helpers live in `@agentos/core/api/env`.
-12. **Bun API kit** → `@agentos/core/api` (`createApp`, `loadRoutes`) wires `extensions/<id>/api/server.ts` + `api/routes/**/index.ts` (`[param]` → `:param`). Built-in `GET /health` → `{ ok: true }`. Domain clients (`auth`, `store`, …) live under `@agentos/core/api/*`.
+5. **Auth/RBAC** → builtin `auth` + `@agentos/core/api/auth` (no second stack; no `/api/rbac`). Public sign-in/up/reset are **Shell gate** routes (`/login`, `/register`, `/forgot-password`, `/reset-password`); Auth secondary Activity Bar is **account settings** (profile / **organization** / roles / security / sign-out), not app Settings. Session exposes **`orgId`** (active tenant) plus membership list; use `requireOrg()` when FDE routes need a tenant.
+6. **Tenancy** → orgs live in builtin `auth` (`organizations` / `org_members` / `user_active_org`). **db-store** stamps and filters every tenant document by `org_id` (row-per-tenant, not DB-per-tenant). Pass `orgId` via `dbStore.collection(name, { orgId })` or forward the auth cookie; platform collections (`agentos_gateway`, hitl/audit/notifications) use sentinel `__platform__`.
+7. **App config** → consumer-root `agentos.config.ts` via `@agentos/core/config` (`defineConfig`). Holds FDE settings including **auth** flags and **branding** (`appName`, `logoUrl`, `faviconUrl`, fonts). Consumer `public/` assets are served at `/_public/<path>` by the gateway — use those URLs (or `https://…`) in branding, never filesystem paths. Secrets stay in `src/env.ts` / `createEnv` (never in branding).
+8. **SQL/cache** → `dbStore` / `cacheStore` → builtins only.
+9. **TS backend** stays in the extension (`api/`). **Python backend** is a **service**.
+10. **Builtins** locked; **customer** extensions toggleable.
+11. **pnpm** installs the monorepo; **Bun** runs all TS/JS. Never Node for services.
+12. **Env** → each extension exports `keys = () => createEnv(...)`; the app calls `createEnv({ extends: [keys(), ...] })`. Naming: `AGENT_OS_GLOBAL_*` (platform), `AGENT_OS_EXT_<DOMAIN>_*` (extensions). Helpers live in `@agentos/core/api/env`.
+13. **Bun API kit** → `@agentos/core/api` (`createApp`, `loadRoutes`) wires `extensions/<id>/api/server.ts` + `api/routes/**/index.ts` (`[param]` → `:param`). Built-in `GET /health` → `{ ok: true }`. Domain clients (`auth`, `store`, …) live under `@agentos/core/api/*`.
 
 ## Prefer these words
 

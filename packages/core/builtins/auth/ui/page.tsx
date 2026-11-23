@@ -16,6 +16,16 @@ function parseErrorBody(body: string, fallback: string): string {
   return body.trim() || fallback;
 }
 
+function parseSession(body: string): AccountSessionView {
+  const data = JSON.parse(body) as AccountSessionView;
+  return {
+    user: data.user ?? null,
+    roles: data.roles ?? [],
+    orgId: data.orgId ?? null,
+    orgs: data.orgs ?? [],
+  };
+}
+
 /**
  * Auth secondary Activity Bar page — account settings (not public sign-in).
  * Public auth lives at `/login`, `/register`, `/reset-password` (Shell gate).
@@ -31,11 +41,11 @@ export default function AuthAccountPage() {
   async function refreshSession() {
     const res = await api.fetch('/session');
     if (res.status === 401) {
-      setSession({ user: null, roles: [] });
+      setSession({ user: null, roles: [], orgId: null, orgs: [] });
       return;
     }
     if (!res.ok) {
-      setSession({ user: null, roles: [] });
+      setSession({ user: null, roles: [], orgId: null, orgs: [] });
       if (res.status === 502) {
         setError(
           'Auth API unreachable (502). Run: pnpm --filter @agentos/core run auth:dev',
@@ -43,8 +53,7 @@ export default function AuthAccountPage() {
       }
       return;
     }
-    const data = JSON.parse(res.body) as AccountSessionView;
-    setSession({ user: data.user, roles: data.roles ?? [] });
+    setSession(parseSession(res.body));
     setError(null);
   }
 
@@ -61,8 +70,7 @@ export default function AuthAccountPage() {
     if (!res.ok) {
       throw new Error(parseErrorBody(res.body, 'Failed to update name'));
     }
-    const data = JSON.parse(res.body) as AccountSessionView;
-    setSession({ user: data.user, roles: data.roles ?? [] });
+    setSession(parseSession(res.body));
     await notifications.show('Display name updated', 'info');
   }
 
@@ -82,12 +90,42 @@ export default function AuthAccountPage() {
     await refreshSession();
   }
 
+  async function onCreateOrg(name: string) {
+    const res = await api.fetch('/orgs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      throw new Error(
+        parseErrorBody(res.body, 'Failed to create organization'),
+      );
+    }
+    setSession(parseSession(res.body));
+    await notifications.show('Organization created', 'info');
+  }
+
+  async function onSwitchOrg(orgId: string) {
+    const res = await api.fetch('/orgs/switch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ orgId }),
+    });
+    if (!res.ok) {
+      throw new Error(
+        parseErrorBody(res.body, 'Failed to switch organization'),
+      );
+    }
+    setSession(parseSession(res.body));
+    await notifications.show('Organization switched', 'info');
+  }
+
   async function onSignOut() {
     setBusy(true);
     setError(null);
     try {
       await api.fetch('/sign-out', { method: 'POST' });
-      setSession({ user: null, roles: [] });
+      setSession({ user: null, roles: [], orgId: null, orgs: [] });
       await notifications.show('Signed out', 'info');
       window.top!.location.assign('/login');
     } finally {
@@ -103,6 +141,8 @@ export default function AuthAccountPage() {
       busy={busy}
       onSaveName={onSaveName}
       onChangePassword={onChangePassword}
+      onCreateOrg={onCreateOrg}
+      onSwitchOrg={onSwitchOrg}
       onSignOut={onSignOut}
     />
   );

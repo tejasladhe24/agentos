@@ -5,7 +5,8 @@ import {
   queryCollection,
   updateDocument,
 } from './collections';
-import type { DbStoreContext } from './create-db';
+import { setRequestOrgId, type DbStoreContext } from './create-db';
+import { resolveOrgForRequest } from './resolve-org';
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -60,18 +61,29 @@ export async function handleDbStoreRequest(
 
   const parsed = parseCollectionPath(path);
   if (method === 'POST' && parsed) {
+    const org = await resolveOrgForRequest(parsed.name, request);
+    if (!org.ok) {
+      return json({ error: org.error }, { status: org.status });
+    }
+    await setRequestOrgId(ctx, org.orgId);
+
     const body = (await readJsonBody(request)) ?? {};
     try {
       switch (parsed.action) {
         case 'query': {
-          const result = await queryCollection(ctx, parsed.name, {
-            where:
-              body.where && typeof body.where === 'object'
-                ? (body.where as Record<string, unknown>)
-                : undefined,
-            limit: typeof body.limit === 'number' ? body.limit : undefined,
-            offset: typeof body.offset === 'number' ? body.offset : undefined,
-          });
+          const result = await queryCollection(
+            ctx,
+            parsed.name,
+            {
+              where:
+                body.where && typeof body.where === 'object'
+                  ? (body.where as Record<string, unknown>)
+                  : undefined,
+              limit: typeof body.limit === 'number' ? body.limit : undefined,
+              offset: typeof body.offset === 'number' ? body.offset : undefined,
+            },
+            org.orgId,
+          );
           return json(result);
         }
         case 'insert': {
@@ -83,10 +95,15 @@ export async function handleDbStoreRequest(
               { status: 400 },
             );
           }
-          const doc = await insertDocument(ctx, parsed.name, {
-            id,
-            data: data as Record<string, unknown>,
-          });
+          const doc = await insertDocument(
+            ctx,
+            parsed.name,
+            {
+              id,
+              data: data as Record<string, unknown>,
+            },
+            org.orgId,
+          );
           return json(doc, { status: 201 });
         }
         case 'update': {
@@ -98,22 +115,32 @@ export async function handleDbStoreRequest(
               { status: 400 },
             );
           }
-          const doc = await updateDocument(ctx, parsed.name, {
-            id,
-            data: data as Record<string, unknown>,
-            merge: body.merge === true,
-          });
+          const doc = await updateDocument(
+            ctx,
+            parsed.name,
+            {
+              id,
+              data: data as Record<string, unknown>,
+              merge: body.merge === true,
+            },
+            org.orgId,
+          );
           return json(doc);
         }
         case 'delete': {
-          const result = await deleteDocuments(ctx, parsed.name, {
-            id: typeof body.id === 'string' ? body.id : undefined,
-            ids: Array.isArray(body.ids)
-              ? (body.ids as unknown[]).filter(
-                  (v): v is string => typeof v === 'string',
-                )
-              : undefined,
-          });
+          const result = await deleteDocuments(
+            ctx,
+            parsed.name,
+            {
+              id: typeof body.id === 'string' ? body.id : undefined,
+              ids: Array.isArray(body.ids)
+                ? (body.ids as unknown[]).filter(
+                    (v): v is string => typeof v === 'string',
+                  )
+                : undefined,
+            },
+            org.orgId,
+          );
           return json(result);
         }
         default:

@@ -88,7 +88,9 @@ Agents must never promote tickets to `done/` themselves.
 68. Deploy workflow command smoke (`pnpm run ci`) — **done**
 69. GitHub Actions Node 22 for Wrangler — **done**
 
-**Open:** `todo/` — **29** (E2E), **30** (Next host spike), **65** (R2 files round-trip after enabling R2). `in-progress/` — empty.
+70. Tenancy: org model + org-scoped db-store — **in-progress**
+
+**Open:** `todo/` — **29** (E2E), **30** (Next host spike), **65** (R2 files round-trip after enabling R2). `in-progress/` — **71** (tenancy).
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 

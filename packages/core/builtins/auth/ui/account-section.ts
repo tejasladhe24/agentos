@@ -1,5 +1,6 @@
 export const ACCOUNT_SECTIONS = [
   'profile',
+  'organization',
   'roles',
   'security',
   'session',
@@ -14,6 +15,7 @@ export const ACCOUNT_SECTION_CHANNEL = 'agentos.auth.account.section';
 
 export const ACCOUNT_SECTION_LABELS: Record<AccountSection, string> = {
   profile: 'Profile',
+  organization: 'Organization',
   roles: 'Roles',
   security: 'Security',
   session: 'Session',

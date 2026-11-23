@@ -75,14 +75,20 @@ export function resolveCacheStoreApiBase(
   return `${gateway}/api/ext/cache-store`;
 }
 
+/** Trusted peer / FDE header for active org (matches db-store builtin). */
+export const DB_STORE_ORG_ID_HEADER = 'x-agentos-org-id';
+
 async function postJson<T>(
   url: string,
   body: unknown,
   label: string,
+  extraHeaders?: HeadersInit,
 ): Promise<T> {
+  const headers = new Headers(extraHeaders);
+  headers.set('content-type', 'application/json');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify(body ?? {}),
   });
   if (!res.ok) {
@@ -97,7 +103,23 @@ async function postJson<T>(
 export type CollectionOptions = {
   /** Override API base (peer URL or gateway `/api/ext/db-store`). */
   apiBase?: string;
+  /**
+   * Active org id sent as `X-AgentOS-Org-Id`.
+   * Required for tenant collections when the request has no auth cookie.
+   * Platform collections (`agentos_gateway`, hitl/audit/notifications) ignore this.
+   */
+  orgId?: string;
+  /** Extra headers (e.g. forward `cookie` from the inbound FDE request). */
+  headers?: HeadersInit;
 };
+
+function collectionRequestHeaders(options: CollectionOptions): Headers {
+  const headers = new Headers(options.headers);
+  if (options.orgId) {
+    headers.set(DB_STORE_ORG_ID_HEADER, options.orgId);
+  }
+  return headers;
+}
 
 function createCollection(name: string, options: CollectionOptions = {}) {
   const encoded = encodeURIComponent(name);
@@ -115,6 +137,7 @@ function createCollection(name: string, options: CollectionOptions = {}) {
         `${base}/collections/${encoded}/query`,
         input,
         'db-store query',
+        collectionRequestHeaders(options),
       );
     },
 
@@ -124,6 +147,7 @@ function createCollection(name: string, options: CollectionOptions = {}) {
         `${base}/collections/${encoded}/insert`,
         input,
         'db-store insert',
+        collectionRequestHeaders(options),
       );
     },
 
@@ -133,6 +157,7 @@ function createCollection(name: string, options: CollectionOptions = {}) {
         `${base}/collections/${encoded}/update`,
         input,
         'db-store update',
+        collectionRequestHeaders(options),
       );
     },
 
@@ -142,6 +167,7 @@ function createCollection(name: string, options: CollectionOptions = {}) {
         `${base}/collections/${encoded}/delete`,
         input,
         'db-store delete',
+        collectionRequestHeaders(options),
       );
     },
   };

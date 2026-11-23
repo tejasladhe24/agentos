@@ -101,13 +101,47 @@ function parseSqliteData(raw: string): Record<string, unknown> {
   }
 }
 
+/** Stamp authoritative orgId into document data; reject conflicting client values. */
+function stampOrgData(
+  data: Record<string, unknown>,
+  orgId: string,
+): Record<string, unknown> {
+  if (
+    'orgId' in data &&
+    data.orgId !== undefined &&
+    data.orgId !== null &&
+    data.orgId !== orgId
+  ) {
+    throw new CollectionError('orgId mismatch', 403);
+  }
+  return { ...data, orgId };
+}
+
+function stripOrgIdPatch(
+  patch: Record<string, unknown>,
+  orgId: string,
+): Record<string, unknown> {
+  if (
+    'orgId' in patch &&
+    patch.orgId !== undefined &&
+    patch.orgId !== null &&
+    patch.orgId !== orgId
+  ) {
+    throw new CollectionError('orgId mismatch', 403);
+  }
+  const { orgId: _ignored, ...rest } = patch;
+  return rest;
+}
+
 /**
  * Collection CRUD over the shared `documents` table (logical partitions by name).
+ * All reads/writes are scoped to `orgId` (SQL column is authoritative).
  */
 export async function queryCollection(
   ctx: DbStoreContext,
   collection: string,
   input: QueryInput = {},
+  orgId: string,
 ): Promise<{ items: DocumentRow[] }> {
   const where = assertWhere(input.where);
   const limit =
@@ -125,7 +159,12 @@ export async function queryCollection(
     const rows = await ctx.db
       .select()
       .from(sqliteDocuments)
-      .where(eq(sqliteDocuments.collection, collection));
+      .where(
+        and(
+          eq(sqliteDocuments.collection, collection),
+          eq(sqliteDocuments.orgId, orgId),
+        ),
+      );
     items = rows.map((row) => ({
       id: row.id,
       data: parseSqliteData(row.data),
@@ -136,7 +175,12 @@ export async function queryCollection(
     const rows = await ctx.db
       .select()
       .from(pgDocuments)
-      .where(eq(pgDocuments.collection, collection));
+      .where(
+        and(
+          eq(pgDocuments.collection, collection),
+          eq(pgDocuments.orgId, orgId),
+        ),
+      );
     items = rows.map((row) => ({
       id: row.id,
       data: row.data,
@@ -155,8 +199,9 @@ export async function insertDocument(
   ctx: DbStoreContext,
   collection: string,
   input: InsertInput,
+  orgId: string,
 ): Promise<DocumentRow> {
-  const data = assertDataObject(input.data);
+  const data = stampOrgData(assertDataObject(input.data), orgId);
   const id =
     typeof input.id === 'string' && input.id.length > 0 ? input.id : newId();
   const ts = nowIso();
@@ -165,6 +210,7 @@ export async function insertDocument(
     try {
       await ctx.db.insert(sqliteDocuments).values({
         collection,
+        orgId,
         id,
         data: JSON.stringify(data),
         createdAt: ts,
@@ -181,6 +227,7 @@ export async function insertDocument(
     try {
       await ctx.db.insert(pgDocuments).values({
         collection,
+        orgId,
         id,
         data,
         createdAt: ts,
@@ -202,11 +249,12 @@ export async function updateDocument(
   ctx: DbStoreContext,
   collection: string,
   input: UpdateInput,
+  orgId: string,
 ): Promise<DocumentRow> {
   if (typeof input.id !== 'string' || !input.id) {
     throw new CollectionError('id is required');
   }
-  const patch = assertDataObject(input.data);
+  const patch = stripOrgIdPatch(assertDataObject(input.data), orgId);
   const merge = input.merge === true;
   const ts = nowIso();
 
@@ -217,6 +265,7 @@ export async function updateDocument(
       .where(
         and(
           eq(sqliteDocuments.collection, collection),
+          eq(sqliteDocuments.orgId, orgId),
           eq(sqliteDocuments.id, input.id),
         ),
       )
@@ -225,13 +274,14 @@ export async function updateDocument(
       throw new CollectionError(`document not found: ${input.id}`, 404);
     }
     const prev = parseSqliteData(existing[0]!.data);
-    const data = merge ? { ...prev, ...patch } : patch;
+    const data = stampOrgData(merge ? { ...prev, ...patch } : patch, orgId);
     await ctx.db
       .update(sqliteDocuments)
       .set({ data: JSON.stringify(data), updatedAt: ts })
       .where(
         and(
           eq(sqliteDocuments.collection, collection),
+          eq(sqliteDocuments.orgId, orgId),
           eq(sqliteDocuments.id, input.id),
         ),
       );
@@ -247,19 +297,27 @@ export async function updateDocument(
     .select()
     .from(pgDocuments)
     .where(
-      and(eq(pgDocuments.collection, collection), eq(pgDocuments.id, input.id)),
+      and(
+        eq(pgDocuments.collection, collection),
+        eq(pgDocuments.orgId, orgId),
+        eq(pgDocuments.id, input.id),
+      ),
     )
     .limit(1);
   if (existing.length === 0) {
     throw new CollectionError(`document not found: ${input.id}`, 404);
   }
   const prev = existing[0]!.data;
-  const data = merge ? { ...prev, ...patch } : patch;
+  const data = stampOrgData(merge ? { ...prev, ...patch } : patch, orgId);
   await ctx.db
     .update(pgDocuments)
     .set({ data, updatedAt: ts })
     .where(
-      and(eq(pgDocuments.collection, collection), eq(pgDocuments.id, input.id)),
+      and(
+        eq(pgDocuments.collection, collection),
+        eq(pgDocuments.orgId, orgId),
+        eq(pgDocuments.id, input.id),
+      ),
     );
   return {
     id: input.id,
@@ -273,6 +331,7 @@ export async function deleteDocuments(
   ctx: DbStoreContext,
   collection: string,
   input: DeleteInput,
+  orgId: string,
 ): Promise<{ deleted: number }> {
   const ids =
     Array.isArray(input.ids) && input.ids.length > 0
@@ -291,6 +350,7 @@ export async function deleteDocuments(
       .where(
         and(
           eq(sqliteDocuments.collection, collection),
+          eq(sqliteDocuments.orgId, orgId),
           inArray(sqliteDocuments.id, ids),
         ),
       )
@@ -301,7 +361,11 @@ export async function deleteDocuments(
   const removed = await ctx.db
     .delete(pgDocuments)
     .where(
-      and(eq(pgDocuments.collection, collection), inArray(pgDocuments.id, ids)),
+      and(
+        eq(pgDocuments.collection, collection),
+        eq(pgDocuments.orgId, orgId),
+        inArray(pgDocuments.id, ids),
+      ),
     )
     .returning({ id: pgDocuments.id });
   return { deleted: removed.length };
