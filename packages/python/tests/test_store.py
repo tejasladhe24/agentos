@@ -69,6 +69,21 @@ async def test_collection_query_insert(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_collection_sends_org_id_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGENT_OS_DB_STORE_API_BASE", "http://db.test")
+    route = respx.post("http://db.test/collections/invoices/query").mock(
+        return_value=httpx.Response(200, json={"items": []}),
+    )
+    col = db_store.collection("invoices", org_id="org_demo")
+    await col.query({"limit": 10})
+    assert route.called
+    assert route.calls[0].request.headers.get("x-agentos-org-id") == "org_demo"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_collection_insert_bulk_retention(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

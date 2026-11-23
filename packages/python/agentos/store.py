@@ -125,9 +125,26 @@ def resolve_cache_store_api_base(env: EnvMap | None = None) -> str:
     return f"{resolve_gateway_url(source)}/api/ext/cache-store"
 
 
+DB_STORE_ORG_ID_HEADER = "X-AgentOS-Org-Id"
+
+
 class CollectionClient:
-    def __init__(self, name: str) -> None:
+    def __init__(
+        self,
+        name: str,
+        *,
+        org_id: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self._encoded = quote(name, safe="")
+        self._org_id = org_id
+        self._headers = dict(headers or {})
+
+    def _request_headers(self) -> dict[str, str] | None:
+        merged = dict(self._headers)
+        if self._org_id:
+            merged[DB_STORE_ORG_ID_HEADER] = self._org_id
+        return merged or None
 
     async def query(
         self,
@@ -145,6 +162,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/query",
             body,
             "db-store query",
+            headers=self._request_headers(),
         )
         return QueryResult.model_validate(data)
 
@@ -164,6 +182,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/insert",
             body,
             "db-store insert",
+            headers=self._request_headers(),
         )
         return DocumentRow.model_validate(data)
 
@@ -184,6 +203,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/insert-bulk",
             body,
             "db-store insert-bulk",
+            headers=self._request_headers(),
         )
         return BulkInsertResult.model_validate(data)
 
@@ -197,6 +217,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/retention",
             {"get": True},
             "db-store get retention",
+            headers=self._request_headers(),
         )
 
     async def set_retention(
@@ -215,6 +236,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/retention",
             body,
             "db-store set retention",
+            headers=self._request_headers(),
         )
 
     async def clear_retention(
@@ -227,6 +249,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/retention",
             {"clear": True},
             "db-store clear retention",
+            headers=self._request_headers(),
         )
 
     async def prune(
@@ -239,6 +262,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/prune",
             {},
             "db-store prune",
+            headers=self._request_headers(),
         )
         return PruneResult.model_validate(data)
 
@@ -258,6 +282,7 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/update",
             body,
             "db-store update",
+            headers=self._request_headers(),
         )
         return DocumentRow.model_validate(data)
 
@@ -277,13 +302,21 @@ class CollectionClient:
             f"{base}/collections/{self._encoded}/delete",
             body,
             "db-store delete",
+            headers=self._request_headers(),
         )
         return DeleteResult.model_validate(data)
 
 
 class _DbStore:
-    def collection(self, name: str) -> CollectionClient:
-        return CollectionClient(name)
+    def collection(
+        self,
+        name: str,
+        *,
+        org_id: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> CollectionClient:
+        """Tenant collection client. Pass `org_id` (or forward cookie headers) for org scope."""
+        return CollectionClient(name, org_id=org_id, headers=headers)
 
     async def get_org_retention(
         self,

@@ -54,15 +54,20 @@ Org-scoped clients (`secrets`, `notifications`, `vector_store`, `store`) accept 
 ## Example
 
 ```python
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from agentos import create_app, auth, store
 
 app = create_app()
 
 @app.get("/secure")
 async def secure(session: auth.AuthSession = Depends(auth.require_session())):
-    rows = await store.db_store.collection("invoices").query({"limit": 10})
-    return {"user": session.user.id, "count": len(rows.items)}
+    if not session.orgId:
+        raise HTTPException(status_code=400, detail={"error": "organization required"})
+    rows = await store.db_store.collection(
+        "invoices",
+        org_id=session.orgId,
+    ).query({"limit": 10})
+    return {"user": session.user.id, "orgId": session.orgId, "count": len(rows.items)}
 ```
 
 Never open SQL/Redis from a service — use `agentos.store` HTTP clients only (ADR 004).
