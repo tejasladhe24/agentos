@@ -1,3 +1,5 @@
+import { appendEntry } from '@agentos/core/api/audit';
+
 import {
   PERMISSION_SECRETS_READ,
   PERMISSION_SECRETS_WRITE,
@@ -14,6 +16,7 @@ import {
   type ResolveOrgResult,
 } from './resolve-org';
 import { resolveSecret } from './resolve-secret';
+import { validateSecretKey } from './validate-key';
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -62,6 +65,12 @@ export type SecretsContext = {
     permission: string,
     env?: Record<string, string | undefined>,
   ) => Promise<PermissionResult>;
+  /** Override audit append (tests); default best-effort HTTP. */
+  appendAudit?: (input: {
+    action: string;
+    resource?: string;
+    meta?: Record<string, unknown>;
+  }) => Promise<void>;
 };
 
 function masterKeyFromEnv(
@@ -90,6 +99,17 @@ async function ensurePermission(
   return null;
 }
 
+async function hasWritePermission(
+  ctx: SecretsContext,
+  request: Request,
+  org: Extract<ResolveOrgResult, { ok: true }>,
+): Promise<boolean> {
+  if (org.via === 'header') return true;
+  const check = ctx.checkPermission ?? checkSecretsPermission;
+  const result = await check(request, PERMISSION_SECRETS_WRITE, ctx.runtimeEnv);
+  return result === 'ok';
+}
+
 function unavailable(error: unknown): Response {
   const message = error instanceof Error ? error.message : String(error);
   return json(
@@ -98,9 +118,29 @@ function unavailable(error: unknown): Response {
   );
 }
 
+async function recordAudit(
+  ctx: SecretsContext,
+  action: 'secrets.put' | 'secrets.delete',
+  key: string,
+): Promise<void> {
+  try {
+    if (ctx.appendAudit) {
+      await ctx.appendAudit({
+        action,
+        resource: key,
+        meta: { key },
+      });
+      return;
+    }
+    await appendEntry({ action, resource: key, meta: { key } }, ctx.runtimeEnv);
+  } catch {
+    // Best-effort — never fail the secret op or log the value.
+  }
+}
+
 /**
  * Bun request router for `/api/ext/secrets/*`.
- * GET: vault (org) then env fallback. PUT/DELETE: vault only.
+ * GET list: metadata only. GET key: vault then env. PUT/DELETE: vault only.
  */
 export async function handleSecretsRequest(
   ctx: SecretsContext,
@@ -116,6 +156,10 @@ export async function handleSecretsRequest(
       vault: Boolean(ctx.db),
       masterKey: Boolean(masterKeyFromEnv(ctx.runtimeEnv)),
     });
+  }
+
+  if (method === 'GET' && path === '/secrets') {
+    return handleList(ctx, request);
   }
 
   const key = parseSecretPath(path);
@@ -134,6 +178,46 @@ export async function handleSecretsRequest(
   }
 
   return json({ error: 'not found' }, { status: 404 });
+}
+
+async function handleList(
+  ctx: SecretsContext,
+  request: Request,
+): Promise<Response> {
+  if (!ctx.db) {
+    return json({ error: 'vault unavailable' }, { status: 503 });
+  }
+
+  const resolveOrg = ctx.resolveOrg ?? resolveOrgForSecretsRequest;
+  const org = await resolveOrg(request, ctx.runtimeEnv);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+
+  const denied = await ensurePermission(
+    ctx,
+    request,
+    org,
+    PERMISSION_SECRETS_READ,
+  );
+  if (denied) return denied;
+
+  try {
+    const records = await ctx.db.list(org.orgId);
+    const canWrite = await hasWritePermission(ctx, request, org);
+    const keys = records.map((record) => {
+      const item: Record<string, unknown> = {
+        key: record.key,
+        hasValue: true,
+      };
+      if (record.rotatedAt) item.updatedAt = record.rotatedAt;
+      if (record.expiresAt) item.expiresAt = record.expiresAt;
+      return item;
+    });
+    return json({ orgId: org.orgId, canWrite, keys });
+  } catch (error) {
+    return unavailable(error);
+  }
 }
 
 async function handleGet(
@@ -198,6 +282,11 @@ async function handlePut(
   request: Request,
   key: string,
 ): Promise<Response> {
+  const keyError = validateSecretKey(key);
+  if (keyError) {
+    return json({ error: keyError }, { status: 400 });
+  }
+
   if (!ctx.db) {
     return json({ error: 'vault unavailable' }, { status: 503 });
   }
@@ -248,6 +337,7 @@ async function handlePut(
     if (expiresAt) record.expiresAt = expiresAt;
 
     await ctx.db.put(org.orgId, record);
+    await recordAudit(ctx, 'secrets.put', key);
 
     const response: Record<string, unknown> = {
       key,
@@ -289,6 +379,7 @@ async function handleDelete(
     if (!deleted) {
       return json({ error: 'not found' }, { status: 404 });
     }
+    await recordAudit(ctx, 'secrets.delete', key);
     return json({ key, deleted: true });
   } catch (error) {
     return unavailable(error);

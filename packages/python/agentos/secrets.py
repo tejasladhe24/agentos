@@ -48,6 +48,19 @@ class DeleteSecretResult(BaseModel):
     deleted: bool
 
 
+class SecretListItem(BaseModel):
+    key: str
+    updatedAt: str | None = None
+    expiresAt: str | None = None
+    hasValue: bool = True
+
+
+class SecretListResult(BaseModel):
+    orgId: str
+    canWrite: bool
+    keys: list[SecretListItem]
+
+
 def _headers(
     *,
     org_id: str | None = None,
@@ -57,6 +70,22 @@ def _headers(
     if org_id:
         merged[SECRETS_ORG_ID_HEADER] = org_id
     return merged or None
+
+
+async def list_secrets(
+    *,
+    org_id: str | None = None,
+    headers: dict[str, str] | None = None,
+    env: EnvMap | None = None,
+) -> SecretListResult:
+    """List vault secret metadata for the active org (no plaintext values)."""
+    base = resolve_secrets_api_base(env)
+    data = await get_json(
+        f"{base}/secrets",
+        "secrets listSecrets",
+        headers=_headers(org_id=org_id, headers=headers),
+    )
+    return SecretListResult.model_validate(data)
 
 
 async def get_secret(

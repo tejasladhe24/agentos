@@ -1,4 +1,9 @@
-import { ORG_ID_HEADER, SECRETS_ALG, SECRETS_COLLECTION } from './constants';
+import {
+  ORG_ID_HEADER,
+  SECRETS_ALG,
+  SECRETS_COLLECTION,
+  SECRETS_LIST_LIMIT,
+} from './constants';
 
 export type VaultRecord = {
   key: string;
@@ -13,6 +18,7 @@ export type VaultRecord = {
 
 export type SecretsDbStoreClient = {
   get: (orgId: string, key: string) => Promise<VaultRecord | undefined>;
+  list: (orgId: string) => Promise<VaultRecord[]>;
   put: (orgId: string, record: VaultRecord) => Promise<VaultRecord>;
   delete: (orgId: string, key: string) => Promise<boolean>;
 };
@@ -81,6 +87,29 @@ export function createSecretsDbStoreClient(
       const doc = payload.items?.[0];
       if (!doc) return undefined;
       return parseRecord(doc.id, doc.data ?? {}) ?? undefined;
+    },
+
+    async list(orgId) {
+      const res = await fetch(`${root}/collections/${collection}/query`, {
+        method: 'POST',
+        headers: orgHeaders(orgId),
+        body: JSON.stringify({ limit: SECRETS_LIST_LIMIT }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(
+          `db-store query failed (${res.status}): ${detail || res.statusText}`,
+        );
+      }
+      const payload = (await res.json()) as {
+        items?: Array<{ id: string; data: Record<string, unknown> }>;
+      };
+      const records: VaultRecord[] = [];
+      for (const doc of payload.items ?? []) {
+        const record = parseRecord(doc.id, doc.data ?? {});
+        if (record) records.push(record);
+      }
+      return records;
     },
 
     async put(orgId, record) {

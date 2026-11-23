@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   CubeIcon,
   GearSixIcon,
+  KeyIcon,
   ListBulletsIcon,
   UserIcon,
   UsersIcon,
@@ -26,6 +27,7 @@ describe('resolveExtensionIcon', () => {
     expect(resolveExtensionIcon('User')).toBe(UserIcon);
     expect(resolveExtensionIcon('GearSix')).toBe(GearSixIcon);
     expect(resolveExtensionIcon('ListBullets')).toBe(ListBulletsIcon);
+    expect(resolveExtensionIcon('Key')).toBe(KeyIcon);
     expect(resolveExtensionIcon('Nope')).toBe(DEFAULT_EXTENSION_ICON);
     expect(resolveExtensionIcon(undefined)).toBe(CubeIcon);
   });

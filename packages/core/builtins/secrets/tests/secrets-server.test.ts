@@ -19,6 +19,14 @@ function memoryDb(): SecretsDbStoreClient & {
     async get(orgId, key) {
       return rows.get(id(orgId, key));
     },
+    async list(orgId) {
+      const prefix = `${orgId}::`;
+      const out: VaultRecord[] = [];
+      for (const [rowId, record] of rows) {
+        if (rowId.startsWith(prefix)) out.push(record);
+      }
+      return out;
+    },
     async put(orgId, record) {
       const stored = { ...record, orgId };
       rows.set(id(orgId, record.key), stored);
@@ -162,6 +170,126 @@ describe('builtin secrets server', () => {
       orgRequest('GET', '/secrets/qbo', 'org_a'),
     );
     expect(afterDel.status).toBe(404);
+  });
+
+  test('GET /secrets lists metadata only (no values / ciphertext)', async () => {
+    const db = memoryDb();
+    const runtimeEnv = {
+      AGENT_OS_EXT_SECRETS_MASTER_KEY: MASTER_KEY_HEX,
+      AGENT_OS_EXT_SECRETS_MAP: JSON.stringify({ stripe: 'sk_env' }),
+    };
+    const audits: Array<{ action: string; meta?: Record<string, unknown> }> =
+      [];
+    const ctx = {
+      runtimeEnv,
+      db,
+      appendAudit: async (input: {
+        action: string;
+        meta?: Record<string, unknown>;
+      }) => {
+        audits.push(input);
+      },
+    };
+
+    await handleSecretsRequest(
+      ctx,
+      orgRequest('PUT', '/secrets/qbo', 'org_a', {
+        value: 'super-secret-token',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+      }),
+    );
+    await handleSecretsRequest(
+      ctx,
+      orgRequest('PUT', '/secrets/stripe', 'org_a', { value: 'sk_vault' }),
+    );
+    await handleSecretsRequest(
+      ctx,
+      orgRequest('PUT', '/secrets/other', 'org_b', { value: 'other-secret' }),
+    );
+
+    const listed = await handleSecretsRequest(
+      ctx,
+      orgRequest('GET', '/secrets', 'org_a'),
+    );
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as {
+      orgId: string;
+      canWrite: boolean;
+      keys: Array<Record<string, unknown>>;
+    };
+    expect(body.orgId).toBe('org_a');
+    expect(body.canWrite).toBe(true);
+    expect(body.keys).toHaveLength(2);
+    const keys = body.keys.map((k) => k.key).sort();
+    expect(keys).toEqual(['qbo', 'stripe']);
+    for (const item of body.keys) {
+      expect(item.hasValue).toBe(true);
+      expect(item).not.toHaveProperty('value');
+      expect(item).not.toHaveProperty('ciphertext');
+      expect(item).not.toHaveProperty('iv');
+    }
+    expect(JSON.stringify(body)).not.toContain('super-secret-token');
+    expect(JSON.stringify(body)).not.toContain('sk_vault');
+    expect(JSON.stringify(body)).not.toContain('sk_env');
+
+    expect(audits.some((a) => a.action === 'secrets.put')).toBe(true);
+    expect(
+      audits.every((a) => !JSON.stringify(a).includes('super-secret')),
+    ).toBe(true);
+
+    const deniedList = await handleSecretsRequest(
+      {
+        runtimeEnv,
+        db,
+        resolveOrg: async () => ({
+          ok: true,
+          orgId: 'org_a',
+          via: 'session',
+        }),
+        checkPermission: async (_req, permission) =>
+          permission === 'secrets.read' ? 'denied' : 'ok',
+      },
+      new Request('http://127.0.0.1:6118/secrets', {
+        method: 'GET',
+        headers: { cookie: 'session=x' },
+      }),
+    );
+    expect(deniedList.status).toBe(403);
+
+    const readOnly = await handleSecretsRequest(
+      {
+        runtimeEnv,
+        db,
+        resolveOrg: async () => ({
+          ok: true,
+          orgId: 'org_a',
+          via: 'session',
+        }),
+        checkPermission: async (_req, permission) =>
+          permission === 'secrets.write' ? 'denied' : 'ok',
+      },
+      new Request('http://127.0.0.1:6118/secrets', {
+        method: 'GET',
+        headers: { cookie: 'session=x' },
+      }),
+    );
+    expect(readOnly.status).toBe(200);
+    expect(await readOnly.json()).toMatchObject({
+      orgId: 'org_a',
+      canWrite: false,
+    });
+  });
+
+  test('PUT rejects invalid key names', async () => {
+    const db = memoryDb();
+    const bad = await handleSecretsRequest(
+      {
+        runtimeEnv: { AGENT_OS_EXT_SECRETS_MASTER_KEY: MASTER_KEY_HEX },
+        db,
+      },
+      orgRequest('PUT', '/secrets/-bad', 'org_a', { value: 'v' }),
+    );
+    expect(bad.status).toBe(400);
   });
 
   test('PUT without master key → 503; session without permission → 403', async () => {

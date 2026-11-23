@@ -28,6 +28,20 @@ export type SecretMeta = {
   expiresAt?: string;
 };
 
+/** Metadata row from `GET /secrets` — never includes plaintext. */
+export type SecretListItem = {
+  key: string;
+  updatedAt?: string;
+  expiresAt?: string;
+  hasValue: true;
+};
+
+export type SecretListResult = {
+  orgId: string;
+  canWrite: boolean;
+  keys: SecretListItem[];
+};
+
 export type SecretsCallInit = {
   /** Forward cookie / auth headers from the inbound FDE request. */
   headers?: HeadersInit;
@@ -41,6 +55,19 @@ function secretsHeaders(init?: SecretsCallInit): Headers {
     headers.set(SECRETS_ORG_ID_HEADER, init.orgId);
   }
   return headers;
+}
+
+/** List vault secret metadata for the active org (no plaintext values). */
+export async function listSecrets(
+  env?: EnvMap,
+  init?: SecretsCallInit,
+): Promise<SecretListResult> {
+  const base = resolveSecretsApiBase(env ?? Bun.env);
+  return jsonFetch<SecretListResult>(
+    `${base}/secrets`,
+    { method: 'GET', headers: secretsHeaders(init) },
+    'secrets listSecrets',
+  );
 }
 
 /** Fetch a secret by key (vault first when org context present, else env). */
