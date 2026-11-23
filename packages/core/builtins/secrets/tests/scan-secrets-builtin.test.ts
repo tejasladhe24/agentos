@@ -7,7 +7,7 @@ import { scanExtensions } from '@agentos/core/vite/lib/scan-extensions';
 const builtinsDir = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('scan builtin secrets', () => {
-  test('discovers secrets as driven builtin on port 6118', () => {
+  test('discovers secrets as driven builtin on port 6118 with secondary UI', () => {
     const model = scanExtensions({
       extensionsDir: join(builtinsDir, '__no_customer_extensions__'),
       builtinsDir,
@@ -22,5 +22,9 @@ describe('scan builtin secrets', () => {
       language: 'bun',
       port: 6118,
     });
+    expect(secrets?.meta.activityBarSection).toBe('secondary');
+    expect(secrets?.meta.icon).toBe('Key');
+    expect(secrets?.ui.page).toBeTruthy();
+    expect(secrets?.uiEntries.page).toBe('/__agentos/ext/secrets/page.html');
   });
 });

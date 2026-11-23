@@ -15,3 +15,12 @@ export const PERMISSION_SECRETS_WRITE = 'secrets.write';
 
 /** AES-GCM algorithm label stored with ciphertext. */
 export const SECRETS_ALG = 'AES-256-GCM' as const;
+
+/**
+ * Vault key names: start with a letter; letters, digits, `.` `_` `-` `/` after.
+ * Max length 128.
+ */
+export const SECRET_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9._/-]{0,127}$/;
+
+/** Max rows returned by `GET /secrets` (org-scoped). */
+export const SECRETS_LIST_LIMIT = 500;

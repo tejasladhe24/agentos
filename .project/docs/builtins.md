@@ -264,16 +264,21 @@ TS: `dbStore.setOrgRetention / getOrgRetention / deleteSubject`. Python: `set_or
 
 Builtin **`secrets`** stores OAuth refresh tokens and API keys **per org** in db-store collection `secrets_vault` (tenant-scoped — not `__platform__`). Values are **AES-256-GCM** encrypted with a platform master key before insert. Plaintext is never written to db-store and must not be logged.
 
-**Resolve order (GET):** vault decrypt for the active org → env fallback (`AGENT_OS_EXT_SECRETS_MAP` or `AGENT_OS_EXT_SECRETS_<KEY>`).
+**Resolve order (GET by key):** vault decrypt for the active org → env fallback (`AGENT_OS_EXT_SECRETS_MAP` or `AGENT_OS_EXT_SECRETS_<KEY>`).
 
-| Method   | Path                      | Role                                                                               |
-| -------- | ------------------------- | ---------------------------------------------------------------------------------- |
-| `GET`    | `/api/ext/secrets/:key`   | Vault (needs org) then env fallback; permission `secrets.read` when session cookie |
-| `PUT`    | `/api/ext/secrets/:key`   | `{ value, expiresAt? }` — encrypt + upsert; `secrets.write` / peer org header      |
-| `DELETE` | `/api/ext/secrets/:key`   | Remove vault row; `secrets.write` / peer org header                                |
-| `GET`    | `/api/ext/secrets/health` | `{ ok, vault, masterKey }`                                                         |
+| Method   | Path                      | Role                                                                                                              |
+| -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/ext/secrets`        | List vault **metadata only** (`key`, `updatedAt`, `expiresAt`, `hasValue`) + `orgId` / `canWrite`; `secrets.read` |
+| `GET`    | `/api/ext/secrets/:key`   | Vault (needs org) then env fallback; permission `secrets.read` when session cookie                                |
+| `PUT`    | `/api/ext/secrets/:key`   | `{ value, expiresAt? }` — encrypt + upsert; `secrets.write` / peer org header                                     |
+| `DELETE` | `/api/ext/secrets/:key`   | Remove vault row; `secrets.write` / peer org header                                                               |
+| `GET`    | `/api/ext/secrets/health` | `{ ok, vault, masterKey }`                                                                                        |
 
-**Org context:** auth session cookie `orgId`, or peer header `X-AgentOS-Org-Id` (services / FDE). Session callers need RBAC; peer header is trusted (same pattern as db-store). Kit: `getSecret` / `putSecret` / `deleteSecret` from `@agentos/core/api/secrets` with `{ orgId }` or forwarded `cookie`.
+**List notes:** Env-fallback-only keys are **not** listed (v1). List never returns plaintext, ciphertext, or IVs. Key names must match `^[a-zA-Z][a-zA-Z0-9._/-]{0,127}$`.
+
+**UI:** Secondary Activity Bar **Secrets** (`ui/page.tsx`, icon `Key`) — create / reveal (timeout remask) / rotate / delete for the active org. Writes require `secrets.write` and `AGENT_OS_EXT_SECRETS_MASTER_KEY`.
+
+**Org context:** auth session cookie `orgId`, or peer header `X-AgentOS-Org-Id` (services / FDE). Session callers need RBAC; peer header is trusted (same pattern as db-store). Kit: `listSecrets` / `getSecret` / `putSecret` / `deleteSecret` from `@agentos/core/api/secrets` with `{ orgId }` or forwarded `cookie`.
 
 **Threat model (v1)**
 

@@ -43,6 +43,7 @@ import {
 import {
   deleteSecret,
   getSecret,
+  listSecrets,
   putSecret,
   resolveSecretsApiBase,
 } from '@agentos/core/api/secrets';
@@ -491,6 +492,25 @@ describe('secrets client', () => {
         AGENT_OS_SECRETS_API_BASE: 'http://secrets.test',
       }),
     ).toEqual({ key: 'OPENAI_KEY', value: 'sk-test' });
+  });
+
+  test('listSecrets forwards orgId and returns metadata', async () => {
+    const env = { AGENT_OS_SECRETS_API_BASE: 'http://secrets.test' };
+    mockFetch(({ url, method, headers }) => {
+      expect(method).toBe('GET');
+      expect(url).toBe('http://secrets.test/secrets');
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({
+        orgId: 'org_1',
+        canWrite: true,
+        keys: [{ key: 'qbo', updatedAt: 't', hasValue: true }],
+      });
+    });
+    expect(await listSecrets(env, { orgId: 'org_1' })).toEqual({
+      orgId: 'org_1',
+      canWrite: true,
+      keys: [{ key: 'qbo', updatedAt: 't', hasValue: true }],
+    });
   });
 
   test('putSecret and deleteSecret forward orgId', async () => {
