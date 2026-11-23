@@ -36,6 +36,12 @@ export type ExtensionMetaPublic = {
   ui?: ExtensionPublicUiRoute[];
   /** Upstream path prefixes (after `/api/ext/:id`) that accept public tokens. */
   apiPrefixes?: string[];
+  /**
+   * Upstream path prefixes that skip session and public-token gates
+   * (OAuth callbacks / inbound webhooks — ticket 78). Pass into
+   * `createApp({ openApiPrefixes })`.
+   */
+  openApiPrefixes?: string[];
 };
 
 /** Parsed `meta.json` (tolerant subset). */

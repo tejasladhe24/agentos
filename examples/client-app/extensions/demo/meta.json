@@ -8,6 +8,7 @@
   },
   "public": {
     "ui": [{ "path": "/p/demo", "view": "page" }],
-    "apiPrefixes": ["/portal/"]
+    "apiPrefixes": ["/portal/"],
+    "openApiPrefixes": ["/oauth/callback", "/webhooks/"]
   }
 }

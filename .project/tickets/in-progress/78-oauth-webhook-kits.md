@@ -1,6 +1,6 @@
 # 78 — OAuth connect + inbound webhook kits
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -16,12 +16,12 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] OAuth start + callback helpers documented under `@agentos/core/api/*` (provider-agnostic)
-- [ ] Webhook helper: HMAC/signature check, timestamp skew window, idempotency key store
-- [ ] Example route(s) in docs or a sample extension stub
-- [ ] Tokens written via secrets vault (ticket **77**), not plaintext env in production path
-- [ ] Tests for signature failure, replay, and duplicate delivery
-- [ ] Python `agentos` helpers or clear HTTP-level guidance for services
+- [x] OAuth start + callback helpers documented under `@agentos/core/api/*` (provider-agnostic)
+- [x] Webhook helper: HMAC/signature check, timestamp skew window, idempotency key store
+- [x] Example route(s) in docs or a sample extension stub
+- [x] Tokens written via secrets vault (ticket **77**), not plaintext env in production path
+- [x] Tests for signature failure, replay, and duplicate delivery
+- [x] Python `agentos` helpers or clear HTTP-level guidance for services
 
 ## Notes
 

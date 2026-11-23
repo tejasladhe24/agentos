@@ -110,7 +110,16 @@ function parseMetaPublic(raw: unknown): ExtensionMetaPublic | undefined {
     if (prefixes.length > 0) result.apiPrefixes = prefixes;
   }
 
-  if (!result.ui && !result.apiPrefixes) return undefined;
+  if (Array.isArray(obj.openApiPrefixes)) {
+    const prefixes = obj.openApiPrefixes.filter(
+      (p): p is string => typeof p === 'string' && p.startsWith('/'),
+    );
+    if (prefixes.length > 0) result.openApiPrefixes = prefixes;
+  }
+
+  if (!result.ui && !result.apiPrefixes && !result.openApiPrefixes) {
+    return undefined;
+  }
   return result;
 }
 

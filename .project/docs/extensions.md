@@ -107,27 +107,32 @@ not be a wide-open bypass. Declare them on the extension:
 }
 ```
 
-| Field                | Meaning                                                                 |
-| -------------------- | ----------------------------------------------------------------------- |
-| `public.ui[].path`   | SPA pathname AuthGate admits without login (exact, or prefix with `/*`) |
-| `public.ui[].view`   | Extension view to iframe (`page` default)                               |
-| `public.apiPrefixes` | Upstream path prefixes (after `/api/ext/:id`) that accept public tokens |
+| Field                    | Meaning                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `public.ui[].path`       | SPA pathname AuthGate admits without login (exact, or prefix with `/*`)                                                                                       |
+| `public.ui[].view`       | Extension view to iframe (`page` default)                                                                                                                     |
+| `public.apiPrefixes`     | Upstream path prefixes (after `/api/ext/:id`) that accept public tokens                                                                                       |
+| `public.openApiPrefixes` | Prefixes that skip session **and** public-token gates (OAuth callbacks, inbound webhooks — ticket 78). Handlers must verify signed `state` / HMAC themselves. |
 
 **Shell:** AuthGate renders a minimal portal host (branding + iframe to
 `/__agentos/ext/<id>/<view>.html`) and forwards `?token=`. No Activity Bar /
 Cmd+K. Unknown paths stay Not Found; only `/` still redirects to `/login`.
 
-**API kit:** When `apiPrefixes` is set, pass them into `createApp`:
+**API kit:** When `apiPrefixes` and/or `openApiPrefixes` is set, pass them into `createApp`:
 
 ```ts
 import { createApp, loadRoutes } from '@agentos/core/api';
 
-const app = createApp({ publicApiPrefixes: ['/portal/'] });
+const app = createApp({
+  publicApiPrefixes: ['/portal/'],
+  openApiPrefixes: ['/oauth/callback', '/webhooks/'],
+});
 await loadRoutes(app, `${import.meta.dir}/routes`);
 ```
 
 - `GET /health` stays open
-- Paths under a public prefix require a signed token (`Authorization: Bearer` or `?token=`)
+- Paths under an **open** prefix skip auth (verify OAuth `state` or webhook HMAC in the handler)
+- Paths under a **public** prefix require a signed token (`Authorization: Bearer` or `?token=`)
 - All other routes require a session (401 without cookie)
 
 **Tokens:** Mint short-lived HMAC links with `@agentos/core/api/public-token`:
@@ -154,6 +159,38 @@ without a Better Auth session.
 Set `AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET` (≥16 chars) in platform env. Prefer
 expiring signed links over anonymous cookies. Public handlers read
 `getPublicAccess(c)` and pass `orgId` into `dbStore.collection(name, { orgId })`.
+
+### OAuth connect + inbound webhooks (ticket 78)
+
+Third-party integration OAuth (QuickBooks, Xero, Bullhorn, …) is **not** Better
+Auth SSO. Use the Bun kit:
+
+```ts
+import {
+  buildAuthorizeUrl,
+  createPkcePair,
+  exchangeAuthorizationCode,
+  persistOAuthTokens,
+  signOAuthState,
+  toStoredTokens,
+  verifyOAuthState,
+} from '@agentos/core/api/oauth';
+import {
+  verifyAndHandleWebhook,
+  WebhookVerifyError,
+} from '@agentos/core/api/webhook';
+```
+
+- **Start** (`GET …/oauth/connect`): `requireOrg` → `signOAuthState` + `buildAuthorizeUrl` (optional PKCE).
+- **Callback** (`GET …/oauth/callback`): declare under `openApiPrefixes` → `verifyOAuthState` → `exchangeAuthorizationCode` → `persistOAuthTokens` (secrets vault, ticket 77).
+- **Webhook** (`POST …/webhooks/…`): `openApiPrefixes` → `verifyAndHandleWebhook` (HMAC + skew + `cacheStore` idempotency).
+
+Provider client ids/scopes stay in the extension. Example stubs live in
+`examples/client-app/extensions/demo/api/routes/{oauth,webhooks}/`.
+Python services: `agentos.oauth` / `agentos.webhook` (same contracts).
+
+Signing secret: `AGENT_OS_GLOBAL_OAUTH_STATE_SECRET` (falls back to
+`AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET`).
 
 ## meta.json (Python service)
 
