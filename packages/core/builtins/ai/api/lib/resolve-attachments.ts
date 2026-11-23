@@ -45,6 +45,11 @@ function decodeBase64(base64: string): Uint8Array | null {
   }
 }
 
+function orgIdFromBlobKey(key: string): string | undefined {
+  const match = /^orgs\/([^/]+)\//.exec(key);
+  return match?.[1];
+}
+
 async function fetchBlobByKey(
   gatewayUrl: string,
   key: string,
@@ -52,7 +57,9 @@ async function fetchBlobByKey(
 ): Promise<{ base64: string; bytes: number } | ResolveAttachmentsError> {
   const base = gatewayUrl.replace(/\/+$/, '');
   const url = `${base}/api/ext/files/blobs/${encodeURIComponent(key)}?format=json`;
-  const res = await fetchImpl(url);
+  const orgId = orgIdFromBlobKey(key);
+  const headers = orgId ? { 'x-agentos-org-id': orgId } : undefined;
+  const res = await fetchImpl(url, headers ? { headers } : undefined);
   if (!res.ok) {
     return {
       status: 400,

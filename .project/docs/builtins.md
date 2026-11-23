@@ -18,7 +18,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | **hitl**          | Approvals API (durable via db-store); Activity Bar **secondary** opens HITL panel in left sidebar (no `ui/`)                   |
 | **settings**      | App/platform preferences; Activity Bar **secondary** (`GearSix`) opens `ui/page.tsx` (distinct from Auth **account** settings) |
 | **events**        | Cross-extension pub/sub                                                                                                        |
-| **files**         | Blob/object API (local FS default; optional S3-compatible)                                                                     |
+| **files**         | Blob/object API + Drive-style Activity Bar UI (local FS default; optional S3-compatible; org-scoped)                           |
 | **notifications** | Toast/fan-out + email/SMS delivery; recent inbox + delivery status via db-store                                                |
 | **secrets**       | Per-tenant credential vault (encrypted) + env fallback                                                                         |
 | **audit**         | Append-only audit via db-store                                                                                                 |
@@ -297,19 +297,42 @@ KMS (Cloudflare / AWS) can wrap the master key later; the vault API stays the sa
 
 Generate a local master key: `openssl rand -base64 32`.
 
-## Files storage env
+## Files (blob API + Drive UI)
+
+Builtin **`files`** is the platform object store. Activity Bar **secondary** (`Folder`) opens `ui/page.tsx` (+ `ui/sidebar.tsx`) — a Drive-style manager (browse, upload, download, preview, rename/move, delete, search). Tenants do **not** bring their own S3 credentials; the operator configures one shared backend via env. Isolation is **key prefix** `orgs/<orgId>/…`.
+
+### Routes (`/api/ext/files`)
+
+| Method   | Path                               | Notes                                                           |
+| -------- | ---------------------------------- | --------------------------------------------------------------- |
+| `GET`    | `/health`                          | Backend label; no auth                                          |
+| `GET`    | `/blobs?prefix=&limit=&cursor=&q=` | List files + virtual folders; search by name when `q` set       |
+| `PUT`    | `/blobs/:key`                      | Create/replace; JSON `{ base64, contentType? }` or octet-stream |
+| `GET`    | `/blobs/:key`                      | Binary (stored content-type) or `?format=json`                  |
+| `DELETE` | `/blobs/:key`                      | Idempotent single-object delete                                 |
+| `DELETE` | `/blobs?prefix=`                   | Recursive folder-prefix delete                                  |
+| `POST`   | `/blobs/move`                      | `{ from, to }` file or folder-prefix move                       |
+
+Org context: session cookie `orgId` **or** peer header `X-AgentOS-Org-Id`. Session callers need RBAC `files.read` / `files.write` (seeded for admin/owner write; viewer/reviewer/sales read). Peer header path skips RBAC (trusted services). Max object size: **10 MiB** (aligned with AI attachments). Metadata (content-type, size, updatedAt) is indexed in db-store collection `files_objects`.
+
+Clients: `@agentos/core/api/files` (`putBlob` / `getBlob` / `listBlobs` / `moveBlob` / …) and `agentos.files` — pass `orgId` for peer calls.
+
+**Drive UI vs raw blob API:** the Activity Bar UI is for operators browsing org files. Extensions/services should keep using the raw blob client for attachments and ingest (same keys under `orgs/<orgId>/…`).
+
+### Files storage env
 
 Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default backend is **local filesystem** (`AGENT_OS_EXT_FILES_PATH` or OS temp `agentos-files`). When `AGENT_OS_EXT_FILES_S3_BUCKET` is set, the builtin uses Bun’s portable `S3Client` (works with **Cloudflare R2**, **AWS S3**, and **GCS** S3-compatible endpoints). Do **not** import Cloudflare R2 bindings into `@agentos/core` — ticket 62 only injects credentials into the container env.
 
-| Variable                                  | Role                                                           |
-| ----------------------------------------- | -------------------------------------------------------------- |
-| `AGENT_OS_EXT_FILES_PATH`                 | Optional local root (ignored when S3 bucket is set)            |
-| `AGENT_OS_EXT_FILES_S3_BUCKET`            | Enables S3-compatible backend                                  |
-| `AGENT_OS_EXT_FILES_S3_ENDPOINT`          | Endpoint URL (required for R2 / GCS / MinIO; optional for AWS) |
-| `AGENT_OS_EXT_FILES_S3_REGION`            | Region (`auto` for R2; e.g. `us-east-1` for AWS)               |
-| `AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID`     | Access key (required when bucket is set)                       |
-| `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY` | Secret key (required when bucket is set)                       |
-| `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`     | Optional session token                                         |
+| Variable                                   | Role                                                           |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| `AGENT_OS_EXT_FILES_PATH`                  | Optional local root (ignored when S3 bucket is set)            |
+| `AGENT_OS_EXT_FILES_S3_BUCKET`             | Enables S3-compatible backend                                  |
+| `AGENT_OS_EXT_FILES_S3_ENDPOINT`           | Endpoint URL (required for R2 / GCS / MinIO; optional for AWS) |
+| `AGENT_OS_EXT_FILES_S3_REGION`             | Region (`auto` for R2; e.g. `us-east-1` for AWS)               |
+| `AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID`      | Access key (required when bucket is set)                       |
+| `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY`  | Secret key (required when bucket is set)                       |
+| `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`      | Optional session token                                         |
+| `AGENT_OS_EXT_FILES_DB_STORE_HOST`/`_PORT` | Peer db-store for metadata index (defaults `127.0.0.1:6111`)   |
 
 ### Example env values
 

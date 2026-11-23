@@ -1,5 +1,7 @@
 {
   "name": "Files",
+  "icon": "Folder",
+  "activityBarSection": "secondary",
   "api": {
     "language": "bun",
     "port": 6116

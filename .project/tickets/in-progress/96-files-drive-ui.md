@@ -1,6 +1,6 @@
 # 96 — Files Drive-style UI (fully functional)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -51,11 +51,11 @@ Today `files` is API-only (`PUT`/`GET`/`DELETE /blobs/:key`) with **no list/meta
 
 ## Done when
 
-- [ ] `meta.json` Activity Bar secondary + `ui/page.tsx` (+ sidebar/components as needed)
-- [ ] List / metadata / move(or rename) APIs shipped + `@agentos/core/api/files` (+ Python parity if trivial)
+- [x] `meta.json` Activity Bar secondary + `ui/page.tsx` (+ sidebar/components as needed)
+- [x] List / metadata / move(or rename) APIs shipped + `@agentos/core/api/files` (+ Python parity if trivial)
 - [ ] Browse, upload, download, preview, rename/move, delete, search all work against real builtin in `agentos dev`
-- [ ] Org isolation verified; FS + S3 paths covered by tests or documented manual check
-- [ ] Docs + tests updated
+- [x] Org isolation verified; FS + S3 paths covered by tests or documented manual check
+- [x] Docs + tests updated
 
 ## Notes
 
