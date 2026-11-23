@@ -5,6 +5,8 @@ import {
   PERMISSION_ADMIN_ONLY,
   PERMISSION_ALL,
   PERMISSION_ROLES_MANAGE,
+  PERMISSION_SECRETS_READ,
+  PERMISSION_SECRETS_WRITE,
 } from './constants';
 
 export type AuthDialect = 'sqlite' | 'postgres';
@@ -58,12 +60,18 @@ export async function seedRolePermissions(db: AuthDb): Promise<void> {
     ['admin', PERMISSION_ALL],
     ['admin', PERMISSION_ADMIN_ONLY],
     ['admin', PERMISSION_ROLES_MANAGE],
+    ['admin', PERMISSION_SECRETS_READ],
+    ['admin', PERMISSION_SECRETS_WRITE],
     ['owner', PERMISSION_ALL],
     ['owner', PERMISSION_ADMIN_ONLY],
     ['owner', PERMISSION_ROLES_MANAGE],
+    ['owner', PERMISSION_SECRETS_READ],
+    ['owner', PERMISSION_SECRETS_WRITE],
     ['viewer', 'auth.session.read'],
     ['reviewer', 'auth.session.read'],
+    ['reviewer', PERMISSION_SECRETS_READ],
     ['sales', 'auth.session.read'],
+    ['sales', PERMISSION_SECRETS_READ],
     ['external_viewer', 'auth.session.read'],
   ];
 

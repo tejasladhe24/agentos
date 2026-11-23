@@ -28,7 +28,12 @@ import {
   resolveApproval,
   resolveHitlApiBase,
 } from '@agentos/core/api/hitl';
-import { getSecret, resolveSecretsApiBase } from '@agentos/core/api/secrets';
+import {
+  deleteSecret,
+  getSecret,
+  putSecret,
+  resolveSecretsApiBase,
+} from '@agentos/core/api/secrets';
 import { callTool, resolveToolUrl } from '@agentos/core/api/tools';
 
 const originalFetch = globalThis.fetch;
@@ -338,6 +343,41 @@ describe('secrets client', () => {
         AGENT_OS_SECRETS_API_BASE: 'http://secrets.test',
       }),
     ).toEqual({ key: 'OPENAI_KEY', value: 'sk-test' });
+  });
+
+  test('putSecret and deleteSecret forward orgId', async () => {
+    const env = { AGENT_OS_SECRETS_API_BASE: 'http://secrets.test' };
+
+    mockFetch(({ url, method, body, headers }) => {
+      expect(method).toBe('PUT');
+      expect(url).toBe('http://secrets.test/secrets/qbo');
+      expect(body).toEqual({ value: 'tok', expiresAt: '2030-01-01T00:00:00Z' });
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({
+        key: 'qbo',
+        rotatedAt: '2026-01-01T00:00:00.000Z',
+        version: 1,
+      });
+    });
+    expect(
+      await putSecret(
+        'qbo',
+        { value: 'tok', expiresAt: '2030-01-01T00:00:00Z' },
+        env,
+        { orgId: 'org_1' },
+      ),
+    ).toMatchObject({ key: 'qbo', version: 1 });
+
+    mockFetch(({ url, method, headers }) => {
+      expect(method).toBe('DELETE');
+      expect(url).toBe('http://secrets.test/secrets/qbo');
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({ key: 'qbo', deleted: true });
+    });
+    expect(await deleteSecret('qbo', env, { orgId: 'org_1' })).toEqual({
+      key: 'qbo',
+      deleted: true,
+    });
   });
 });
 

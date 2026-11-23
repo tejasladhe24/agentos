@@ -20,7 +20,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | **events**        | Cross-extension pub/sub                                                                                                        |
 | **files**         | Blob/object API (local FS default; optional S3-compatible)                                                                     |
 | **notifications** | Toast/fan-out + email/SMS delivery; recent inbox + delivery status via db-store                                                |
-| **secrets**       | Secret resolution                                                                                                              |
+| **secrets**       | Per-tenant credential vault (encrypted) + env fallback                                                                         |
 | **audit**         | Append-only audit via db-store                                                                                                 |
 
 ## Access pattern
@@ -175,6 +175,43 @@ Permission checks resolve **active org membership role** plus global `user_roles
 | `documents_created_at_meta` `(collection, org_id, created_at DESC)`    | Recent-first lists                    |
 
 Extra expression indexes for app-specific paths (e.g. `data->>'transactedAt'`) can be added in ops without changing the HTTP API — keep the single `documents` table ([ADR 004](./adr/004-db-store-sole-sql-owner.md)).
+
+## Secrets vault (per-tenant)
+
+Builtin **`secrets`** stores OAuth refresh tokens and API keys **per org** in db-store collection `secrets_vault` (tenant-scoped — not `__platform__`). Values are **AES-256-GCM** encrypted with a platform master key before insert. Plaintext is never written to db-store and must not be logged.
+
+**Resolve order (GET):** vault decrypt for the active org → env fallback (`AGENT_OS_EXT_SECRETS_MAP` or `AGENT_OS_EXT_SECRETS_<KEY>`).
+
+| Method   | Path                     | Role                                                                 |
+| -------- | ------------------------ | -------------------------------------------------------------------- |
+| `GET`    | `/api/ext/secrets/:key`  | Vault (needs org) then env fallback; permission `secrets.read` when session cookie |
+| `PUT`    | `/api/ext/secrets/:key`  | `{ value, expiresAt? }` — encrypt + upsert; `secrets.write` / peer org header |
+| `DELETE` | `/api/ext/secrets/:key`  | Remove vault row; `secrets.write` / peer org header                  |
+| `GET`    | `/api/ext/secrets/health`| `{ ok, vault, masterKey }`                                           |
+
+**Org context:** auth session cookie `orgId`, or peer header `X-AgentOS-Org-Id` (services / FDE). Session callers need RBAC; peer header is trusted (same pattern as db-store). Kit: `getSecret` / `putSecret` / `deleteSecret` from `@agentos/core/api/secrets` with `{ orgId }` or forwarded `cookie`.
+
+**Threat model (v1)**
+
+| Asset                         | Control                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| Vault ciphertext in db-store  | AES-256-GCM; unique IV per write; master key never in documents         |
+| Master key                    | Process env only (`AGENT_OS_EXT_SECRETS_MASTER_KEY`); rotate by re-encrypt |
+| Cross-org read                | db-store `org_id` filter + secrets checks `orgId` on the row            |
+| Bootstrap / local demos       | Env map / per-key env still work without a master key (read-only)       |
+| Config misuse                 | Never put customer tokens in `agentos.config.ts`                        |
+
+KMS (Cloudflare / AWS) can wrap the master key later; the vault API stays the same.
+
+| Variable                                | Role                                                                 |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| `AGENT_OS_EXT_SECRETS_MASTER_KEY`       | 32-byte AES key as **base64** (preferred) or **64-char hex**; required for PUT |
+| `AGENT_OS_EXT_SECRETS_MAP`              | Optional JSON object key→value (env fallback)                        |
+| `AGENT_OS_EXT_SECRETS_<KEY>`            | Per-key env fallback (`api-token` → `AGENT_OS_EXT_SECRETS_API_TOKEN`) |
+| `AGENT_OS_EXT_SECRETS_DB_STORE_HOST` / `_PORT` | Peer db-store (defaults `127.0.0.1:6111`)                      |
+| `AGENT_OS_EXT_SECRETS_AUTH_API_BASE`    | Optional auth base for session / permission checks                   |
+
+Generate a local master key: `openssl rand -base64 32`.
 
 ## Files storage env
 
