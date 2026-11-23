@@ -1,6 +1,6 @@
 # 68 — Deploy workflow command smoke (pnpm run ci)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

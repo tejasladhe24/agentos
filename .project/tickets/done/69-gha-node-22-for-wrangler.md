@@ -1,6 +1,6 @@
 # 69 — GitHub Actions Node 22 for Wrangler
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

@@ -81,13 +81,16 @@ Agents must never promote tickets to `done/` themselves.
 61. Durable HITL / notifications state (scale readiness) — **done**
 62. `deploy/cloudflare` Worker + Containers adapter (thin; disposable) — **done**
 63. Cloudflare CI deploy workflow — **done**
-64. Cloudflare deploy smoke checks (runbook; live curls → **65**)
+64. Cloudflare deploy smoke checks (runbook; live curls → **65**) — **done**
 65. Execute Cloudflare live smoke against deployed `BASE_URL`
 66. Ticket reconciliation: promote covered in-progress → done — **done** (53–63 → `done/`)
+67. Extension iframe production CSS links — **done**
+68. Deploy workflow command smoke (`pnpm run ci`) — **done**
+69. GitHub Actions Node 22 for Wrangler — **done**
 
-**Open:** `todo/` — **29** (E2E), **30** (Next host spike), **65** (R2 files round-trip after enabling R2). `in-progress/` — **64** (live smoke mostly green; files durability blocked on R2).
+**Open:** `todo/` — **29** (E2E), **30** (Next host spike), **65** (R2 files round-trip after enabling R2). `in-progress/` — empty.
 
-**Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **63**); **60** / **61** done; finish **64** files step via **65** after enabling R2.
+**Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 
 **Runtime policy:** `pnpm install` for the monorepo; `bun run` / `bun` for all TS/JS services (never Node).
 
