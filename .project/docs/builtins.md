@@ -23,7 +23,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | **secrets**       | Per-tenant credential vault (encrypted) + env fallback                                                                         |
 | **audit**         | Append-only audit via db-store                                                                                                 |
 | **vector-store**  | Org-scoped embedding upsert / similarity query (pgvector; in-memory for local/tests)                                           |
-| **inbound-email** | Per-org inbound address → attachments in `files` + durable `email.received` event                                              |
+| **inbound-email** | Email manager UI + per-org inbound address → attachments in `files` + `email.received` event                                   |
 
 ## Access pattern
 
@@ -96,7 +96,8 @@ Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default
 | ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST` | `/api/ext/notifications/notify`         | Enqueue: `channel` `in_app` \| `email` \| `sms` (default `in_app`); optional `templateId`, `vars`, `to`, `subject`, `message`, `type`, `orgId` |
 | `GET`  | `/api/ext/notifications/recent`         | In-app inbox only (Shell toasts)                                                                                                               |
-| `GET`  | `/api/ext/notifications/deliveries/:id` | Delivery status (`queued` \| `sent` \| `failed`)                                                                                               |
+| `GET`  | `/api/ext/notifications/deliveries`     | Org-scoped deliveries (`?channel=email`, `limit`, `offset`) — Email manager Sent tab                                                           |
+| `GET`  | `/api/ext/notifications/deliveries/:id` | Delivery status (`queued` \| `sent` \| `failed`); org-scoped when `orgId` is set                                                               |
 
 **Templates** (builtin catalog ids): `client-reminder` (`name`, `title`, `message`, `appName`), `digest` (`date`, `summary`). Placeholders use `{{var}}`; missing vars render as empty strings. Per-org custom templates are a follow-up.
 
@@ -391,18 +392,36 @@ Builtin **`vector-store`** owns embedding **storage and similarity search** only
 
 **Postgres required for RAG:** set `DATABASE_URL` + install pgvector. Without a Postgres URL, `auto` falls back to an **in-memory** cosine index (fine for local/tests; not durable / not multi-replica). Non-Postgres URLs and missing pgvector return **501** with a clear error. Kit: `@agentos/core/api/vector-store` / `agentos.vector_store`.
 
+## Email manager (send + receive)
+
+Activity Bar secondary **Email** (builtin `inbound-email` UI) is the operator surface for:
+
+| Direction                       | Builtin         | Providers                                                     |
+| ------------------------------- | --------------- | ------------------------------------------------------------- |
+| **Receive** (Inbox / Addresses) | `inbound-email` | `fixture` (local) or `mailgun`                                |
+| **Send** (Compose / Deliveries) | `notifications` | `log` (local), `resend`, or `cloudflare` (Email Sending REST) |
+
+RBAC: `email.read` (inbox, addresses list, deliveries), `email.send` (compose + address provision). Admin/owner covered by `*`.
+
+HTML bodies render in a sandboxed iframe (`srcdoc`); plain text is the default view. Attachments download via files blob keys (no re-upload).
+
+**Local verify:** fixture webhook → Inbox; Compose with `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_PROVIDER=log` → delivery `sent`. Staging send: Cloudflare Email Sending env on notifications; staging receive: Mailgun DNS (below).
+
 ## Inbound email (per org)
 
 Builtin **`inbound-email`** receives provider webhooks, maps the **To / recipient** address to an `orgId`, stores attachments in **`files`**, persists message metadata in org-scoped `inbound_messages`, and publishes durable topic **`email.received`** (via builtin `events`). VendorGate COI intake and similar flows subscribe / claim that event — they never talk to the ESP directly.
 
-`meta.json` declares `public.openApiPrefixes: ["/webhooks/"]` so the gateway skips session/public-token gates; handlers verify the provider signature themselves (ticket 78).
+`meta.json` declares `public.openApiPrefixes: ["/webhooks/"]` so the gateway skips session/public-token gates; handlers verify the provider signature themselves (ticket 78). Secondary Activity Bar **Email** opens `ui/page.tsx` (ticket 99).
 
-| Method | Path                                | Role                                                          |
-| ------ | ----------------------------------- | ------------------------------------------------------------- |
-| `GET`  | `/api/ext/inbound-email/health`     | `{ ok, provider, backend }`                                   |
-| `GET`  | `/api/ext/inbound-email/addresses`  | List address → org mappings (db + env)                        |
-| `POST` | `/api/ext/inbound-email/addresses`  | Provision `{ address, orgId, purpose? }`                      |
-| `POST` | `/api/ext/inbound-email/webhooks/*` | Provider webhook (`fixture`, `mailgun`, or generic `inbound`) |
+| Method  | Path                                  | Role                                                          |
+| ------- | ------------------------------------- | ------------------------------------------------------------- |
+| `GET`   | `/api/ext/inbound-email/health`       | `{ ok, provider, backend }`                                   |
+| `GET`   | `/api/ext/inbound-email/addresses`    | List addresses for active org                                 |
+| `POST`  | `/api/ext/inbound-email/addresses`    | Provision `{ address, purpose? }` bound to active org         |
+| `GET`   | `/api/ext/inbound-email/messages`     | Org inbox (`limit`/`offset`/`from`/`to`/`q`)                  |
+| `GET`   | `/api/ext/inbound-email/messages/:id` | Message detail                                                |
+| `PATCH` | `/api/ext/inbound-email/messages/:id` | `{ read: true }` → sets `readAt`                              |
+| `POST`  | `/api/ext/inbound-email/webhooks/*`   | Provider webhook (`fixture`, `mailgun`, or generic `inbound`) |
 
 **Address mapping:** prefer `POST /addresses`, or demo env `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP=coi@inbound.example.com=org_demo`. Directory rows live in platform collection `inbound_addresses`.
 

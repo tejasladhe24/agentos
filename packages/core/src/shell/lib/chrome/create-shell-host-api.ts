@@ -162,7 +162,10 @@ export function createShellHostApi(extensionId: string): HostAPI {
     api: {
       fetch: async (path, init) => {
         const normalized = path.startsWith('/') ? path : `/${path}`;
-        const url = `/api/ext/${encodeURIComponent(extensionId)}${normalized}`;
+        // Absolute gateway paths let Email UI call notifications/files/auth.
+        const url = normalized.startsWith('/api/ext/')
+          ? normalized
+          : `/api/ext/${encodeURIComponent(extensionId)}${normalized}`;
         const res = await fetch(url, {
           method: init?.method ?? 'GET',
           headers: init?.headers,

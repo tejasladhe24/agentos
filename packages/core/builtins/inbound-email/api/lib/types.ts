@@ -37,6 +37,8 @@ export type InboundMessage = {
   html?: string;
   attachments: StoredAttachment[];
   receivedAt: string;
+  /** ISO timestamp when marked read in the Email manager; omitted/undefined = unread. */
+  readAt?: string;
 };
 
 export type InboundAddress = {

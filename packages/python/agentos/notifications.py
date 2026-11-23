@@ -130,3 +130,32 @@ async def get_delivery(
         headers=_headers(org_id=org_id, headers=headers),
     )
     return GetDeliveryResult.model_validate(data).notification
+
+
+async def list_deliveries(
+    *,
+    channel: DeliveryChannel | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+    org_id: str | None = None,
+    headers: dict[str, str] | None = None,
+    env: EnvMap | None = None,
+) -> list[NotificationEntry]:
+    """Org-scoped deliveries (`GET /deliveries`)."""
+    from urllib.parse import urlencode
+
+    base = resolve_notifications_api_base(env)
+    params: dict[str, str] = {}
+    if channel:
+        params["channel"] = channel
+    if limit is not None:
+        params["limit"] = str(limit)
+    if offset is not None:
+        params["offset"] = str(offset)
+    qs = f"?{urlencode(params)}" if params else ""
+    data = await get_json(
+        f"{base}/deliveries{qs}",
+        "notifications listDeliveries",
+        headers=_headers(org_id=org_id, headers=headers),
+    )
+    return ListRecentResult.model_validate(data).notifications

@@ -34,6 +34,12 @@ export const PERMISSION_SECRETS_READ = 'secrets.read';
 /** Put/delete org vault secrets (builtin secrets). Admin/owner covered by `*`. */
 export const PERMISSION_SECRETS_WRITE = 'secrets.write';
 
+/** Read inbound email + delivery history (Email manager). Admin/owner covered by `*`. */
+export const PERMISSION_EMAIL_READ = 'email.read';
+
+/** Compose/send email (notifications) + provision inbound addresses. */
+export const PERMISSION_EMAIL_SEND = 'email.send';
+
 /** Platform / org role catalog (TrustDesk-shaped; apps may add product permissions). */
 export const PLATFORM_ROLES = [
   'admin',
