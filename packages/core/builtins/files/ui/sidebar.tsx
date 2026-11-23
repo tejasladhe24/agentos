@@ -1,55 +1,47 @@
-import { useEffect, useState } from 'react';
-import { FolderIcon, HouseIcon } from '@phosphor-icons/react';
+import {
+  HardDrivesIcon,
+  HouseIcon,
+  TrashIcon,
+} from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
-import { ScrollArea } from '@agentos/ui/components/scroll-area';
-import { LoadingState } from '@agentos/ui/components/loading-state';
-import { useHostApi } from '@agentos/core/client';
 import { cn } from '@agentos/ui/lib/utils';
 
-import {
-  parseErrorBody,
-  parseListResponse,
-  type FilesListItem,
-} from './files-types';
+import type { FilesSection } from './files-types';
+import { useFilesSection } from './use-files-section';
 import { useFilesPrefix } from './use-files-prefix';
 
+const NAV: Array<{
+  id: FilesSection;
+  label: string;
+  description: string;
+  icon: typeof HouseIcon;
+}> = [
+  {
+    id: 'files',
+    label: 'My Files',
+    description: 'Browse org Drive',
+    icon: HouseIcon,
+  },
+  {
+    id: 'bin',
+    label: 'Bin',
+    description: 'Recently deleted',
+    icon: TrashIcon,
+  },
+  {
+    id: 'storage',
+    label: 'Storage',
+    description: 'Largest files first',
+    icon: HardDrivesIcon,
+  },
+];
+
 /**
- * Files nav — folder shortcuts when Files is the active secondary view.
+ * Files nav — My Files / Bin / Storage.
  */
 export default function FilesSidebar() {
-  const api = useHostApi();
-  const [prefix, selectPrefix] = useFilesPrefix();
-  const [folders, setFolders] = useState<FilesListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      setError(null);
-      const res = await api.fetch('/blobs?prefix=&limit=100');
-      if (cancelled) return;
-      if (res.status === 401) {
-        setError('Sign in to browse files.');
-        setFolders([]);
-        setLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        setError(parseErrorBody(res.body, 'Failed to load folders'));
-        setFolders([]);
-        setLoading(false);
-        return;
-      }
-      const list = parseListResponse(res.body);
-      setFolders(list.items.filter((i) => i.kind === 'folder'));
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, prefix]);
+  const [section, setSection] = useFilesSection();
+  const [, setPrefix] = useFilesPrefix();
 
   return (
     <nav
@@ -60,59 +52,41 @@ export default function FilesSidebar() {
       <div>
         <h2 className="text-sm font-semibold tracking-tight">Files</h2>
         <p className="text-xs text-muted-foreground">
-          Browse org storage by folder prefix
+          Drive, bin, and storage
         </p>
       </div>
-      <Button
-        type="button"
-        variant={prefix === '' ? 'secondary' : 'ghost'}
-        className={cn(
-          'w-full justify-start gap-2',
-          prefix === '' && 'font-medium',
-        )}
-        aria-current={prefix === '' ? 'page' : undefined}
-        onClick={() => void selectPrefix('')}
-      >
-        <HouseIcon className="size-4" aria-hidden />
-        All files
-      </Button>
-      {error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {loading ? (
-        <LoadingState size="sm">Loading folders…</LoadingState>
-      ) : (
-        <ScrollArea className="min-h-0 flex-1">
-          <ul className="flex flex-col gap-1">
-            {folders.map((folder) => {
-              const folderPrefix = folder.relativeKey.endsWith('/')
-                ? folder.relativeKey
-                : `${folder.relativeKey}/`;
-              const active = prefix === folderPrefix;
-              return (
-                <li key={folder.key}>
-                  <Button
-                    type="button"
-                    variant={active ? 'secondary' : 'ghost'}
-                    className={cn(
-                      'w-full justify-start gap-2',
-                      active && 'font-medium',
-                    )}
-                    aria-current={active ? 'page' : undefined}
-                    data-files-prefix={folderPrefix}
-                    onClick={() => void selectPrefix(folderPrefix)}
-                  >
-                    <FolderIcon className="size-4 shrink-0" aria-hidden />
-                    <span className="truncate">{folder.name}</span>
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        </ScrollArea>
-      )}
+      <ul className="flex flex-col gap-1">
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const active = section === item.id;
+          return (
+            <li key={item.id}>
+              <Button
+                type="button"
+                variant={active ? 'secondary' : 'ghost'}
+                className={cn(
+                  'h-auto w-full flex-col items-start gap-0.5 px-3 py-2',
+                  active && 'font-medium',
+                )}
+                aria-current={active ? 'page' : undefined}
+                data-files-section={item.id}
+                onClick={() => {
+                  void setSection(item.id);
+                  if (item.id === 'files') void setPrefix('');
+                }}
+              >
+                <span className="flex w-full items-center gap-2">
+                  <Icon className="size-4 shrink-0" aria-hidden />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                <span className="pl-6 text-[10px] font-normal text-muted-foreground">
+                  {item.description}
+                </span>
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }

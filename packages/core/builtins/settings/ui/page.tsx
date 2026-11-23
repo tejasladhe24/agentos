@@ -1,5 +1,7 @@
 import { Separator } from '@agentos/ui/components/separator';
 
+import { FilesSettingsSection } from './files-settings';
+
 /**
  * Platform settings page — app/product preferences (theme, branding, extension
  * prefs later). Distinct from Auth secondary Activity Bar (account / session).
@@ -8,7 +10,7 @@ import { Separator } from '@agentos/ui/components/separator';
 export default function SettingsPage() {
   return (
     <div
-      className="flex h-full min-h-full flex-col gap-4 bg-background p-6 text-foreground"
+      className="flex h-full min-h-full flex-col gap-6 bg-background p-6 text-foreground"
       data-slot="settings-page"
     >
       <div className="flex flex-col gap-1">
@@ -18,10 +20,7 @@ export default function SettingsPage() {
         </p>
       </div>
       <Separator />
-      <p className="max-w-prose text-sm text-muted-foreground">
-        Placeholders for theme, branding readouts, and extension preferences.
-        More controls land in later tickets.
-      </p>
+      <FilesSettingsSection />
     </div>
   );
 }

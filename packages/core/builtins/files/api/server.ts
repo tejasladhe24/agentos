@@ -3,6 +3,7 @@ import { createBlobStore } from './lib/blob-store';
 import { FILES_PORT } from './lib/constants';
 import { handleFilesRequest } from './lib/handle-request';
 import { createFilesObjectIndex } from './lib/object-index';
+import { createFilesOrgSettingsStore } from './lib/org-settings';
 
 const env = keys();
 
@@ -28,12 +29,17 @@ const dbHost =
 const dbPort = Number(
   (Bun.env.AGENT_OS_EXT_FILES_DB_STORE_PORT as string | undefined) ?? 6111,
 );
-const index = createFilesObjectIndex(`http://${dbHost}:${dbPort}`);
+const dbBase = `http://${dbHost}:${dbPort}`;
+const index = createFilesObjectIndex(dbBase);
+const settings = createFilesOrgSettingsStore(dbBase);
 
 const server = Bun.serve({
   port,
   async fetch(request) {
-    return handleFilesRequest({ store, runtimeEnv: Bun.env, index }, request);
+    return handleFilesRequest(
+      { store, runtimeEnv: Bun.env, index, settings },
+      request,
+    );
   },
 });
 

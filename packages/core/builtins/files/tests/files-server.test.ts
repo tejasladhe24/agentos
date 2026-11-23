@@ -13,6 +13,7 @@ import {
   type FilesContext,
 } from '@agentos/core/builtins/files/api/lib/handle-request';
 import { createMemoryObjectIndex } from '@agentos/core/builtins/files/api/lib/object-index';
+import { createMemoryOrgSettingsStore } from '@agentos/core/builtins/files/api/lib/org-settings';
 import type { S3ClientLike } from '@agentos/core/builtins/files/api/lib/s3-blob-store';
 import type { BlobStore } from '@agentos/core/builtins/files/api/lib/types';
 
@@ -91,6 +92,7 @@ function ctxFor(store: BlobStore, orgId: string = TEST_ORG): FilesContext {
   return {
     store,
     index: createMemoryObjectIndex(),
+    settings: createMemoryOrgSettingsStore(),
     resolveOrg: async () => ({ ok: true, orgId, via: 'header' }),
     checkPermission: async () => 'ok',
   };
@@ -184,10 +186,18 @@ describe('builtin files server', () => {
       }),
     );
     expect(del.status).toBe(200);
-    expect(await del.json()).toEqual({
-      ok: true,
-      key: `orgs/${TEST_ORG}/notes/hello.txt`,
-    });
+    const delBody = (await del.json()) as {
+      ok: boolean;
+      trashed: boolean;
+      trashKey: string;
+      purgeAt: string | null;
+    };
+    expect(delBody.ok).toBe(true);
+    expect(delBody.trashed).toBe(true);
+    expect(delBody.trashKey).toBe(
+      `orgs/${TEST_ORG}/__trash__/notes/hello.txt`,
+    );
+    expect(delBody.purgeAt).toBeTruthy();
 
     const afterDel = await handleFilesRequest(
       ctx,
@@ -195,9 +205,37 @@ describe('builtin files server', () => {
     );
     expect(afterDel.status).toBe(404);
 
+    const bin = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs?view=bin'),
+    );
+    expect(bin.status).toBe(200);
+    const binBody = (await bin.json()) as {
+      items: Array<{ name: string }>;
+    };
+    expect(binBody.items.some((i) => i.name === 'hello.txt')).toBe(true);
+
+    const restore = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs/restore', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          key: `__trash__/notes/hello.txt`,
+        }),
+      }),
+    );
+    expect(restore.status).toBe(200);
+    const restored = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs/notes/hello.txt'),
+    );
+    expect(restored.status).toBe(200);
+    expect(await restored.text()).toBe('hello');
+
     const delMissing = await handleFilesRequest(
       ctx,
-      orgRequest('http://127.0.0.1:6116/blobs/notes/hello.txt', {
+      orgRequest('http://127.0.0.1:6116/blobs/missing-file.bin', {
         method: 'DELETE',
       }),
     );
@@ -386,5 +424,85 @@ describe('builtin files server', () => {
         },
       }),
     ).rejects.toBeInstanceOf(BlobStoreError);
+  });
+
+  test('org-settings retention + storage view + soft-delete hides from My Files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'agentos-files-bin-'));
+    const store = await createBlobStore(root);
+    const ctx = ctxFor(store);
+
+    await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/org-settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ binRetentionDays: 15 }),
+      }),
+    );
+    const settings = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/org-settings'),
+    );
+    expect(await settings.json()).toEqual({ binRetentionDays: 15 });
+
+    await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/org-settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ binRetentionDays: null }),
+      }),
+    );
+    expect(
+      await (
+        await handleFilesRequest(
+          ctx,
+          orgRequest('http://127.0.0.1:6116/org-settings'),
+        )
+      ).json(),
+    ).toEqual({ binRetentionDays: null });
+
+    await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs/big.bin', {
+        method: 'PUT',
+        body: 'aaaaaaaaaa',
+      }),
+    );
+    await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs/small.txt', {
+        method: 'PUT',
+        body: 'a',
+      }),
+    );
+
+    const storage = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs?view=storage'),
+    );
+    const storageBody = (await storage.json()) as {
+      items: Array<{ name: string; bytes?: number }>;
+    };
+    expect(storageBody.items[0]?.name).toBe('big.bin');
+    expect(storageBody.items.map((i) => i.name)).toContain('small.txt');
+
+    await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs/small.txt', {
+        method: 'DELETE',
+      }),
+    );
+
+    const myFiles = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs?prefix='),
+    );
+    const listed = (await myFiles.json()) as {
+      items: Array<{ name: string }>;
+    };
+    expect(listed.items.some((i) => i.name === 'small.txt')).toBe(false);
+    expect(listed.items.some((i) => i.name === '__trash__')).toBe(false);
+    expect(listed.items.some((i) => i.name === 'big.bin')).toBe(true);
   });
 });
