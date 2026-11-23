@@ -54,7 +54,9 @@ export const WORKER_CONCURRENCY_ENV = 'AGENT_OS_WORKER_CONCURRENCY';
 export const WORKER_TIMEOUT_SECONDS_ENV = 'AGENT_OS_WORKER_TIMEOUT_SECONDS';
 
 /** ProcessManager child name for a dual-linked Python service. */
-export function pythonProcessName(service: Pick<PythonService, 'id' | 'dual'>): string {
+export function pythonProcessName(
+  service: Pick<PythonService, 'id' | 'dual'>,
+): string {
   return service.dual ? `${service.id}:service` : service.id;
 }
 

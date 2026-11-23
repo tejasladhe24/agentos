@@ -154,7 +154,9 @@ describe('createExtApiProxyHandler', () => {
       id: 'invoices',
       kind: 'customer',
       toggleable: true,
-      meta: { api: { language: 'python', port: 6102, root: '../../services/x' } },
+      meta: {
+        api: { language: 'python', port: 6102, root: '../../services/x' },
+      },
       service: {
         root: '../../services/x',
         resolvedRoot: '/tmp/x',

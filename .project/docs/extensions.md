@@ -230,12 +230,12 @@ One extension may declare **both** a Bun `api/` and a Python service (ticket **8
 }
 ```
 
-| Field            | Meaning                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------ |
-| `service.root`   | Path to `services/<id>/`, relative to the extension directory                                    |
-| `service.port`   | Python uvicorn port (must differ from `api.port`)                                                |
-| `service.mount`  | Gateway prefix under `/api/ext/:id` (default `/_service`); stripped before forwarding upstream |
-| `service.kind`   | `http` (default) or `worker` — same as python-only `api.kind`                                    |
+| Field           | Meaning                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `service.root`  | Path to `services/<id>/`, relative to the extension directory                                  |
+| `service.port`  | Python uvicorn port (must differ from `api.port`)                                              |
+| `service.mount` | Gateway prefix under `/api/ext/:id` (default `/_service`); stripped before forwarding upstream |
+| `service.kind`  | `http` (default) or `worker` — same as python-only `api.kind`                                  |
 
 Gateway routing:
 
