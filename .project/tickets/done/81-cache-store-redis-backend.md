@@ -1,6 +1,6 @@
 # 81 — cache-store Redis backend
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

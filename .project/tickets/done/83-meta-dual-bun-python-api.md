@@ -1,6 +1,6 @@
 # 83 — `meta.json`: Bun API + linked Python service per extension
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

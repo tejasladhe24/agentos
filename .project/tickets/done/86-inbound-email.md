@@ -1,6 +1,6 @@
 # 86 — Inbound email per org
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # 84 — db-store bulk insert + retention/TTL
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

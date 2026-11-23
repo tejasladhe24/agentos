@@ -1,6 +1,6 @@
 # 87 — Retention policies + subject deletion
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

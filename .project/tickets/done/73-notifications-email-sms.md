@@ -1,6 +1,6 @@
 # 73 — Notifications: email and SMS delivery channels
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

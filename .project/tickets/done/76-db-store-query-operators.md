@@ -1,6 +1,6 @@
 # 76 — db-store query operators, sort, and indexes
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
