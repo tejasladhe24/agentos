@@ -427,7 +427,7 @@ describe('audit client', () => {
       expect(url).toBe('http://audit.test/entries?limit=10');
       return Response.json({ entries: [entry] });
     });
-    expect(await listEntries(10, env)).toEqual([entry]);
+    expect(await listEntries(10, env)).toEqual({ entries: [entry] });
   });
 });
 

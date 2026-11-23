@@ -208,14 +208,23 @@ async function appendAuditEntry(input: {
   action: string;
   actor?: string;
   resource: string;
+  orgId: string;
   meta: Record<string, unknown>;
 }): Promise<string | undefined> {
   const base = resolveAuditApiBase();
   try {
     const res = await fetch(`${base}/entries`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
+      headers: {
+        'content-type': 'application/json',
+        'x-agentos-org-id': input.orgId,
+      },
+      body: JSON.stringify({
+        action: input.action,
+        actor: input.actor,
+        resource: input.resource,
+        meta: input.meta,
+      }),
     });
     if (!res.ok) return undefined;
     const body = (await res.json()) as { id?: string };
@@ -296,6 +305,7 @@ export async function deleteSubject(
     action,
     actor: input.actor,
     resource: input.subjectId,
+    orgId,
     meta: {
       orgId,
       mode: input.mode,

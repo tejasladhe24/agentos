@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import {
   PERMISSION_ADMIN_ONLY,
   PERMISSION_ALL,
+  PERMISSION_AUDIT_READ,
   PERMISSION_ROLES_MANAGE,
   PERMISSION_SECRETS_READ,
   PERMISSION_SECRETS_WRITE,
@@ -62,16 +63,20 @@ export async function seedRolePermissions(db: AuthDb): Promise<void> {
     ['admin', PERMISSION_ROLES_MANAGE],
     ['admin', PERMISSION_SECRETS_READ],
     ['admin', PERMISSION_SECRETS_WRITE],
+    ['admin', PERMISSION_AUDIT_READ],
     ['owner', PERMISSION_ALL],
     ['owner', PERMISSION_ADMIN_ONLY],
     ['owner', PERMISSION_ROLES_MANAGE],
     ['owner', PERMISSION_SECRETS_READ],
     ['owner', PERMISSION_SECRETS_WRITE],
+    ['owner', PERMISSION_AUDIT_READ],
     ['viewer', 'auth.session.read'],
     ['reviewer', 'auth.session.read'],
     ['reviewer', PERMISSION_SECRETS_READ],
+    ['reviewer', PERMISSION_AUDIT_READ],
     ['sales', 'auth.session.read'],
     ['sales', PERMISSION_SECRETS_READ],
+    ['sales', PERMISSION_AUDIT_READ],
     ['external_viewer', 'auth.session.read'],
   ];
 

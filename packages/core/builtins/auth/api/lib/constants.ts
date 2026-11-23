@@ -34,6 +34,9 @@ export const PERMISSION_SECRETS_READ = 'secrets.read';
 /** Put/delete org vault secrets (builtin secrets). Admin/owner covered by `*`. */
 export const PERMISSION_SECRETS_WRITE = 'secrets.write';
 
+/** Read Activity / audit entries (builtin audit). Admin/owner covered by `*`. */
+export const PERMISSION_AUDIT_READ = 'audit.read';
+
 /** Platform / org role catalog (TrustDesk-shaped; apps may add product permissions). */
 export const PLATFORM_ROLES = [
   'admin',
