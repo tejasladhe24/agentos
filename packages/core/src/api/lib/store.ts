@@ -26,6 +26,10 @@ export type InsertInput = {
   data: Record<string, unknown>;
 };
 
+export type BulkInsertInput = {
+  docs: InsertInput[];
+};
+
 export type UpdateInput = {
   id: string;
   data: Record<string, unknown>;
@@ -37,11 +41,30 @@ export type DeleteInput = {
   ids?: string[];
 };
 
+export type RetentionPolicy = {
+  ttlSeconds?: number;
+  maxCount?: number;
+  maxCountGroupBy?: string;
+};
+
+export type RetentionPolicyRecord = RetentionPolicy & {
+  orgId: string;
+  collection: string;
+};
+
 export type QueryResult = {
   items: DocumentRow[];
 };
 
+export type BulkInsertResult = {
+  items: DocumentRow[];
+};
+
 export type DeleteResult = {
+  deleted: number;
+};
+
+export type PruneResult = {
   deleted: number;
 };
 
@@ -153,6 +176,17 @@ function createCollection(name: string, options: CollectionOptions = {}) {
       );
     },
 
+    /** All-or-nothing batch insert (bounded server-side, default max 100). */
+    async insertBulk(input: BulkInsertInput): Promise<BulkInsertResult> {
+      const base = resolveBase();
+      return postJson<BulkInsertResult>(
+        `${base}/collections/${encoded}/insert-bulk`,
+        input,
+        'db-store insert-bulk',
+        collectionRequestHeaders(options),
+      );
+    },
+
     async update(input: UpdateInput): Promise<DocumentRow> {
       const base = resolveBase();
       return postJson<DocumentRow>(
@@ -169,6 +203,51 @@ function createCollection(name: string, options: CollectionOptions = {}) {
         `${base}/collections/${encoded}/delete`,
         input,
         'db-store delete',
+        collectionRequestHeaders(options),
+      );
+    },
+
+    /** Read retention policy for this collection + org (`{ get: true }`). */
+    async getRetention(): Promise<{ policy: RetentionPolicyRecord | null }> {
+      const base = resolveBase();
+      return postJson<{ policy: RetentionPolicyRecord | null }>(
+        `${base}/collections/${encoded}/retention`,
+        { get: true },
+        'db-store get retention',
+        collectionRequestHeaders(options),
+      );
+    },
+
+    /** Set per-collection retention (ttlSeconds and/or maxCount). */
+    async setRetention(
+      policy: RetentionPolicy,
+    ): Promise<{ policy: RetentionPolicyRecord }> {
+      const base = resolveBase();
+      return postJson<{ policy: RetentionPolicyRecord }>(
+        `${base}/collections/${encoded}/retention`,
+        policy,
+        'db-store set retention',
+        collectionRequestHeaders(options),
+      );
+    },
+
+    async clearRetention(): Promise<{ cleared: boolean }> {
+      const base = resolveBase();
+      return postJson<{ cleared: boolean }>(
+        `${base}/collections/${encoded}/retention`,
+        { clear: true },
+        'db-store clear retention',
+        collectionRequestHeaders(options),
+      );
+    },
+
+    /** Run TTL / maxCount prune for this collection + org. */
+    async prune(): Promise<PruneResult> {
+      const base = resolveBase();
+      return postJson<PruneResult>(
+        `${base}/collections/${encoded}/prune`,
+        {},
+        'db-store prune',
         collectionRequestHeaders(options),
       );
     },

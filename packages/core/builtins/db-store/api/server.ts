@@ -1,7 +1,8 @@
 import { keys } from './env';
-import { DB_STORE_PORT } from './lib/constants';
+import { DB_STORE_PORT, DEFAULT_PRUNE_INTERVAL_MS } from './lib/constants';
 import { createDb } from './lib/create-db';
 import { handleDbStoreRequest } from './lib/handle-request';
+import { pruneAllPolicies } from './lib/retention';
 
 const env = keys();
 
@@ -12,6 +13,17 @@ const ctx = await createDb({
   databasePath: env.AGENT_OS_EXT_DB_STORE_PATH,
 });
 
+const pruneIntervalMs =
+  env.AGENT_OS_EXT_DB_STORE_PRUNE_INTERVAL_MS ?? DEFAULT_PRUNE_INTERVAL_MS;
+
+if (pruneIntervalMs > 0) {
+  setInterval(() => {
+    void pruneAllPolicies(ctx).catch((error) => {
+      console.error('[agentos db-store] retention prune failed', error);
+    });
+  }, pruneIntervalMs);
+}
+
 const server = Bun.serve({
   port,
   async fetch(request) {
@@ -20,5 +32,5 @@ const server = Bun.serve({
 });
 
 console.log(
-  `[agentos db-store] listening on http://127.0.0.1:${server.port} (proxy /api/ext/db-store/*) dialect=${ctx.dialect}`,
+  `[agentos db-store] listening on http://127.0.0.1:${server.port} (proxy /api/ext/db-store/*) dialect=${ctx.dialect} pruneIntervalMs=${pruneIntervalMs}`,
 );

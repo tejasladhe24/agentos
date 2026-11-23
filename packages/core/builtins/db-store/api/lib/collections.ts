@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 
+import { MAX_BULK_INSERT } from './constants';
 import { CollectionError } from './collection-error';
 import type { DbStoreContext } from './create-db';
 import { pgDocuments, sqliteDocuments } from './schema';
@@ -25,6 +26,10 @@ export type QueryInput = {
 export type InsertInput = {
   id?: string;
   data: Record<string, unknown>;
+};
+
+export type BulkInsertInput = {
+  docs: InsertInput[];
 };
 
 export type UpdateInput = {
@@ -224,6 +229,105 @@ export async function insertDocument(
   }
 
   return { id, data, createdAt: ts, updatedAt: ts };
+}
+
+/**
+ * Insert many documents in one all-or-nothing transaction.
+ * Bounded by {@link MAX_BULK_INSERT}. Duplicate ids in the batch or vs existing rows → 409 + rollback.
+ */
+export async function insertDocumentsBulk(
+  ctx: DbStoreContext,
+  collection: string,
+  input: BulkInsertInput,
+  orgId: string,
+): Promise<{ items: DocumentRow[] }> {
+  if (!Array.isArray(input.docs)) {
+    throw new CollectionError('docs must be an array');
+  }
+  if (input.docs.length === 0) {
+    throw new CollectionError('docs must be a non-empty array');
+  }
+  if (input.docs.length > MAX_BULK_INSERT) {
+    throw new CollectionError(
+      `docs exceeds max bulk size of ${MAX_BULK_INSERT}`,
+    );
+  }
+
+  const ts = nowIso();
+  const seen = new Set<string>();
+  const prepared: DocumentRow[] = [];
+
+  for (const [i, doc] of input.docs.entries()) {
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+      throw new CollectionError(`docs[${i}] must be an object`);
+    }
+    const data = stampOrgData(
+      assertDataObject(doc.data, `docs[${i}].data`),
+      orgId,
+    );
+    const id =
+      typeof doc.id === 'string' && doc.id.length > 0 ? doc.id : newId();
+    if (seen.has(id)) {
+      throw new CollectionError(`duplicate id in bulk batch: ${id}`, 409);
+    }
+    seen.add(id);
+    prepared.push({ id, data, createdAt: ts, updatedAt: ts });
+  }
+
+  if (ctx.dialect === 'sqlite') {
+    const stmt = ctx.client.prepare(
+      `INSERT INTO documents (collection, org_id, id, data, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    const runTx = ctx.client.transaction((rows: DocumentRow[]) => {
+      for (const row of rows) {
+        stmt.run(
+          collection,
+          orgId,
+          row.id,
+          JSON.stringify(row.data),
+          row.createdAt,
+          row.updatedAt,
+        );
+      }
+    });
+    try {
+      runTx(prepared);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('UNIQUE') || message.includes('unique')) {
+        throw new CollectionError(
+          'document already exists in bulk insert',
+          409,
+        );
+      }
+      throw error;
+    }
+    return { items: prepared };
+  }
+
+  try {
+    await ctx.db.transaction(async (tx) => {
+      for (const row of prepared) {
+        await tx.insert(pgDocuments).values({
+          collection,
+          orgId,
+          id: row.id,
+          data: row.data,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        });
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('unique') || message.includes('duplicate')) {
+      throw new CollectionError('document already exists in bulk insert', 409);
+    }
+    throw error;
+  }
+
+  return { items: prepared };
 }
 
 export async function updateDocument(

@@ -69,6 +69,50 @@ async def test_collection_query_insert(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_collection_insert_bulk_retention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGENT_OS_DB_STORE_API_BASE", "http://db.test")
+    respx.post("http://db.test/collections/invoices/insert-bulk").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "items": [
+                    {
+                        "id": "1",
+                        "data": {"n": 1},
+                        "createdAt": "t",
+                        "updatedAt": "t",
+                    },
+                ],
+            },
+        ),
+    )
+    respx.post("http://db.test/collections/invoices/retention").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "policy": {
+                    "orgId": "org-1",
+                    "collection": "invoices",
+                    "maxCount": 5,
+                },
+            },
+        ),
+    )
+    respx.post("http://db.test/collections/invoices/prune").mock(
+        return_value=httpx.Response(200, json={"deleted": 1}),
+    )
+    col = db_store.collection("invoices")
+    bulk = await col.insert_bulk({"docs": [{"data": {"n": 1}}]})
+    assert len(bulk.items) == 1
+    await col.set_retention({"maxCount": 5})
+    pruned = await col.prune()
+    assert pruned.deleted == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_cache_get_set_del(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENT_OS_CACHE_STORE_API_BASE", "http://cache.test")
     respx.post("http://cache.test/get").mock(

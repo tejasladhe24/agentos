@@ -2,11 +2,21 @@ import {
   CollectionError,
   deleteDocuments,
   insertDocument,
+  insertDocumentsBulk,
   queryCollection,
   updateDocument,
 } from './collections';
 import { setRequestOrgId, type DbStoreContext } from './create-db';
 import { resolveOrgForRequest } from './resolve-org';
+import {
+  clearRetentionPolicy,
+  getRetentionPolicy,
+  parseRetentionPolicy,
+  pruneAfterWrite,
+  pruneAllPolicies,
+  pruneCollection,
+  setRetentionPolicy,
+} from './retention';
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -30,17 +40,18 @@ async function readJsonBody(
   }
 }
 
-/** `/collections/:name/(query|insert|update|delete)` */
+const COLLECTION_ACTIONS =
+  /^(query|insert|insert-bulk|update|delete|retention|prune)$/;
+
+/** `/collections/:name/(query|insert|insert-bulk|update|delete|retention|prune)` */
 function parseCollectionPath(
   path: string,
 ): { name: string; action: string } | null {
-  const match = path.match(
-    /^\/collections\/([^/]+)\/(query|insert|update|delete)$/,
-  );
+  const match = path.match(/^\/collections\/([^/]+)\/([^/]+)$/);
   if (!match) return null;
   const name = decodeURIComponent(match[1]!);
   const action = match[2]!;
-  if (!name) return null;
+  if (!name || !COLLECTION_ACTIONS.test(action)) return null;
   return { name, action };
 }
 
@@ -57,6 +68,18 @@ export async function handleDbStoreRequest(
 
   if (method === 'GET' && path === '/health') {
     return json({ ok: true, dialect: ctx.dialect });
+  }
+
+  if (method === 'POST' && path === '/prune-all') {
+    try {
+      const result = await pruneAllPolicies(ctx);
+      return json(result);
+    } catch (error) {
+      if (error instanceof CollectionError) {
+        return json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
   }
 
   const parsed = parseCollectionPath(path);
@@ -110,7 +133,27 @@ export async function handleDbStoreRequest(
             },
             org.orgId,
           );
+          await pruneAfterWrite(ctx, parsed.name, org.orgId);
           return json(doc, { status: 201 });
+        }
+        case 'insert-bulk': {
+          const docs = body.docs;
+          if (!Array.isArray(docs)) {
+            return json({ error: 'docs must be an array' }, { status: 400 });
+          }
+          const result = await insertDocumentsBulk(
+            ctx,
+            parsed.name,
+            {
+              docs: docs as Array<{
+                id?: string;
+                data: Record<string, unknown>;
+              }>,
+            },
+            org.orgId,
+          );
+          await pruneAfterWrite(ctx, parsed.name, org.orgId);
+          return json(result, { status: 201 });
         }
         case 'update': {
           const id = typeof body.id === 'string' ? body.id : '';
@@ -146,6 +189,41 @@ export async function handleDbStoreRequest(
                 : undefined,
             },
             org.orgId,
+          );
+          return json(result);
+        }
+        case 'retention': {
+          if (body.clear === true) {
+            const result = await clearRetentionPolicy(
+              ctx,
+              parsed.name,
+              org.orgId,
+            );
+            return json(result);
+          }
+          if (body.get === true || Object.keys(body).length === 0) {
+            const policy = await getRetentionPolicy(
+              ctx,
+              parsed.name,
+              org.orgId,
+            );
+            return json({ policy });
+          }
+          const parsedPolicy = parseRetentionPolicy(body);
+          const record = await setRetentionPolicy(
+            ctx,
+            parsed.name,
+            org.orgId,
+            parsedPolicy,
+          );
+          return json({ policy: record }, { status: 201 });
+        }
+        case 'prune': {
+          const result = await pruneCollection(
+            ctx,
+            parsed.name,
+            org.orgId,
+            undefined,
           );
           return json(result);
         }

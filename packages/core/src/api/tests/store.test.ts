@@ -180,6 +180,44 @@ describe('dbStore', () => {
     });
   });
 
+  test('collection.insertBulk / retention / prune', async () => {
+    const calls: Captured[] = [];
+    mockStoreFetch((req) => {
+      calls.push(req);
+      if (req.url.endsWith('/insert-bulk')) {
+        return Response.json({ items: [SAMPLE_DOC] }, { status: 201 });
+      }
+      if (req.url.endsWith('/retention')) {
+        return Response.json(
+          {
+            policy: {
+              orgId: 'org-1',
+              collection: 'contacts',
+              maxCount: 10,
+            },
+          },
+          { status: 201 },
+        );
+      }
+      if (req.url.endsWith('/prune')) {
+        return Response.json({ deleted: 2 });
+      }
+      return Response.json({ error: 'unexpected' }, { status: 500 });
+    });
+
+    const col = dbStore.collection('contacts', { orgId: 'org-1' });
+    expect(await col.insertBulk({ docs: [{ data: { name: 'Ada' } }] })).toEqual(
+      { items: [SAMPLE_DOC] },
+    );
+    await col.setRetention({ maxCount: 10 });
+    expect(await col.prune()).toEqual({ deleted: 2 });
+    expect(calls.map((c) => c.url)).toEqual([
+      'http://db.test/collections/contacts/insert-bulk',
+      'http://db.test/collections/contacts/retention',
+      'http://db.test/collections/contacts/prune',
+    ]);
+  });
+
   test('encodes collection name in URL', async () => {
     mockStoreFetch(({ url }) => {
       expect(url).toBe('http://db.test/collections/a%2Fb/query');
