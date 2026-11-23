@@ -503,4 +503,63 @@ describe('builtin files server', () => {
     expect(listed.items.some((i) => i.name === '__trash__')).toBe(false);
     expect(listed.items.some((i) => i.name === 'big.bin')).toBe(true);
   });
+
+  test('soft-deleting a folder removes the empty directory from My Files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'agentos-files-folder-bin-'));
+    const store = await createBlobStore(root);
+    const ctx = ctxFor(store);
+
+    await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs/docs/a.txt', {
+        method: 'PUT',
+        body: 'aaa',
+      }),
+    );
+    await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs/docs/sub/b.txt', {
+        method: 'PUT',
+        body: 'bbb',
+      }),
+    );
+
+    const before = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs?prefix='),
+    );
+    expect(
+      ((await before.json()) as { items: Array<{ name: string }> }).items.some(
+        (i) => i.name === 'docs',
+      ),
+    ).toBe(true);
+
+    const delFolder = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs?prefix=docs/', {
+        method: 'DELETE',
+      }),
+    );
+    expect(delFolder.status).toBe(200);
+
+    const after = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs?prefix='),
+    );
+    const afterItems = (
+      (await after.json()) as { items: Array<{ name: string }> }
+    ).items;
+    expect(afterItems.some((i) => i.name === 'docs')).toBe(false);
+    expect(afterItems.some((i) => i.name === '__trash__')).toBe(false);
+
+    const bin = await handleFilesRequest(
+      ctx,
+      orgRequest('http://127.0.0.1:6116/blobs?view=bin'),
+    );
+    const binNames = (
+      (await bin.json()) as { items: Array<{ name: string }> }
+    ).items.map((i) => i.name);
+    expect(binNames).toContain('a.txt');
+    expect(binNames).toContain('b.txt');
+  });
 });
