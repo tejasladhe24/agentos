@@ -1,8 +1,5 @@
 import { FILES_SETTINGS_COLLECTION, ORG_ID_HEADER } from './constants';
-import {
-  parseRetentionDays,
-  type BinRetentionDays,
-} from './trash';
+import { parseRetentionDays, type BinRetentionDays } from './trash';
 
 export type FilesOrgSettings = {
   binRetentionDays: BinRetentionDays;

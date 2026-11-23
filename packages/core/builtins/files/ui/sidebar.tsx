@@ -1,8 +1,4 @@
-import {
-  HardDrivesIcon,
-  HouseIcon,
-  TrashIcon,
-} from '@phosphor-icons/react';
+import { HardDrivesIcon, HouseIcon, TrashIcon } from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
 import { cn } from '@agentos/ui/lib/utils';
 
@@ -51,9 +47,7 @@ export default function FilesSidebar() {
     >
       <div>
         <h2 className="text-sm font-semibold tracking-tight">Files</h2>
-        <p className="text-xs text-muted-foreground">
-          Drive, bin, and storage
-        </p>
+        <p className="text-xs text-muted-foreground">Drive, bin, and storage</p>
       </div>
       <ul className="flex flex-col gap-1">
         {NAV.map((item) => {

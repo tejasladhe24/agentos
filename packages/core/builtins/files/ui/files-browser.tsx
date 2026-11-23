@@ -581,9 +581,7 @@ function FilesBrowserBody({
               onToggle={() => onToggleSelect(item)}
               onRename={() => onRename(item)}
               onDelete={() => onDelete([item])}
-              onRestore={
-                onRestore ? () => void onRestore([item]) : undefined
-              }
+              onRestore={onRestore ? () => void onRestore([item]) : undefined}
             />
           ))}
         </ul>
@@ -638,9 +636,7 @@ function FilesBrowserBody({
               onToggle={() => onToggleSelect(item)}
               onRename={() => onRename(item)}
               onDelete={() => onDelete([item])}
-              onRestore={
-                onRestore ? () => void onRestore([item]) : undefined
-              }
+              onRestore={onRestore ? () => void onRestore([item]) : undefined}
             />
           ))}
         </tbody>

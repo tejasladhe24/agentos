@@ -194,9 +194,7 @@ describe('builtin files server', () => {
     };
     expect(delBody.ok).toBe(true);
     expect(delBody.trashed).toBe(true);
-    expect(delBody.trashKey).toBe(
-      `orgs/${TEST_ORG}/__trash__/notes/hello.txt`,
-    );
+    expect(delBody.trashKey).toBe(`orgs/${TEST_ORG}/__trash__/notes/hello.txt`);
     expect(delBody.purgeAt).toBeTruthy();
 
     const afterDel = await handleFilesRequest(

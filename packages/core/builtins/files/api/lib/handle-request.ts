@@ -501,13 +501,7 @@ export async function handleFilesRequest(
         for (const obj of all) {
           if (obj.key.endsWith('/')) continue;
           items.push(
-            await enrichFile(
-              ctx,
-              org.orgId,
-              obj.key,
-              obj.bytes,
-              obj.updatedAt,
-            ),
+            await enrichFile(ctx, org.orgId, obj.key, obj.bytes, obj.updatedAt),
           );
         }
         items.sort((a, b) =>
@@ -532,13 +526,7 @@ export async function handleFilesRequest(
           if (obj.key.endsWith('/')) continue;
           if (obj.key.startsWith(trashPrefix)) continue;
           files.push(
-            await enrichFile(
-              ctx,
-              org.orgId,
-              obj.key,
-              obj.bytes,
-              obj.updatedAt,
-            ),
+            await enrichFile(ctx, org.orgId, obj.key, obj.bytes, obj.updatedAt),
           );
         }
         files.sort((a, b) => (b.bytes ?? 0) - (a.bytes ?? 0));
@@ -569,7 +557,10 @@ export async function handleFilesRequest(
 
       const absPrefix = resolveOrgPrefix(org.orgId, rawPrefix);
       // Refuse browsing into trash via My Files prefix
-      if (isTrashKey(org.orgId, absPrefix) || absPrefix.includes(`/${TRASH_SEGMENT}/`)) {
+      if (
+        isTrashKey(org.orgId, absPrefix) ||
+        absPrefix.includes(`/${TRASH_SEGMENT}/`)
+      ) {
         return json({
           items: [],
           cursor: null,
@@ -588,7 +579,10 @@ export async function handleFilesRequest(
       const items: ListedItem[] = [];
       for (const prefix of listed.prefixes) {
         const rel = relativeOrgKey(org.orgId, prefix);
-        if (rel === `${TRASH_SEGMENT}/` || rel.startsWith(`${TRASH_SEGMENT}/`)) {
+        if (
+          rel === `${TRASH_SEGMENT}/` ||
+          rel.startsWith(`${TRASH_SEGMENT}/`)
+        ) {
           continue;
         }
         items.push({
@@ -910,12 +904,7 @@ export async function handleFilesRequest(
         return json({ ok: true, key: absKey, trashed: false, missing: true });
       }
 
-      const result = await softDeleteObject(
-        ctx,
-        org.orgId,
-        absKey,
-        retention,
-      );
+      const result = await softDeleteObject(ctx, org.orgId, absKey, retention);
       return json({
         ok: true,
         key: absKey,

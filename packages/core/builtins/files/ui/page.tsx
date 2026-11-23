@@ -296,9 +296,7 @@ export default function FilesPage() {
     }
     setSelectedKeys(new Set());
     await notifications.show(
-      section === 'bin'
-        ? 'Permanently deleted'
-        : 'Moved to Bin',
+      section === 'bin' ? 'Permanently deleted' : 'Moved to Bin',
       'info',
     );
     await loadList();
