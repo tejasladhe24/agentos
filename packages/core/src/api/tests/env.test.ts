@@ -19,6 +19,7 @@ import { keys as filesKeys } from '@agentos/core/builtins/files/env';
 import { keys as hitlKeys } from '@agentos/core/builtins/hitl/env';
 import { keys as notificationsKeys } from '@agentos/core/builtins/notifications/env';
 import { keys as secretsKeys } from '@agentos/core/builtins/secrets/env';
+import { keys as vectorStoreKeys } from '@agentos/core/builtins/vector-store/env';
 
 describe('env naming helpers', () => {
   test('extDomain uppercases and replaces hyphens', () => {
@@ -66,6 +67,7 @@ describe('createEnv extends keys()', () => {
         notificationsKeys(empty),
         secretsKeys(empty),
         auditKeys(empty),
+        vectorStoreKeys(empty),
       ],
       server: {},
       clientPrefix: 'AGENT_OS_APP_CLIENT',
@@ -97,6 +99,9 @@ describe('createEnv extends keys()', () => {
     expect(env.AGENT_OS_EXT_NOTIFICATIONS_DB_STORE_PORT).toBe(6111);
     expect(env.AGENT_OS_EXT_SECRETS_PORT).toBe(6118);
     expect(env.AGENT_OS_EXT_AUDIT_PORT).toBe(6119);
+    expect(env.AGENT_OS_EXT_VECTOR_STORE_PORT).toBe(6120);
+    expect(env.AGENT_OS_EXT_VECTOR_STORE_MODE).toBe('auto');
+    expect(env.AGENT_OS_EXT_VECTOR_STORE_DIMENSIONS).toBe(1536);
     expect(env.AGENT_OS_EXT_AUTH_DB).toBeUndefined();
     expect(env.AGENT_OS_GLOBAL_NODE_ENV).toBeUndefined();
   });

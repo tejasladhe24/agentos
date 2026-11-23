@@ -1,0 +1,7 @@
+{
+  "name": "Vector Store",
+  "api": {
+    "language": "bun",
+    "port": 6120
+  }
+}
