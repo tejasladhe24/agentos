@@ -1,5 +1,7 @@
 {
-  "name": "Audit",
+  "name": "Activity",
+  "icon": "ListBullets",
+  "activityBarSection": "secondary",
   "api": {
     "language": "bun",
     "port": 6119

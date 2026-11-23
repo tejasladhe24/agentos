@@ -40,6 +40,9 @@ export const PERMISSION_FILES_READ = 'files.read';
 /** Put/delete/move org files blobs (builtin files). Admin/owner covered by `*`. */
 export const PERMISSION_FILES_WRITE = 'files.write';
 
+/** Read Activity / audit entries (builtin audit). Admin/owner covered by `*`. */
+export const PERMISSION_AUDIT_READ = 'audit.read';
+
 /** Platform / org role catalog (TrustDesk-shaped; apps may add product permissions). */
 export const PLATFORM_ROLES = [
   'admin',

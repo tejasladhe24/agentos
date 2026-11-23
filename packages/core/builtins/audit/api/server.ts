@@ -14,7 +14,7 @@ const db = createDbStoreClient(`http://${dbHost}:${dbPort}`);
 const server = Bun.serve({
   port,
   async fetch(request) {
-    return handleAuditRequest({ db }, request);
+    return handleAuditRequest({ db, runtimeEnv: Bun.env }, request);
   },
 });
 

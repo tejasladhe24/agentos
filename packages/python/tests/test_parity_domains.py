@@ -194,7 +194,7 @@ async def test_audit_client(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert saved.id == "a1"
     listed = await audit.list_entries(10)
-    assert listed[0].action == "doc.view"
+    assert listed.entries[0].action == "doc.view"
 
 
 @pytest.mark.asyncio
