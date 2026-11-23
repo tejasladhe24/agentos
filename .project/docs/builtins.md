@@ -4,12 +4,12 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 
 ## Driving (required)
 
-| Id              | Role                                                                                                                                                                                                                                                              | Tech                                                                   |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| **auth**        | Identity, sessions, **RBAC**; public gate at `/login` `/register` `/reset-password`; Activity Bar **secondary** `ui/page.tsx` + `ui/sidebar.tsx` = **account settings** (sidebar nav → profile / roles / security / session) — distinct from builtin **settings** | Better Auth (+ db-store as needed)                                     |
-| **db-store**    | Sole SQL owner                                                                                                                                                                                                                                                    | Drizzle (SQLite default)                                               |
-| **cache-store** | Sole cache owner                                                                                                                                                                                                                                                  | In-memory v1                                                           |
-| **ai**          | generateText/Image/embed, tools/skills/agents runtime                                                                                                                                                                                                             | Vercel AI SDK v7 (mock default; [ADR 006](./adr/006-vercel-ai-sdk.md)) |
+| Id              | Role                                                                                                                                                                                                                                                                                            | Tech                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **auth**        | Identity, sessions, **RBAC**, **organizations (tenancy)**; public gate at `/login` `/register` `/reset-password`; Activity Bar **secondary** `ui/page.tsx` + `ui/sidebar.tsx` = **account settings** (profile / organization / roles / security / session) — distinct from builtin **settings** | Better Auth (+ org tables on auth DB)                                  |
+| **db-store**    | Sole SQL owner; **org-scoped** `documents` (`org_id` column + PK `(collection, org_id, id)`)                                                                                                                                                                                                    | Drizzle (SQLite default; Postgres + RLS)                               |
+| **cache-store** | Sole cache owner                                                                                                                                                                                                                                                                                | In-memory v1                                                           |
+| **ai**          | generateText/Image/embed, tools/skills/agents runtime                                                                                                                                                                                                                                           | Vercel AI SDK v7 (mock default; [ADR 006](./adr/006-vercel-ai-sdk.md)) |
 
 ## Supporting (default-on)
 
@@ -49,6 +49,32 @@ Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`.
 When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, auth sets `useSecureCookies` and `Secure` cookie attributes.
 
 **Production storage:** prefer managed Postgres (Neon / RDS / Cloud SQL) via `AGENT_OS_EXT_AUTH_DB`. Same single env key as local SQLite — do not set a customer `DATABASE_URL`. Auth (like db-store’s `AGENT_OS_EXT_DB_STORE_DATABASE_URL`) is one of the only builtins allowed to hold SQL credentials ([ADR 004](./adr/004-db-store-sole-sql-owner.md)). On Neon, prefer the **direct** (non-pooler) host for startup migrations.
+
+## Tenancy (org model + org-scoped db-store)
+
+**Auth org APIs** (cookie session required):
+
+| Method | Path                        | Role                                           |
+| ------ | --------------------------- | ---------------------------------------------- |
+| `GET`  | `/api/ext/auth/orgs`        | List memberships + active `orgId`              |
+| `POST` | `/api/ext/auth/orgs`        | Create org (creator → `owner`, becomes active) |
+| `POST` | `/api/ext/auth/orgs/switch` | `{ orgId }` — membership required              |
+
+`GET /session` includes `orgId` and `orgs: { id, name, role }[]`. Kit: `requireOrg()` from `@agentos/core/api/auth`.
+
+**db-store isolation**
+
+- Every tenant row has `org_id`. PK is `(collection, org_id, id)`.
+- Inserts stamp `org_id` (and mirror `data.orgId`). Client `orgId` that disagrees → 403.
+- Queries / updates / deletes always filter by the resolved org.
+- Resolve order: platform collection → `__platform__`; else auth session cookie → `orgId`; else header `X-AgentOS-Org-Id` (peer / FDE via `dbStore.collection(name, { orgId })`).
+- Platform collections (no session): `agentos_gateway`, `hitl_approvals`, `audit_entries`, `notifications`.
+
+**Postgres RLS:** on boot, db-store enables RLS and policy `documents_org_isolation` requiring `org_id = current_setting('app.current_org_id', true)`. Each request calls `set_config(..., true)` (transaction-local) before CRUD. Drizzle `WHERE org_id = ?` remains the primary filter.
+
+**SQLite:** no RLS — mandatory `WHERE org_id = ?` in `collections.ts` (covered by isolation tests).
+
+**Backfill:** existing DBs without `org_id` are migrated in-place; legacy rows get `org_id = '__unscoped__'`. Treat that sentinel as orphaned — reassign or delete before production multi-tenant use. New installs create the org-scoped schema from day one.
 
 ## Files storage env
 

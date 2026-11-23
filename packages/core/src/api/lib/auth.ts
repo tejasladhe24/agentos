@@ -6,6 +6,13 @@
 
 import type { AppContext, Middleware, Next } from './types';
 
+/** Org membership entry on session / list responses. */
+export type AuthOrgMembership = {
+  id: string;
+  name: string;
+  role: string;
+};
+
 /** Session payload returned by builtin `GET /session` / `/me`. */
 export type AuthSession = {
   user: {
@@ -18,6 +25,9 @@ export type AuthSession = {
     expiresAt: string | Date;
   };
   roles: string[];
+  /** Active organization id, or null when the user has no memberships. */
+  orgId: string | null;
+  orgs: AuthOrgMembership[];
 };
 
 const SESSION_KEY = 'auth.session';
@@ -153,6 +163,22 @@ export function requireRoles(...roles: string[]): Middleware {
     return next();
   };
 }
+
+/**
+ * Require an authenticated session with a non-null active `orgId`.
+ * Returns 401 when unauthenticated, 403 when no active org.
+ */
+export const requireOrg: Middleware = async (c, next) => {
+  const base = resolveAuthApiBase();
+  const sessionOrErr = await ensureSession(c, base);
+  if (sessionOrErr instanceof Response) {
+    return sessionOrErr;
+  }
+  if (!sessionOrErr.orgId) {
+    return forbidden(c);
+  }
+  return next();
+};
 
 /**
  * Require every listed permission via builtin `/permissions/check`.

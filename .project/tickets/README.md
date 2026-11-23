@@ -88,7 +88,7 @@ Agents must never promote tickets to `done/` themselves.
 68. Deploy workflow command smoke (`pnpm run ci`) — **done**
 69. GitHub Actions Node 22 for Wrangler — **done**
 70. Solo freelancer portfolio + $5k–$10k pipeline (personal; not AgentOS platform)
-71. Tenancy: org model + org-scoped db-store
+71. Tenancy: org model + org-scoped db-store — **in-progress**
 72. Public (unauthenticated) extension routes
 73. Notifications: email and SMS delivery channels
 74. Durable event queue + job scheduler (+ `hitl.resolved`)
@@ -111,7 +111,7 @@ Agents must never promote tickets to `done/` themselves.
 91. PlacementOS MVP (`examples/placementos`)
 92. ChannelGuard MVP (`examples/channelguard`)
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**–**92**. `in-progress/` — empty.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **72**–**92**. `in-progress/` — **71** (tenancy).
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 

@@ -24,7 +24,7 @@ export default function AuthAccountSidebar() {
       <div>
         <h2 className="text-sm font-semibold tracking-tight">Account</h2>
         <p className="text-xs text-muted-foreground">
-          Profile, roles, and security
+          Profile, organization, roles, and security
         </p>
       </div>
       <ul className="flex flex-col gap-1">

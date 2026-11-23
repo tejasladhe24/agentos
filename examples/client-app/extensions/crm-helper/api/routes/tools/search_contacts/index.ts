@@ -1,8 +1,15 @@
-import { requirePermissions } from '@agentos/core/api/auth';
+import {
+  getSession,
+  requireOrg,
+  requirePermissions,
+} from '@agentos/core/api/auth';
 import { dbStore } from '@agentos/core/api/store';
 import type { Middleware, RouteHandlers } from '@agentos/core/api';
 
-export const middleware: Middleware[] = [requirePermissions('crm.read')];
+export const middleware: Middleware[] = [
+  requirePermissions('crm.read'),
+  requireOrg,
+];
 
 type SearchInput = {
   q?: string;
@@ -12,12 +19,15 @@ type SearchInput = {
 };
 
 export const POST: RouteHandlers['POST'] = async (c) => {
+  const session = getSession(c)!;
   const input = (await c.req.json().catch(() => ({}))) as SearchInput;
-  const result = await dbStore.collection('contacts').query({
-    where: input.where,
-    limit: input.limit ?? 50,
-    offset: input.offset,
-  });
+  const result = await dbStore
+    .collection('contacts', { orgId: session.orgId! })
+    .query({
+      where: input.where,
+      limit: input.limit ?? 50,
+      offset: input.offset,
+    });
 
   const q = typeof input.q === 'string' ? input.q.trim().toLowerCase() : '';
   if (!q) {

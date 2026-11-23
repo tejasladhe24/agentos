@@ -1,7 +1,18 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 
+import { ORG_ID_HEADER } from '@agentos/core/builtins/db-store/api/lib/constants';
 import { createDb } from '@agentos/core/builtins/db-store/api/lib/create-db';
 import { handleDbStoreRequest } from '@agentos/core/builtins/db-store/api/lib/handle-request';
+
+const ORG_A = 'org-a';
+const ORG_B = 'org-b';
+
+function orgHeaders(orgId: string): HeadersInit {
+  return {
+    'content-type': 'application/json',
+    [ORG_ID_HEADER]: orgId,
+  };
+}
 
 describe('builtin db-store server', () => {
   let ctx: Awaited<ReturnType<typeof createDb>>;
@@ -18,12 +29,24 @@ describe('builtin db-store server', () => {
     expect(await health.json()).toEqual({ ok: true, dialect: 'sqlite' });
   });
 
+  test('tenant collection without org context → 401', async () => {
+    const res = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/contacts/query', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
   test('insert → query → update → delete collection docs', async () => {
     const insert = await handleDbStoreRequest(
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/insert', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({
           id: 'c1',
           data: { name: 'Ada', city: 'London' },
@@ -33,16 +56,17 @@ describe('builtin db-store server', () => {
     expect(insert.status).toBe(201);
     const inserted = (await insert.json()) as {
       id: string;
-      data: { name: string };
+      data: { name: string; orgId: string };
     };
     expect(inserted.id).toBe('c1');
     expect(inserted.data.name).toBe('Ada');
+    expect(inserted.data.orgId).toBe(ORG_A);
 
     await handleDbStoreRequest(
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/insert', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({
           data: { name: 'Grace', city: 'London' },
         }),
@@ -53,7 +77,7 @@ describe('builtin db-store server', () => {
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/query', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({ where: { city: 'London' } }),
       }),
     );
@@ -65,7 +89,7 @@ describe('builtin db-store server', () => {
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/update', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({
           id: 'c1',
           data: { title: 'Countess' },
@@ -75,17 +99,18 @@ describe('builtin db-store server', () => {
     );
     expect(update.status).toBe(200);
     const updated = (await update.json()) as {
-      data: { name: string; title: string; city: string };
+      data: { name: string; title: string; city: string; orgId: string };
     };
     expect(updated.data.name).toBe('Ada');
     expect(updated.data.title).toBe('Countess');
     expect(updated.data.city).toBe('London');
+    expect(updated.data.orgId).toBe(ORG_A);
 
     const del = await handleDbStoreRequest(
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/delete', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({ id: 'c1' }),
       }),
     );
@@ -96,7 +121,7 @@ describe('builtin db-store server', () => {
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/query', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({}),
       }),
     );
@@ -104,12 +129,118 @@ describe('builtin db-store server', () => {
     expect(afterBody.items.every((i) => i.id !== 'c1')).toBe(true);
   });
 
+  test('org A cannot read org B docs', async () => {
+    const insertB = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/secrets/insert', {
+        method: 'POST',
+        headers: orgHeaders(ORG_B),
+        body: JSON.stringify({
+          id: 'secret-1',
+          data: { value: 'tenant-b-only' },
+        }),
+      }),
+    );
+    expect(insertB.status).toBe(201);
+
+    const queryA = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/secrets/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(queryA.status).toBe(200);
+    const bodyA = (await queryA.json()) as {
+      items: Array<{ id: string; data: { value?: string } }>;
+    };
+    expect(bodyA.items.every((i) => i.id !== 'secret-1')).toBe(true);
+
+    const updateA = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/secrets/update', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({
+          id: 'secret-1',
+          data: { value: 'hacked' },
+        }),
+      }),
+    );
+    expect(updateA.status).toBe(404);
+
+    const queryB = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/secrets/query', {
+        method: 'POST',
+        headers: orgHeaders(ORG_B),
+        body: JSON.stringify({}),
+      }),
+    );
+    const bodyB = (await queryB.json()) as {
+      items: Array<{ id: string; data: { value: string } }>;
+    };
+    expect(bodyB.items.some((i) => i.id === 'secret-1')).toBe(true);
+    expect(bodyB.items.find((i) => i.id === 'secret-1')?.data.value).toBe(
+      'tenant-b-only',
+    );
+  });
+
+  test('same document id allowed in different orgs', async () => {
+    const a = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/shared-ids/insert', {
+        method: 'POST',
+        headers: orgHeaders(ORG_A),
+        body: JSON.stringify({ id: 'same', data: { owner: 'A' } }),
+      }),
+    );
+    const b = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/shared-ids/insert', {
+        method: 'POST',
+        headers: orgHeaders(ORG_B),
+        body: JSON.stringify({ id: 'same', data: { owner: 'B' } }),
+      }),
+    );
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+  });
+
+  test('platform collection works without org header', async () => {
+    const insert = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/agentos_gateway/insert', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: 'extension-enable',
+          data: { enabledById: {} },
+        }),
+      }),
+    );
+    expect(insert.status).toBe(201);
+
+    const query = await handleDbStoreRequest(
+      ctx,
+      new Request('http://127.0.0.1:6111/collections/agentos_gateway/query', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(query.status).toBe(200);
+    const body = (await query.json()) as { items: Array<{ id: string }> };
+    expect(body.items.some((i) => i.id === 'extension-enable')).toBe(true);
+  });
+
   test('duplicate insert → 409; missing update → 404; bad where → 400', async () => {
     const dup = await handleDbStoreRequest(
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/insert', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({
           id: 'c1',
           data: { name: 'again' },
@@ -123,7 +254,7 @@ describe('builtin db-store server', () => {
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/insert', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({
           id: 'c1',
           data: { name: 'again' },
@@ -136,7 +267,7 @@ describe('builtin db-store server', () => {
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/update', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({
           id: 'missing',
           data: { name: 'x' },
@@ -149,7 +280,7 @@ describe('builtin db-store server', () => {
       ctx,
       new Request('http://127.0.0.1:6111/collections/contacts/query', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: orgHeaders(ORG_A),
         body: JSON.stringify({ where: { $gt: { age: 1 } } }),
       }),
     );

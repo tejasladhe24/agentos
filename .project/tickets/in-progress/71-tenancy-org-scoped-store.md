@@ -1,6 +1,6 @@
 # 71 — Tenancy: org model + org-scoped db-store
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -15,13 +15,13 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] Auth has org membership (user ↔ org ↔ role) with APIs to create/list orgs and switch active org
-- [ ] Session (or request context) exposes `orgId` for API kit / Shell consumers
-- [ ] db-store documents are org-scoped: inserts stamp `orgId`; queries default to active org; cross-org access denied
-- [ ] Postgres path documents how RLS (or equivalent server-side filter) is applied; SQLite path has equivalent isolation tests
-- [ ] Migration / backfill story for existing unscoped collections documented
-- [ ] Tests: user A in org 1 cannot read org 2 docs
-- [ ] Concepts / builtins docs updated
+- [x] Auth has org membership (user ↔ org ↔ role) with APIs to create/list orgs and switch active org
+- [x] Session (or request context) exposes `orgId` for API kit / Shell consumers
+- [x] db-store documents are org-scoped: inserts stamp `orgId`; queries default to active org; cross-org access denied
+- [x] Postgres path documents how RLS (or equivalent server-side filter) is applied; SQLite path has equivalent isolation tests
+- [x] Migration / backfill story for existing unscoped collections documented
+- [x] Tests: user A in org 1 cannot read org 2 docs
+- [x] Concepts / builtins docs updated
 
 ## Notes
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { createApp } from '@agentos/core/api';
 import {
   getSession,
+  requireOrg,
   requirePermissions,
   requireRoles,
   requireSession,
@@ -14,12 +15,24 @@ const ADMIN_SESSION: AuthSession = {
   user: { id: 'u-admin', email: 'admin@example.com', name: 'Admin' },
   session: { id: 's-admin', expiresAt: '2099-01-01T00:00:00.000Z' },
   roles: ['admin'],
+  orgId: 'org-1',
+  orgs: [{ id: 'org-1', name: 'Acme', role: 'owner' }],
 };
 
 const VIEWER_SESSION: AuthSession = {
   user: { id: 'u-viewer', email: 'viewer@example.com', name: 'Viewer' },
   session: { id: 's-viewer', expiresAt: '2099-01-01T00:00:00.000Z' },
   roles: ['viewer'],
+  orgId: 'org-1',
+  orgs: [{ id: 'org-1', name: 'Acme', role: 'member' }],
+};
+
+const NO_ORG_SESSION: AuthSession = {
+  user: { id: 'u-lonely', email: 'lonely@example.com', name: 'Lonely' },
+  session: { id: 's-lonely', expiresAt: '2099-01-01T00:00:00.000Z' },
+  roles: ['viewer'],
+  orgId: null,
+  orgs: [],
 };
 
 const originalFetch = globalThis.fetch;
@@ -226,5 +239,45 @@ describe('@agentos/core/api/auth middleware', () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, user: 'u-admin' });
+  });
+
+  test('requireOrg → 403 when session has no orgId', async () => {
+    mockAuthFetch({
+      sessionByCookie: { 'session=lonely': NO_ORG_SESSION },
+    });
+    const app = createApp();
+    app.route(
+      'GET',
+      '/tenant',
+      (c) => c.json({ orgId: getSession(c)?.orgId }),
+      [requireOrg],
+    );
+    const res = await app.fetch(
+      new Request('http://localhost/tenant', {
+        headers: { cookie: 'session=lonely' },
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'forbidden' });
+  });
+
+  test('requireOrg → 200 when orgId present', async () => {
+    mockAuthFetch({
+      sessionByCookie: { 'session=admin': ADMIN_SESSION },
+    });
+    const app = createApp();
+    app.route(
+      'GET',
+      '/tenant',
+      (c) => c.json({ orgId: getSession(c)?.orgId }),
+      [requireOrg],
+    );
+    const res = await app.fetch(
+      new Request('http://localhost/tenant', {
+        headers: { cookie: 'session=admin' },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ orgId: 'org-1' });
   });
 });

@@ -19,6 +19,7 @@ import {
   isAuthProduction,
   usesHttpsOrigin,
 } from './production';
+import { ensureDemoOrgMembership, ensureOrgSchema } from './org-store';
 import {
   assignUserRole,
   ensureRbacSchema,
@@ -125,6 +126,7 @@ async function seedDemoUser(
   }
   if (userId) {
     await assignUserRole(db, userId, demo.role);
+    await ensureDemoOrgMembership(db, userId);
   }
 }
 
@@ -214,6 +216,7 @@ export async function createAuth(
 
   await ensureRbacSchema(db);
   await seedRolePermissions(db);
+  await ensureOrgSchema(db);
 
   const auth = betterAuth(betterAuthOptions) as Auth;
 

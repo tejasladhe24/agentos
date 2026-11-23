@@ -2,6 +2,13 @@ import { isAPIError } from 'better-auth/api';
 
 import { DEMO_VIEWER } from './constants';
 import type { AuthContext } from './create-auth';
+import {
+  createOrganization,
+  isOrgMember,
+  listOrgsForUser,
+  resolveActiveOrgId,
+  setActiveOrg,
+} from './org-store';
 import { cacheGetAllowed, cacheSetAllowed } from './permission-cache';
 import {
   assignUserRole,
@@ -52,6 +59,8 @@ async function sessionPayload(
   session: NonNullable<Awaited<ReturnType<typeof requireSession>>>,
 ) {
   const roles = await listRolesForUser(ctx.db, session.user.id);
+  const orgs = await listOrgsForUser(ctx.db, session.user.id);
+  const orgId = await resolveActiveOrgId(ctx.db, session.user.id);
   return {
     user: {
       id: session.user.id,
@@ -63,6 +72,8 @@ async function sessionPayload(
       expiresAt: session.session.expiresAt,
     },
     roles,
+    orgId,
+    orgs,
   };
 }
 
@@ -84,8 +95,65 @@ export async function handleAuthRequest(
   if (method === 'GET' && (path === '/session' || path === '/me')) {
     const session = await requireSession(ctx, request);
     if (!session) {
-      return json({ user: null, session: null, roles: [] }, { status: 401 });
+      return json(
+        { user: null, session: null, roles: [], orgId: null, orgs: [] },
+        { status: 401 },
+      );
     }
+    return json(await sessionPayload(ctx, session));
+  }
+
+  if (method === 'GET' && path === '/orgs') {
+    const session = await requireSession(ctx, request);
+    if (!session) {
+      return json({ error: 'unauthenticated' }, { status: 401 });
+    }
+    const orgs = await listOrgsForUser(ctx.db, session.user.id);
+    const orgId = await resolveActiveOrgId(ctx.db, session.user.id);
+    return json({ orgs, orgId });
+  }
+
+  if (method === 'POST' && path === '/orgs') {
+    const session = await requireSession(ctx, request);
+    if (!session) {
+      return json({ error: 'unauthenticated' }, { status: 401 });
+    }
+    const body = await readJsonBody(request);
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    if (!name) {
+      return json({ error: 'name required' }, { status: 400 });
+    }
+    try {
+      const org = await createOrganization(ctx.db, {
+        name,
+        creatorUserId: session.user.id,
+      });
+      return json({
+        org,
+        ...(await sessionPayload(ctx, session)),
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'create organization failed';
+      return json({ error: message }, { status: 400 });
+    }
+  }
+
+  if (method === 'POST' && path === '/orgs/switch') {
+    const session = await requireSession(ctx, request);
+    if (!session) {
+      return json({ error: 'unauthenticated' }, { status: 401 });
+    }
+    const body = await readJsonBody(request);
+    const orgId = typeof body?.orgId === 'string' ? body.orgId.trim() : '';
+    if (!orgId) {
+      return json({ error: 'orgId required' }, { status: 400 });
+    }
+    const member = await isOrgMember(ctx.db, session.user.id, orgId);
+    if (!member) {
+      return json({ error: 'forbidden' }, { status: 403 });
+    }
+    await setActiveOrg(ctx.db, session.user.id, orgId);
     return json(await sessionPayload(ctx, session));
   }
 

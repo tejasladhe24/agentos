@@ -1,4 +1,5 @@
 import { ACCOUNT_SECTION_LABELS, type AccountSection } from './account-section';
+import { AccountOrganizationSection } from './account-organization-section';
 import { AccountProfileSection } from './account-profile-section';
 import { AccountRolesSection } from './account-roles-section';
 import { AccountSecuritySection } from './account-security-section';
@@ -15,6 +16,8 @@ export type AccountPanelProps = {
     currentPassword: string;
     newPassword: string;
   }) => Promise<void>;
+  onCreateOrg: (name: string) => Promise<void>;
+  onSwitchOrg: (orgId: string) => Promise<void>;
   onSignOut: () => void | Promise<void>;
 };
 
@@ -25,6 +28,8 @@ export function AccountPanel({
   busy = false,
   onSaveName,
   onChangePassword,
+  onCreateOrg,
+  onSwitchOrg,
   onSignOut,
 }: AccountPanelProps) {
   if (!session) {
@@ -83,6 +88,15 @@ export function AccountPanel({
           name={session.user.name}
           busy={busy}
           onSaveName={onSaveName}
+        />
+      ) : null}
+      {section === 'organization' ? (
+        <AccountOrganizationSection
+          orgId={session.orgId}
+          orgs={session.orgs}
+          busy={busy}
+          onCreateOrg={onCreateOrg}
+          onSwitchOrg={onSwitchOrg}
         />
       ) : null}
       {section === 'roles' ? (

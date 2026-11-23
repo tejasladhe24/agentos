@@ -1,8 +1,15 @@
-import { requirePermissions } from '@agentos/core/api/auth';
+import {
+  getSession,
+  requireOrg,
+  requirePermissions,
+} from '@agentos/core/api/auth';
 import { dbStore } from '@agentos/core/api/store';
 import type { Middleware, RouteHandlers } from '@agentos/core/api';
 
-export const middleware: Middleware[] = [requirePermissions('crm.write')];
+export const middleware: Middleware[] = [
+  requirePermissions('crm.write'),
+  requireOrg,
+];
 
 type CreateDealInput = {
   id?: string;
@@ -14,6 +21,7 @@ type CreateDealInput = {
 };
 
 export const POST: RouteHandlers['POST'] = async (c) => {
+  const session = getSession(c)!;
   const body = (await c.req.json().catch(() => ({}))) as CreateDealInput;
   const data: Record<string, unknown> =
     body.data && typeof body.data === 'object' && !Array.isArray(body.data)
@@ -25,10 +33,12 @@ export const POST: RouteHandlers['POST'] = async (c) => {
           stage: body.stage ?? 'qualified',
         };
 
-  const doc = await dbStore.collection('deals').insert({
-    id: body.id,
-    data,
-  });
+  const doc = await dbStore
+    .collection('deals', { orgId: session.orgId! })
+    .insert({
+      id: body.id,
+      data,
+    });
 
   return c.json(doc, { status: 201 });
 };

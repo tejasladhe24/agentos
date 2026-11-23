@@ -309,6 +309,82 @@ describe('builtin auth server', () => {
     expect(newSignIn.status).toBe(200);
   });
 
+  test('session includes orgId; create/list/switch orgs', async () => {
+    const signIn = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-in', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: DEMO_ADMIN.email,
+          password: DEMO_ADMIN.password,
+        }),
+      }),
+    );
+    expect(signIn.status).toBe(200);
+    const cookie = cookieHeaderFrom(signIn);
+    const signInBody = (await signIn.json()) as {
+      orgId: string | null;
+      orgs: Array<{ id: string; name: string; role: string }>;
+    };
+    expect(signInBody.orgId).toBeTruthy();
+    expect(signInBody.orgs.length).toBeGreaterThan(0);
+
+    const created = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ name: `Acme ${Date.now()}` }),
+      }),
+    );
+    expect(created.status).toBe(200);
+    const createdBody = (await created.json()) as {
+      org: { id: string; name: string };
+      orgId: string | null;
+      orgs: Array<{ id: string }>;
+    };
+    expect(createdBody.org.id).toBeTruthy();
+    expect(createdBody.orgId).toBe(createdBody.org.id);
+    expect(createdBody.orgs.some((o) => o.id === createdBody.org.id)).toBe(
+      true,
+    );
+
+    const listed = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs', { headers: { cookie } }),
+    );
+    expect(listed.status).toBe(200);
+    const listedBody = (await listed.json()) as {
+      orgId: string;
+      orgs: Array<{ id: string }>;
+    };
+    expect(listedBody.orgId).toBe(createdBody.org.id);
+
+    const otherOrgId = signInBody.orgs[0]!.id;
+    const switched = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/switch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ orgId: otherOrgId }),
+      }),
+    );
+    expect(switched.status).toBe(200);
+    const switchedBody = (await switched.json()) as { orgId: string | null };
+    expect(switchedBody.orgId).toBe(otherOrgId);
+
+    const denied = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/switch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ orgId: 'nonexistent-org' }),
+      }),
+    );
+    expect(denied.status).toBe(403);
+  });
+
   test('forgot-password + reset-password round-trip', async () => {
     let capturedToken: string | null = null;
     const resetDir = mkdtempSync(join(tmpdir(), 'agentos-auth-reset-'));
