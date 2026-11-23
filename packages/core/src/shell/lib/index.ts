@@ -18,16 +18,19 @@ export {
   type AuthSessionView,
 } from './auth/auth-api';
 export {
+  collectPublicExtensionRoutes,
   isKnownAppPath,
   isPublicAuthPath,
   loginPathWithNext,
   matchPublicAuthRoute,
+  matchPublicExtensionRoute,
   navigateApp,
   normalizePathname,
   readNextParam,
   readResetToken,
   type AuthRouteFlags,
   type PublicAuthRoute,
+  type PublicExtensionRoute,
 } from './auth/auth-routes';
 export {
   applyRegistry,

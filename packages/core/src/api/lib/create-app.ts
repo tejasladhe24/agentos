@@ -1,6 +1,7 @@
 import { runErrorHooks, runRequestHooks, runResponseHooks } from './hooks';
 import { createContext } from './create-context';
 import { matchRoute } from './match-route';
+import { createDefaultAccessMiddleware } from './public-token';
 import type {
   App,
   AppContext,
@@ -20,15 +21,33 @@ const METHODS: HttpMethod[] = [
   'HEAD',
 ];
 
+/** Options for {@link createApp} when an extension declares public API prefixes. */
+export type CreateAppOptions = {
+  /**
+   * When non-empty, every route except `GET /health` is default-deny:
+   * paths under these prefixes require a signed public token; all others
+   * require a Better Auth session.
+   */
+  publicApiPrefixes?: string[];
+};
+
 /**
  * Bun-native app factory with a built-in `GET /health` → `{ ok: true }`.
  * File routes registered later via `loadRoutes` (or `app.route`) can override health.
  *
  * Lifecycle hooks from `@agentos/core/api/hooks` run automatically for
  * onRequest / onResponse / onError. Call `runStartHooks()` before Bun.serve.
+ *
+ * Pass `publicApiPrefixes` (from `meta.json` `public.apiPrefixes`) to enable
+ * default-deny auth for TrustDesk-style portals (ticket 72).
  */
-export function createApp(): App {
+export function createApp(options: CreateAppOptions = {}): App {
   const routes: RouteRegistration[] = [];
+  const publicApiPrefixes = options.publicApiPrefixes?.filter(Boolean) ?? [];
+  const defaultAccess =
+    publicApiPrefixes.length > 0
+      ? createDefaultAccessMiddleware(publicApiPrefixes)
+      : null;
 
   const app: App = {
     route(method, pattern, handler, middleware = []) {
@@ -37,11 +56,16 @@ export function createApp(): App {
       const existing = routes.findIndex(
         (r) => r.method === method && r.pattern === normalized,
       );
+      const isBuiltInHealth = method === 'GET' && normalized === '/health';
+      const gatedMiddleware =
+        defaultAccess && !isBuiltInHealth
+          ? [defaultAccess, ...middleware]
+          : middleware;
       const entry: RouteRegistration = {
         method,
         pattern: normalized,
         handler,
-        middleware,
+        middleware: gatedMiddleware,
       };
       if (existing >= 0) {
         routes[existing] = entry;

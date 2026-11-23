@@ -45,12 +45,19 @@ export const platformKeys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         .optional(),
       /** Consumer Shell origin (password-reset links, trustedOrigins, secure cookies). */
       AGENT_OS_GLOBAL_APP_ORIGIN: z.url().optional(),
+      /**
+       * HMAC secret for short-lived public extension link tokens (ticket 72).
+       * Required to mint/verify portal links (≥16 chars recommended).
+       */
+      AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET: z.string().min(16).optional(),
     },
     clientPrefix: 'AGENT_OS_GLOBAL_CLIENT',
     client: {},
     runtimeEnv: {
       AGENT_OS_GLOBAL_NODE_ENV: runtimeEnv.AGENT_OS_GLOBAL_NODE_ENV,
       AGENT_OS_GLOBAL_APP_ORIGIN: runtimeEnv.AGENT_OS_GLOBAL_APP_ORIGIN,
+      AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET:
+        runtimeEnv.AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET,
     },
     emptyStringAsUndefined: true,
   });

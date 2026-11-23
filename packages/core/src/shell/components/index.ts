@@ -19,6 +19,11 @@ export {
   type NotFoundPageBranding,
   type NotFoundPageProps,
 } from './auth/not-found-page';
+export {
+  PublicPortalHost,
+  type PublicPortalHostBranding,
+  type PublicPortalHostProps,
+} from './auth/public-portal-host';
 export { RegisterPage, type RegisterPageProps } from './auth/register-page';
 export {
   ResetPasswordPage,

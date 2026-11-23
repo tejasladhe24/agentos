@@ -52,6 +52,8 @@ export type {
   ExtensionKind,
   ExtensionMeta,
   ExtensionMetaApi,
+  ExtensionMetaPublic,
+  ExtensionPublicUiRoute,
   RegistryModel,
   ScannedExtension,
   ScanExtensionsOptions,
