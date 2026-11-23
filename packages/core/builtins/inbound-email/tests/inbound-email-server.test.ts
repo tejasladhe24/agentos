@@ -48,6 +48,40 @@ function mockMessageDb(
         (m) => m.orgId === orgId && m.deliveryId === deliveryId,
       );
     },
+    async getById(orgId, id) {
+      return backing.find((m) => m.orgId === orgId && m.id === id);
+    },
+    async list(query) {
+      return backing
+        .filter((m) => m.orgId === query.orgId)
+        .filter((m) => {
+          if (
+            query.from &&
+            !m.from.toLowerCase().includes(query.from.toLowerCase())
+          ) {
+            return false;
+          }
+          if (
+            query.to &&
+            !m.to.some((a) => a.toLowerCase().includes(query.to!.toLowerCase()))
+          ) {
+            return false;
+          }
+          if (query.q) {
+            const hay = `${m.subject} ${m.from}`.toLowerCase();
+            if (!hay.includes(query.q.toLowerCase())) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+        .slice(query.offset ?? 0, (query.offset ?? 0) + (query.limit ?? 50));
+    },
+    async markRead(orgId, id) {
+      const row = backing.find((m) => m.orgId === orgId && m.id === id);
+      if (!row) return undefined;
+      if (!row.readAt) row.readAt = new Date().toISOString();
+      return row;
+    },
   };
 }
 
@@ -143,11 +177,19 @@ describe('builtin inbound-email server', () => {
 
   test('provision + list addresses', async () => {
     const { deps } = createDeps({ addressMap: new Map() });
+    deps.resolveOrg = async () => ({
+      ok: true,
+      orgId: 'org_1',
+      via: 'header',
+    });
     const provision = await handleInboundEmailRequest(
       deps,
       new Request('http://127.0.0.1:6121/addresses', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': 'org_1',
+        },
         body: JSON.stringify({
           address: 'COI@Inbound.Example.com',
           orgId: 'org_1',
@@ -164,10 +206,91 @@ describe('builtin inbound-email server', () => {
 
     const list = await handleInboundEmailRequest(
       deps,
-      new Request('http://127.0.0.1:6121/addresses'),
+      new Request('http://127.0.0.1:6121/addresses', {
+        headers: { 'x-agentos-org-id': 'org_1' },
+      }),
     );
     const body = (await list.json()) as { addresses: unknown[] };
     expect(body.addresses).toHaveLength(1);
+  });
+
+  test('list + get + mark read messages (org-scoped)', async () => {
+    const { deps, messages } = createDeps({ addressMap: new Map() });
+    deps.resolveOrg = async () => ({
+      ok: true,
+      orgId: 'org_a',
+      via: 'header',
+    });
+    const now = new Date().toISOString();
+    messages.backing.push(
+      {
+        id: 'm1',
+        orgId: 'org_a',
+        deliveryId: 'd1',
+        provider: 'fixture',
+        from: 'alice@example.com',
+        to: ['inbox@example.com'],
+        subject: 'Hello Alice',
+        text: 'hi',
+        attachments: [],
+        receivedAt: now,
+      },
+      {
+        id: 'm2',
+        orgId: 'org_b',
+        deliveryId: 'd2',
+        provider: 'fixture',
+        from: 'bob@example.com',
+        to: ['other@example.com'],
+        subject: 'Other org',
+        attachments: [],
+        receivedAt: now,
+      },
+    );
+
+    const listed = await handleInboundEmailRequest(
+      deps,
+      new Request('http://127.0.0.1:6121/messages?q=Alice', {
+        headers: { 'x-agentos-org-id': 'org_a' },
+      }),
+    );
+    expect(listed.status).toBe(200);
+    const listBody = (await listed.json()) as {
+      messages: Array<{ id: string }>;
+    };
+    expect(listBody.messages).toHaveLength(1);
+    expect(listBody.messages[0]!.id).toBe('m1');
+
+    const detail = await handleInboundEmailRequest(
+      deps,
+      new Request('http://127.0.0.1:6121/messages/m1', {
+        headers: { 'x-agentos-org-id': 'org_a' },
+      }),
+    );
+    expect(detail.status).toBe(200);
+
+    const cross = await handleInboundEmailRequest(
+      deps,
+      new Request('http://127.0.0.1:6121/messages/m2', {
+        headers: { 'x-agentos-org-id': 'org_a' },
+      }),
+    );
+    expect(cross.status).toBe(404);
+
+    const patch = await handleInboundEmailRequest(
+      deps,
+      new Request('http://127.0.0.1:6121/messages/m1', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': 'org_a',
+        },
+        body: JSON.stringify({ read: true }),
+      }),
+    );
+    expect(patch.status).toBe(200);
+    const patched = (await patch.json()) as { message: { readAt?: string } };
+    expect(typeof patched.message.readAt).toBe('string');
   });
 
   test('fixture webhook ingests attachments and publishes email.received', async () => {

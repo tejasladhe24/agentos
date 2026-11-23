@@ -1,4 +1,9 @@
 import {
+  checkNotificationsPermission,
+  type PermissionResult,
+} from './check-permission';
+import { PERMISSION_EMAIL_READ, PERMISSION_EMAIL_SEND } from './constants';
+import {
   json,
   parseChannel,
   parseVars,
@@ -6,18 +11,62 @@ import {
   unavailable,
 } from './http';
 import type { NotificationProviders } from './providers/create-providers';
-import type { NotificationType, NotifyStore } from './notify-store';
+import type {
+  DeliveryChannel,
+  NotificationType,
+  NotifyStore,
+} from './notify-store';
+import {
+  resolveOrgForNotificationsRequest,
+  type ResolveOrgResult,
+} from './resolve-org';
 import { renderNotificationContent } from './templates/render';
 
 export type NotifyRouteDeps = {
   store: NotifyStore;
   providers?: NotificationProviders;
+  runtimeEnv?: Record<string, string | undefined>;
+  resolveOrg?: (
+    request: Request,
+    env?: Record<string, string | undefined>,
+  ) => Promise<ResolveOrgResult>;
+  checkPermission?: (
+    request: Request,
+    permission: string,
+    env?: Record<string, string | undefined>,
+  ) => Promise<PermissionResult>;
 };
 
 export type NotifyRouteHandler = (
   deps: NotifyRouteDeps,
   request: Request,
 ) => Promise<Response>;
+
+async function ensureOrg(
+  deps: NotifyRouteDeps,
+  request: Request,
+): Promise<ResolveOrgResult> {
+  const resolve = deps.resolveOrg ?? resolveOrgForNotificationsRequest;
+  return resolve(request, deps.runtimeEnv ?? Bun.env);
+}
+
+async function ensurePermission(
+  deps: NotifyRouteDeps,
+  request: Request,
+  org: Extract<ResolveOrgResult, { ok: true }>,
+  permission: string,
+): Promise<Response | null> {
+  if (org.via === 'header') return null;
+  const check = deps.checkPermission ?? checkNotificationsPermission;
+  const result = await check(request, permission, deps.runtimeEnv ?? Bun.env);
+  if (result === 'unauthenticated') {
+    return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  if (result === 'denied') {
+    return json({ error: 'forbidden' }, { status: 403 });
+  }
+  return null;
+}
 
 export async function handleHealth(): Promise<Response> {
   return json({ ok: true, backend: 'db-store' });
@@ -31,9 +80,57 @@ export async function handleRecent(deps: NotifyRouteDeps): Promise<Response> {
   }
 }
 
+export async function handleListDeliveries(
+  deps: NotifyRouteDeps,
+  request: Request,
+): Promise<Response> {
+  const org = await ensureOrg(deps, request);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+  const denied = await ensurePermission(
+    deps,
+    request,
+    org,
+    PERMISSION_EMAIL_READ,
+  );
+  if (denied) return denied;
+
+  const url = new URL(request.url);
+  const channelRaw = url.searchParams.get('channel');
+  let channel: DeliveryChannel | undefined;
+  if (channelRaw) {
+    if (
+      channelRaw !== 'email' &&
+      channelRaw !== 'sms' &&
+      channelRaw !== 'in_app'
+    ) {
+      return json(
+        { error: 'channel must be in_app | email | sms' },
+        { status: 400 },
+      );
+    }
+    channel = channelRaw;
+  }
+  const limitRaw = Number(url.searchParams.get('limit') ?? 50);
+  const offsetRaw = Number(url.searchParams.get('offset') ?? 0);
+
+  try {
+    const notifications = await deps.store.listDeliveries({
+      orgId: org.orgId,
+      channel,
+      limit: Number.isFinite(limitRaw) ? limitRaw : 50,
+      offset: Number.isFinite(offsetRaw) ? offsetRaw : 0,
+    });
+    return json({ notifications });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
 export async function handleGetDelivery(
   deps: NotifyRouteDeps,
-  _request: Request,
+  request: Request,
   deliveryId: string,
 ): Promise<Response> {
   try {
@@ -41,6 +138,25 @@ export async function handleGetDelivery(
     if (!entry) {
       return json({ error: 'not found' }, { status: 404 });
     }
+
+    // Org-scoped entries require matching org context.
+    if (entry.orgId) {
+      const org = await ensureOrg(deps, request);
+      if (!org.ok) {
+        return json({ error: org.error }, { status: org.status });
+      }
+      if (org.orgId !== entry.orgId) {
+        return json({ error: 'not found' }, { status: 404 });
+      }
+      const denied = await ensurePermission(
+        deps,
+        request,
+        org,
+        PERMISSION_EMAIL_READ,
+      );
+      if (denied) return denied;
+    }
+
     return json({ notification: entry });
   } catch (error) {
     return unavailable(error);
@@ -73,10 +189,25 @@ export async function handleNotify(
     typeof body?.message === 'string' ? body.message : undefined;
   const vars = parseVars(body?.vars);
   const to = typeof body?.to === 'string' ? body.to.trim() : '';
-  const orgId =
+  let orgId =
     typeof body?.orgId === 'string'
       ? body.orgId.trim()
       : (request.headers.get('x-agentos-org-id')?.trim() ?? undefined);
+
+  // Session path: bind email/SMS sends to active org + email.send.
+  if (channel === 'email' || channel === 'sms') {
+    const org = await ensureOrg(deps, request);
+    if (org.ok) {
+      const denied = await ensurePermission(
+        deps,
+        request,
+        org,
+        PERMISSION_EMAIL_SEND,
+      );
+      if (denied) return denied;
+      orgId = org.orgId;
+    }
+  }
 
   const rendered = renderNotificationContent({
     message: messageRaw,
@@ -143,5 +274,10 @@ export const NOTIFY_EXACT_ROUTES: ReadonlyArray<{
 }> = [
   { method: 'GET', path: '/health', handle: () => handleHealth() },
   { method: 'GET', path: '/recent', handle: (d) => handleRecent(d) },
+  {
+    method: 'GET',
+    path: '/deliveries',
+    handle: (d, r) => handleListDeliveries(d, r),
+  },
   { method: 'POST', path: '/notify', handle: (d, r) => handleNotify(d, r) },
 ];

@@ -1,5 +1,7 @@
 {
-  "name": "Inbound Email",
+  "name": "Email",
+  "icon": "Envelope",
+  "activityBarSection": "secondary",
   "api": {
     "language": "bun",
     "port": 6121

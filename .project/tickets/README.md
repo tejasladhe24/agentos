@@ -116,7 +116,7 @@ Agents must never promote tickets to `done/` themselves.
 96. Files Drive-style UI (fully functional)
 97. Audit Activity manager UI (fully functional)
 98. Secrets manager UI (fully functional)
-99. Email manager UI (send + receive, fully functional)
+99. Email manager UI (send + receive, fully functional) — **in-progress**
 
 **Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **96**–**99**. `in-progress/` — **94**, **95** (plus stale peers pending reconciliation).
 

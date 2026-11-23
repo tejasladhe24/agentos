@@ -223,6 +223,71 @@ describe('builtin notifications server', () => {
     });
   });
 
+  test('list email deliveries is org-scoped', async () => {
+    const backing: NotificationEntry[] = [];
+    const store = createNotifyStore(mockDb(false, backing));
+    const providers = createProviders();
+
+    await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/notify', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': 'org_a',
+        },
+        body: JSON.stringify({
+          channel: 'email',
+          to: 'a@example.com',
+          message: 'for a',
+          orgId: 'org_a',
+        }),
+      }),
+      providers,
+    );
+    await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/notify', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': 'org_b',
+        },
+        body: JSON.stringify({
+          channel: 'email',
+          to: 'b@example.com',
+          message: 'for b',
+          orgId: 'org_b',
+        }),
+      }),
+      providers,
+    );
+
+    const listed = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/deliveries?channel=email', {
+        headers: { 'x-agentos-org-id': 'org_a' },
+      }),
+      providers,
+    );
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as {
+      notifications: NotificationEntry[];
+    };
+    expect(body.notifications).toHaveLength(1);
+    expect(body.notifications[0]?.orgId).toBe('org_a');
+
+    const otherId = backing.find((e) => e.orgId === 'org_b')!.id;
+    const cross = await handleNotificationsRequest(
+      store,
+      new Request(`http://127.0.0.1:6117/deliveries/${otherId}`, {
+        headers: { 'x-agentos-org-id': 'org_a' },
+      }),
+      providers,
+    );
+    expect(cross.status).toBe(404);
+  });
+
   test('email missing to → 400', async () => {
     const store = createNotifyStore(mockDb());
     const res = await handleNotificationsRequest(

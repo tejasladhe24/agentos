@@ -43,6 +43,12 @@ export const PERMISSION_FILES_WRITE = 'files.write';
 /** Read Activity / audit entries (builtin audit). Admin/owner covered by `*`. */
 export const PERMISSION_AUDIT_READ = 'audit.read';
 
+/** Read inbound email + delivery history (Email manager). Admin/owner covered by `*`. */
+export const PERMISSION_EMAIL_READ = 'email.read';
+
+/** Compose/send email (notifications) + provision inbound addresses. */
+export const PERMISSION_EMAIL_SEND = 'email.send';
+
 /** Platform / org role catalog (TrustDesk-shaped; apps may add product permissions). */
 export const PLATFORM_ROLES = [
   'admin',

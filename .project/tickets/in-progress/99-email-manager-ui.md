@@ -1,6 +1,6 @@
 # 99 — Email manager UI (send + receive, fully functional)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
