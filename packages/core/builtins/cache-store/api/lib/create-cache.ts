@@ -1,12 +1,14 @@
 /**
- * Cache backend surface — in-memory for v1; same methods for a Redis backend later.
+ * Cache backend surface — in-memory default; Redis when URL is set.
+ * Methods are async so Redis and memory share one handler path.
  */
 export type CacheBackend = {
-  get(key: string): unknown | undefined;
-  set(key: string, value: unknown, ttlSeconds?: number): void;
-  del(keys: string[]): number;
+  backend: 'memory' | 'redis';
+  get(key: string): Promise<unknown | undefined>;
+  set(key: string, value: unknown, ttlSeconds?: number): Promise<void>;
+  del(keys: string[]): Promise<number>;
   /** Remaining TTL in seconds, or `null` if missing / no expiry. */
-  ttl(key: string): number | null;
+  ttl(key: string): Promise<number | null>;
 };
 
 type Entry = {
@@ -19,6 +21,18 @@ export type MemoryCache = CacheBackend & {
   backend: 'memory';
   size(): number;
 };
+
+/** Shared TTL validation for memory + Redis backends. */
+export function assertPositiveTtl(ttlSeconds: number | undefined): void {
+  if (ttlSeconds === undefined) return;
+  if (
+    typeof ttlSeconds !== 'number' ||
+    !Number.isFinite(ttlSeconds) ||
+    ttlSeconds <= 0
+  ) {
+    throw new CacheError('ttl must be a positive number of seconds', 400);
+  }
+}
 
 /**
  * In-memory Map cache with lazy expiry on read.
@@ -43,27 +57,21 @@ export function createMemoryCache(): MemoryCache {
   return {
     backend: 'memory',
 
-    get(key: string): unknown | undefined {
+    async get(key: string): Promise<unknown | undefined> {
       const entry = getLive(key);
       return entry?.value;
     },
 
-    set(key: string, value: unknown, ttlSeconds?: number): void {
+    async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+      assertPositiveTtl(ttlSeconds);
       let expiresAt: number | null = null;
       if (ttlSeconds !== undefined) {
-        if (
-          typeof ttlSeconds !== 'number' ||
-          !Number.isFinite(ttlSeconds) ||
-          ttlSeconds <= 0
-        ) {
-          throw new CacheError('ttl must be a positive number of seconds', 400);
-        }
         expiresAt = Date.now() + Math.floor(ttlSeconds) * 1000;
       }
       store.set(key, { value, expiresAt });
     },
 
-    del(keys: string[]): number {
+    async del(keys: string[]): Promise<number> {
       let deleted = 0;
       for (const key of keys) {
         if (store.delete(key)) deleted += 1;
@@ -71,7 +79,7 @@ export function createMemoryCache(): MemoryCache {
       return deleted;
     },
 
-    ttl(key: string): number | null {
+    async ttl(key: string): Promise<number | null> {
       const entry = getLive(key);
       if (!entry) return null;
       if (entry.expiresAt === null) return null;

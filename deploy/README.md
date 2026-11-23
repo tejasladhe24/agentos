@@ -75,6 +75,15 @@ Do **not** set a customer `DATABASE_URL`. Auth owns `AGENT_OS_EXT_AUTH_DB` only 
 
 Again: **no** customer `DATABASE_URL`. Extensions use `dbStore` / cache-store, not raw SQL credentials.
 
+### cache-store
+
+| Variable                             | Role                                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` | Optional. When set, shared Redis (`redis://` / `rediss://`) for get/set/del. Omit → in-memory |
+| `AGENT_OS_EXT_CACHE_STORE_PORT`      | Upstream port (default `6112`)                                                                |
+
+Set the Redis URL before raising `max_instances` / replicas above **1** when replicas must share permission caches, rate limits, or page fingerprints. Health reports `backend: "memory" | "redis"`.
+
 ### Files (S3-compatible)
 
 On ephemeral disks, local filesystem storage is not durable. Set the S3-compatible vars (works with **R2**, **AWS S3**, **GCS** HMAC):
@@ -125,7 +134,7 @@ pnpm deploy:cloudflare          # production Worker `agentos`
 pnpm deploy:cloudflare:dev      # staging Worker `agentos` (--env dev)
 ```
 
-Image path in `wrangler.jsonc`: `../../Dockerfile` with `image_build_context: ../..` (monorepo root). First deploy builds the full image — expect several minutes. `max_instances: 1` until tickets **60** / **61** if you scale out.
+Image path in `wrangler.jsonc`: `../../Dockerfile` with `image_build_context: ../..` (monorepo root). First deploy builds the full image — expect several minutes. Keep `max_instances: 1` until shared cache is configured (`AGENT_OS_EXT_CACHE_STORE_REDIS_URL`) and live events SSE fanout is acceptable process-local (or a later pub/sub lands).
 
 **CI:** [`.github/workflows/deploy-cloudflare.yml`](../.github/workflows/deploy-cloudflare.yml) — push to **`main`** → production; push to **`dev`** (post-merge) → staging (`--env dev`). Requires GitHub secrets `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (fail closed if missing). PRs do **not** deploy — see [`cloudflare/README.md`](./cloudflare/README.md) (CI deploy).
 

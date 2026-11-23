@@ -8,7 +8,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | **auth**        | Identity, sessions, **RBAC**, **organizations (tenancy)**; public gate at `/login` `/register` `/reset-password`; Activity Bar **secondary** `ui/page.tsx` + `ui/sidebar.tsx` = **account settings** (profile / organization / roles / security / session) — distinct from builtin **settings** | Better Auth (+ org tables on auth DB)                                  |
 | **db-store**    | Sole SQL owner; **org-scoped** `documents` (`org_id` column + PK `(collection, org_id, id)`)                                                                                                                                                                                                    | Drizzle (SQLite default; Postgres + RLS)                               |
-| **cache-store** | Sole cache owner                                                                                                                                                                                                                                                                                | In-memory v1                                                           |
+| **cache-store** | Sole cache owner                                                                                                                                                                                                                                                                                | In-memory default; Redis when `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` set |
 | **ai**          | generateText/Image/embed, tools/skills/agents runtime                                                                                                                                                                                                                                           | Vercel AI SDK v7 (mock default; [ADR 006](./adr/006-vercel-ai-sdk.md)) |
 
 ## Supporting (default-on)
@@ -32,7 +32,20 @@ Extension Manager shows builtins as **locked**.
 
 ## Scale / replicas
 
-HITL approvals, the notifications recent inbox, and the **events** durable outbox / job scheduler persist through **db-store** (SQLite or Postgres), so a **single-replica** restart keeps pending approvals, recent toasts, undelivered events, and scheduled jobs. **SSE live subscribe** on `events` is still process-local — multiple Shell/gateway replicas will not share one SSE fanout. Prefer `max_instances` / ECS/EKS replicas at **1** for live Shell SSE until a shared pub/sub (e.g. Redis via **cache-store**) exists; durable **claim / ack** consumers can already run multi-replica because leases live in db-store. Redis via cache-store remains an optional follow-up for horizontal live fanout.
+HITL approvals, the notifications recent inbox, and the **events** durable outbox / job scheduler persist through **db-store** (SQLite or Postgres), so a **single-replica** restart keeps pending approvals, recent toasts, undelivered events, and scheduled jobs. **SSE live subscribe** on `events` is still process-local — multiple Shell/gateway replicas will not share one SSE fanout. Prefer `max_instances` / ECS/EKS replicas at **1** for live Shell SSE until a shared pub/sub exists; durable **claim / ack** consumers can already run multi-replica because leases live in db-store.
+
+**cache-store** defaults to in-memory. Set `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` (`redis://…` / `rediss://…`, portable protocol — Upstash, ElastiCache, local) before raising `max_instances` / replicas above **1** when replicas must share permission caches, rate limits, or page fingerprints. `GET /health` reports `backend: "memory" | "redis"`. Redis via cache-store is still optional for events SSE fanout (not implemented yet).
+
+## Cache-store env
+
+Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default backend is **in-memory**. When `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` is set, the builtin uses Bun’s portable `RedisClient` (no Cloudflare KV in core).
+
+| Variable                             | Role                                               |
+| ------------------------------------ | -------------------------------------------------- |
+| `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` | Enables Redis backend (`redis://…` / `rediss://…`) |
+| `AGENT_OS_EXT_CACHE_STORE_PORT`      | Upstream listen port (default `6112`)              |
+
+Keys are stored under the prefix `agentos:cache:`. Customers never hold Redis credentials — only this builtin.
 
 ## Events (durable outbox + scheduler)
 

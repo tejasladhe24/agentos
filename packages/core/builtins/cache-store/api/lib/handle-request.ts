@@ -1,4 +1,4 @@
-import { CacheError, type MemoryCache } from './create-cache';
+import { CacheError, type CacheBackend } from './create-cache';
 
 function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -31,7 +31,7 @@ function requireKey(body: Record<string, unknown> | null): string | null {
  * Thin Bun request router for `/api/ext/cache-store/*` upstream paths.
  */
 export async function handleCacheStoreRequest(
-  cache: MemoryCache,
+  cache: CacheBackend,
   request: Request,
 ): Promise<Response> {
   const url = new URL(request.url);
@@ -54,7 +54,7 @@ export async function handleCacheStoreRequest(
         if (!key) {
           return json({ error: 'key required' }, { status: 400 });
         }
-        const value = cache.get(key);
+        const value = await cache.get(key);
         if (value === undefined) {
           return json({ error: 'not found' }, { status: 404 });
         }
@@ -81,7 +81,7 @@ export async function handleCacheStoreRequest(
             { status: 400 },
           );
         }
-        cache.set(key, body.value, ttl);
+        await cache.set(key, body.value, ttl);
         return json({ ok: true });
       }
       case '/del': {
@@ -98,7 +98,7 @@ export async function handleCacheStoreRequest(
         if (keys.length === 0) {
           return json({ error: 'key or keys required' }, { status: 400 });
         }
-        return json({ deleted: cache.del(keys) });
+        return json({ deleted: await cache.del(keys) });
       }
       case '/ttl': {
         const body = await readJsonBody(request);
@@ -106,10 +106,10 @@ export async function handleCacheStoreRequest(
         if (!key) {
           return json({ error: 'key required' }, { status: 400 });
         }
-        if (cache.get(key) === undefined) {
+        if ((await cache.get(key)) === undefined) {
           return json({ key, ttl: null });
         }
-        return json({ key, ttl: cache.ttl(key) });
+        return json({ key, ttl: await cache.ttl(key) });
       }
       default:
         return json({ error: 'not found' }, { status: 404 });

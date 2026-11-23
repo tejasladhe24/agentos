@@ -1,6 +1,6 @@
 # 81 — cache-store Redis backend
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -14,11 +14,11 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 
 ## Done when
 
-- [ ] In-memory backend remains default
-- [ ] When Redis URL env is set, use Redis with the same API + TTL semantics
-- [ ] Health reports `backend: "redis" | "memory"`
-- [ ] Tests: memory path + mocked Redis
-- [ ] Docs: env keys; note required before `max_instances` > 1
+- [x] In-memory backend remains default
+- [x] When Redis URL env is set, use Redis with the same API + TTL semantics
+- [x] Health reports `backend: "redis" | "memory"`
+- [x] Tests: memory path + mocked Redis
+- [x] Docs: env keys; note required before `max_instances` > 1
 
 ## Notes
 
