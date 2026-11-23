@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   discoverBunApis,
   discoverPythonServices,
+  pythonProcessName,
   WORKER_CONCURRENCY_ENV,
   WORKER_TIMEOUT_SECONDS_ENV,
   workerProcessEnv,
@@ -97,5 +98,70 @@ describe('discoverPythonServices', () => {
     expect(
       workerProcessEnv({ kind: 'http', concurrency: 2, timeoutSeconds: 10 }),
     ).toEqual({});
+  });
+
+  test('discovers dual Bun + service sibling', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentos-cli-dual-'));
+    try {
+      const ext = join(dir, 'questionnaires');
+      const serviceRoot = join(dir, 'services', 'questionnaires');
+      mkdirSync(join(ext, 'api'), { recursive: true });
+      mkdirSync(serviceRoot, { recursive: true });
+      writeFileSync(join(ext, 'api', 'server.ts'), 'export {}');
+      writeFileSync(
+        join(ext, 'meta.json'),
+        JSON.stringify({
+          api: { language: 'bun', port: 6201 },
+          service: {
+            root: '../services/questionnaires',
+            port: 6211,
+            kind: 'http',
+          },
+        }),
+      );
+
+      const bun = discoverBunApis(dir);
+      expect(bun).toHaveLength(1);
+      expect(bun[0]).toMatchObject({ id: 'questionnaires', port: 6201 });
+
+      const services = discoverPythonServices(dir);
+      expect(services).toHaveLength(1);
+      expect(services[0]).toMatchObject({
+        id: 'questionnaires',
+        port: 6211,
+        kind: 'http',
+        dual: true,
+        mount: '/_service',
+      });
+      expect(pythonProcessName(services[0]!)).toBe('questionnaires:service');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('skips dual service when ports collide', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agentos-cli-collide-'));
+    try {
+      const ext = join(dir, 'dual');
+      const serviceRoot = join(dir, 'services', 'dual');
+      mkdirSync(join(ext, 'api'), { recursive: true });
+      mkdirSync(serviceRoot, { recursive: true });
+      writeFileSync(join(ext, 'api', 'server.ts'), 'export {}');
+      writeFileSync(
+        join(ext, 'meta.json'),
+        JSON.stringify({
+          api: { language: 'bun', port: 6201 },
+          service: { root: '../services/dual', port: 6201 },
+        }),
+      );
+      expect(discoverBunApis(dir)).toHaveLength(1);
+      expect(discoverPythonServices(dir)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('pythonProcessName for python-only', () => {
+    expect(pythonProcessName({ id: 'invoice-bot' })).toBe('invoice-bot');
   });
 });

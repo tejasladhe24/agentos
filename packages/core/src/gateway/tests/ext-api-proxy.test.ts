@@ -4,6 +4,7 @@ import {
   createExtApiProxyHandler,
   createExtensionEnableState,
   parseExtApiPath,
+  resolveUpstream,
 } from '../lib/index';
 import type { RegistryModel, ScannedExtension } from '../lib/types';
 
@@ -94,6 +95,75 @@ describe('createExtApiProxyHandler', () => {
       extensionId: 'crm',
       targetPath: '/',
       search: '',
+    });
+  });
+
+  test('dual Bun+Python: mount routes to service with strip', async () => {
+    const dual = ext({
+      id: 'questionnaires',
+      kind: 'customer',
+      toggleable: true,
+      meta: {
+        api: { language: 'bun', port: 6201 },
+        service: {
+          root: '../../services/questionnaires',
+          port: 6211,
+          mount: '/_service',
+        },
+      },
+      service: {
+        root: '../../services/questionnaires',
+        resolvedRoot: '/tmp/services/questionnaires',
+        port: 6211,
+        mount: '/_service',
+      },
+    });
+    const model: RegistryModel = { scannedAt: 1, extensions: [dual] };
+    const state = createExtensionEnableState();
+    const calls: string[] = [];
+    const handler = createExtApiProxyHandler(
+      () => model,
+      state,
+      async (url) => {
+        calls.push(url);
+        return new Response('ok');
+      },
+    );
+
+    const bunRes = await handler(
+      new Request('http://localhost/api/ext/questionnaires/documents'),
+    );
+    expect(bunRes?.status).toBe(200);
+    expect(calls[0]).toBe('http://127.0.0.1:6201/documents');
+
+    const pyRes = await handler(
+      new Request('http://localhost/api/ext/questionnaires/_service/health'),
+    );
+    expect(pyRes?.status).toBe(200);
+    expect(calls[1]).toBe('http://127.0.0.1:6211/health');
+
+    const pyRoot = await handler(
+      new Request('http://localhost/api/ext/questionnaires/_service'),
+    );
+    expect(pyRoot?.status).toBe(200);
+    expect(calls[2]).toBe('http://127.0.0.1:6211/');
+  });
+
+  test('resolveUpstream python-only uses service port', () => {
+    const invoices = ext({
+      id: 'invoices',
+      kind: 'customer',
+      toggleable: true,
+      meta: { api: { language: 'python', port: 6102, root: '../../services/x' } },
+      service: {
+        root: '../../services/x',
+        resolvedRoot: '/tmp/x',
+        port: 6102,
+      },
+    });
+    expect(resolveUpstream(invoices, '/health')).toEqual({
+      port: 6102,
+      targetPath: '/health',
     });
   });
 });

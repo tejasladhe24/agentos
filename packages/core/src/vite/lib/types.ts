@@ -27,6 +27,29 @@ export type ExtensionMetaApi = {
   timeoutSeconds?: number;
 };
 
+/**
+ * Linked Python service when the extension also has a Bun `api` (ticket 83).
+ * Python-only extensions keep using `api.language: "python"` instead.
+ */
+export type ExtensionMetaService = {
+  /** Service root relative to the extension directory. */
+  root: string;
+  port: number;
+  health?: string;
+  /** Omitted / unknown → `http`. */
+  kind?: PythonServiceKind;
+  concurrency?: number;
+  timeoutSeconds?: number;
+  /**
+   * Gateway path prefix under `/api/ext/:id` that routes to this service.
+   * Default `/_service`. Forwarded upstream with the prefix stripped.
+   */
+  mount?: string;
+};
+
+/** Default gateway mount for a dual Bun+Python `service` block. */
+export const DEFAULT_SERVICE_MOUNT = '/_service';
+
 /** Activity Bar vertical region (`meta.json` `activityBarSection`). */
 export type ActivityBarSection = 'primary' | 'secondary';
 
@@ -71,6 +94,11 @@ export type ExtensionMeta = {
    */
   activityBarSection?: ActivityBarSection;
   api?: ExtensionMetaApi;
+  /**
+   * Optional Python service link alongside a Bun `api` (dual upstream).
+   * Ignored when `api.language === "python"` (use `api.root` instead).
+   */
+  service?: ExtensionMetaService;
   /** Public (unauthenticated) UI paths and/or API prefixes. */
   public?: ExtensionMetaPublic;
 };
@@ -123,7 +151,10 @@ export type ScannedExtension = {
   agentDescriptors: AgentDescriptors;
   /** Absolute path to `api/routes` when present. */
   apiRoutesDir?: string;
-  /** Resolved Python service link when `meta.api.language === 'python'`. */
+  /**
+   * Resolved Python service link from `meta.api` (python-only) or
+   * `meta.service` (dual Bun + Python).
+   */
   service?: {
     root: string;
     resolvedRoot: string;
@@ -132,6 +163,8 @@ export type ScannedExtension = {
     kind?: PythonServiceKind;
     concurrency?: number;
     timeoutSeconds?: number;
+    /** Gateway mount; set for dual `meta.service` (default `/_service`). */
+    mount?: string;
   };
 };
 

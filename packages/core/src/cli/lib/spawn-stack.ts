@@ -4,6 +4,7 @@ import { BUILTIN_SERVERS, builtinApiEnv } from './builtin-servers';
 import {
   discoverBunApis,
   discoverPythonServices,
+  pythonProcessName,
   resolvePythonCmd,
   workerProcessEnv,
 } from './discover-extensions';
@@ -77,19 +78,24 @@ export function spawnAgentOsStack(options: SpawnStackOptions): void {
   }
 
   for (const service of pythonServices) {
+    const procName = pythonProcessName(service);
     const resolved = resolvePythonCmd(service.resolvedRoot, root, {
       ...pyEnv,
       ...workerProcessEnv(service),
     });
     if (!resolved) {
       console.warn(
-        `[agentos] skip ${service.id}: no python/.venv or uv — install packages/python .venv or run uv sync in ${service.resolvedRoot}`,
+        `[agentos] skip ${procName}: no python/.venv or uv — install packages/python .venv or run uv sync in ${service.resolvedRoot}`,
       );
       continue;
     }
     const cmd = resolved.cmd.map((part) =>
       part === 'PORT' ? String(service.port) : part,
     );
+    const mount = service.mount ?? '/_service';
+    const proxyNote = service.dual
+      ? `proxy /api/ext/${service.id}${mount}/*`
+      : `proxy /api/ext/${service.id}/*`;
     if (service.kind === 'worker') {
       const caps: string[] = [];
       if (service.concurrency !== undefined) {
@@ -100,15 +106,15 @@ export function spawnAgentOsStack(options: SpawnStackOptions): void {
       }
       const capNote = caps.length > 0 ? ` (${caps.join(', ')})` : '';
       console.log(
-        `[agentos] worker ${service.id} → http://127.0.0.1:${service.port} (health/triggers; proxy /api/ext/${service.id}/*)${capNote}`,
+        `[agentos] worker ${procName} → http://127.0.0.1:${service.port} (health/triggers; ${proxyNote})${capNote}`,
       );
     } else {
       console.log(
-        `[agentos] ${service.id} → http://127.0.0.1:${service.port} (proxy /api/ext/${service.id}/*)`,
+        `[agentos] ${procName} → http://127.0.0.1:${service.port} (${proxyNote})`,
       );
     }
     pm.spawn({
-      name: service.id,
+      name: procName,
       cmd,
       cwd: service.resolvedRoot,
       env: resolved.env,

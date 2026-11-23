@@ -107,6 +107,101 @@ describe('scanExtensions', () => {
     });
   });
 
+  test('resolves dual Bun api + service sibling', () => {
+    const root = mkdtempSync(join(tmpdir(), 'agentos-scan-dual-'));
+    const extDir = join(root, 'extensions');
+    const builtinsEmpty = join(root, 'builtins');
+    const serviceRoot = join(root, 'services', 'questionnaires');
+    const dual = join(extDir, 'questionnaires');
+    try {
+      mkdirSync(join(dual, 'api', 'routes'), { recursive: true });
+      mkdirSync(builtinsEmpty, { recursive: true });
+      mkdirSync(serviceRoot, { recursive: true });
+      writeFileSync(
+        join(dual, 'meta.json'),
+        JSON.stringify({
+          name: 'Questionnaires',
+          api: {
+            language: 'bun',
+            port: 6201,
+            routesDir: 'api/routes',
+          },
+          service: {
+            root: '../../services/questionnaires',
+            port: 6211,
+            health: '/health',
+            kind: 'http',
+          },
+        }),
+      );
+      const model = scanExtensions({
+        extensionsDir: extDir,
+        builtinsDir: builtinsEmpty,
+      });
+      const ext = model.extensions.find((e) => e.id === 'questionnaires');
+      expect(ext?.meta.api).toEqual({
+        language: 'bun',
+        port: 6201,
+        routesDir: 'api/routes',
+      });
+      expect(ext?.meta.service).toEqual({
+        root: '../../services/questionnaires',
+        port: 6211,
+        health: '/health',
+        kind: 'http',
+        mount: '/_service',
+      });
+      expect(ext?.service).toMatchObject({
+        root: '../../services/questionnaires',
+        resolvedRoot: serviceRoot,
+        port: 6211,
+        health: '/health',
+        kind: 'http',
+        mount: '/_service',
+      });
+      expect(ext?.apiRoutesDir).toBe(join(dual, 'api/routes'));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('ignores meta.service when api.language is python', () => {
+    const root = mkdtempSync(join(tmpdir(), 'agentos-scan-svc-ignore-'));
+    const extDir = join(root, 'extensions');
+    const builtinsEmpty = join(root, 'builtins');
+    const serviceRoot = join(root, 'services', 'legacy');
+    const extPath = join(extDir, 'legacy');
+    try {
+      mkdirSync(extPath, { recursive: true });
+      mkdirSync(builtinsEmpty, { recursive: true });
+      mkdirSync(serviceRoot, { recursive: true });
+      writeFileSync(
+        join(extPath, 'meta.json'),
+        JSON.stringify({
+          api: {
+            language: 'python',
+            root: '../../services/legacy',
+            port: 6300,
+          },
+          service: {
+            root: '../../services/other',
+            port: 6301,
+          },
+        }),
+      );
+      const model = scanExtensions({
+        extensionsDir: extDir,
+        builtinsDir: builtinsEmpty,
+      });
+      const ext = model.extensions.find((e) => e.id === 'legacy');
+      expect(ext?.meta.service).toBeDefined();
+      expect(ext?.service?.port).toBe(6300);
+      expect(ext?.service?.mount).toBeUndefined();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('parses worker kind concurrency and timeout', () => {
     const root = mkdtempSync(join(tmpdir(), 'agentos-scan-worker-'));
     const extDir = join(root, 'extensions');

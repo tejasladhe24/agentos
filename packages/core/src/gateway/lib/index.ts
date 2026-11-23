@@ -9,8 +9,9 @@ export {
   EXT_API_PREFIX,
   createExtApiProxyHandler,
   parseExtApiPath,
+  resolveUpstream,
 } from './ext-api-proxy';
-export type { ParsedExtApiPath } from './ext-api-proxy';
+export type { ParsedExtApiPath, ResolvedUpstream } from './ext-api-proxy';
 export {
   createExtensionEnableHandler,
   handleExtensionEnableRequest,

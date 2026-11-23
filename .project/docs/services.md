@@ -19,7 +19,7 @@ services/<id>/
 Linked from:
 
 ```json
-// extensions/<id>/meta.json
+// extensions/<id>/meta.json — Python-only
 {
   "api": {
     "language": "python",
@@ -28,6 +28,26 @@ Linked from:
   }
 }
 ```
+
+Or, when the same extension also has a Bun `api/` (ticket **83**):
+
+```json
+{
+  "api": {
+    "language": "bun",
+    "port": 6201,
+    "routesDir": "api/routes"
+  },
+  "service": {
+    "root": "../../services/<id>",
+    "port": 6211,
+    "health": "/health",
+    "mount": "/_service"
+  }
+}
+```
+
+Dual mode proxies Python under `/api/ext/<id>/_service/*` (mount stripped). See [extensions.md](./extensions.md#metajson-bun-api--linked-python-service).
 
 ## HTTP vs worker
 
