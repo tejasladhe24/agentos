@@ -138,8 +138,9 @@ Agents must never promote tickets to `done/` themselves.
 118. (Later) Per-org OAuth app credentials
 119. Files: streaming uploads and a higher upload cap
 120. Files: UploadThing listing from the index + SDK cleanup
+121. Operator tenancy model (deployment operators + single-org customers, invites)
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**120**. `in-progress/` — **94**–**114** (plus stale peers pending reconciliation).
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**. `in-progress/` — **94**–**114** (plus stale peers pending reconciliation).
 
 **BYOK + storage mounts order:** **103 → 104**; email **105 → 106 → 107**; AI **108 → 109**; files **110 → 111 → 112 → 113 → 114**. Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
 
