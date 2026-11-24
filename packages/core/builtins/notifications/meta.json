@@ -3,5 +3,30 @@
   "api": {
     "language": "bun",
     "port": 6117
-  }
+  },
+  "settings": [
+    {
+      "id": "sms",
+      "label": "SMS",
+      "description": "Send SMS through your own Twilio account or the platform default.",
+      "icon": "ChatText",
+      "group": "Integrations",
+      "keywords": [
+        "sms",
+        "text",
+        "twilio",
+        "phone",
+        "byok",
+        "provider",
+        "integration"
+      ],
+      "entries": [
+        {
+          "id": "sms-provider",
+          "label": "SMS provider",
+          "hint": "twilio account sid auth token from number api key byok own account test connection"
+        }
+      ]
+    }
+  ]
 }

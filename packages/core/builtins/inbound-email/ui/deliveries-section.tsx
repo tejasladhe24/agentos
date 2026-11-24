@@ -5,7 +5,11 @@ import { Button } from '@agentos/ui/components/button';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
 import { Separator } from '@agentos/ui/components/separator';
 
-import { parseErrorBody, type DeliveryEntry } from './email-types';
+import {
+  deliverySourceLabel,
+  parseErrorBody,
+  type DeliveryEntry,
+} from './email-types';
 
 function statusVariant(
   status: string,
@@ -138,6 +142,15 @@ export function DeliveriesSection() {
               <dl className="grid grid-cols-[6rem_1fr] gap-y-1 text-sm">
                 <dt className="text-muted-foreground">To</dt>
                 <dd>{selected.to ?? '—'}</dd>
+                {deliverySourceLabel(selected.source) ? (
+                  <>
+                    <dt className="text-muted-foreground">Sent via</dt>
+                    <dd data-slot="delivery-source">
+                      {deliverySourceLabel(selected.source)}
+                      {selected.provider ? ` (${selected.provider})` : ''}
+                    </dd>
+                  </>
+                ) : null}
                 <dt className="text-muted-foreground">At</dt>
                 <dd>{new Date(selected.at).toLocaleString()}</dd>
                 {selected.sentAt ? (

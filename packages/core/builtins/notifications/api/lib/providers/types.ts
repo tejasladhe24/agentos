@@ -13,4 +13,18 @@ export type SendResult = {
 export type ChannelProvider = {
   name: string;
   send: (payload: SendPayload) => Promise<SendResult>;
+  /** Check credentials without sending (when the provider has an endpoint). */
+  verify?: () => Promise<SendResult>;
 };
+
+/** Turn a provider HTTP failure into an operator-readable error. */
+export function describeProviderFailure(
+  label: string,
+  status: number,
+  detail: string,
+): string {
+  if (status === 401 || status === 403) {
+    return `${label} ${status}: credentials rejected (invalid or unauthorized key) — ${detail}`;
+  }
+  return `${label} ${status}: ${detail}`;
+}

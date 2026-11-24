@@ -1,9 +1,16 @@
-import type { ChannelProvider, SendPayload, SendResult } from './types';
+import {
+  describeProviderFailure,
+  type ChannelProvider,
+  type SendPayload,
+  type SendResult,
+} from './types';
 
 export type ResendConfig = {
   apiKey: string;
   from: string;
   fetchImpl?: typeof fetch;
+  /** Error when apiKey/from are missing (defaults to the env-var hint). */
+  missingConfigError?: string;
 };
 
 /** Resend HTTP email adapter. */
@@ -17,6 +24,7 @@ export function createResendProvider(config: ResendConfig): ChannelProvider {
           ok: false,
           provider: 'resend',
           error:
+            config.missingConfigError ??
             'Resend requires AGENT_OS_EXT_NOTIFICATIONS_EMAIL_API_KEY and EMAIL_FROM',
         };
       }
@@ -39,7 +47,11 @@ export function createResendProvider(config: ResendConfig): ChannelProvider {
           return {
             ok: false,
             provider: 'resend',
-            error: `Resend ${res.status}: ${detail || res.statusText}`,
+            error: describeProviderFailure(
+              'Resend',
+              res.status,
+              detail || res.statusText,
+            ),
           };
         }
         return { ok: true, provider: 'resend' };

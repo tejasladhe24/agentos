@@ -8,5 +8,32 @@
   },
   "public": {
     "openApiPrefixes": ["/webhooks/"]
-  }
+  },
+  "settings": [
+    {
+      "id": "email",
+      "label": "Email",
+      "description": "Send email through your own provider account or the platform default.",
+      "icon": "Envelope",
+      "group": "Integrations",
+      "keywords": [
+        "email",
+        "smtp",
+        "resend",
+        "cloudflare",
+        "sending",
+        "from",
+        "byok",
+        "provider",
+        "integration"
+      ],
+      "entries": [
+        {
+          "id": "email-sending",
+          "label": "Email sending",
+          "hint": "resend cloudflare api key token from address domain own account byok test connection"
+        }
+      ]
+    }
+  ]
 }

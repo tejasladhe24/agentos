@@ -32,6 +32,8 @@ export type NotificationEntry = {
   subject?: string;
   orgId?: string;
   provider?: string;
+  /** `org` when sent with the org's own provider (BYOK), else `platform`. */
+  source?: 'org' | 'platform';
   error?: string;
   sentAt?: string;
 };

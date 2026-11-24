@@ -1,7 +1,16 @@
+import {
+  createHttpIntegrationsBackend,
+  createIntegrationsKit,
+  createSessionOrgResolver,
+  createSessionPermissionCheck,
+  watchIntegrationChanges,
+} from '@agentos/core/api/integrations';
+
 import { keys } from './env';
 import { NOTIFICATIONS_PORT } from './lib/constants';
 import { createDbStoreClient } from './lib/db-store-client';
 import { handleNotificationsRequest } from './lib/handle-request';
+import { notificationIntegrationDefinitions } from './lib/integrations';
 import { createNotifyStore } from './lib/notify-store';
 import { createProviders } from './lib/providers/create-providers';
 
@@ -24,13 +33,30 @@ const providers = createProviders({
   smsFrom: env.AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM,
 });
 
+const integrations = createIntegrationsKit(
+  createHttpIntegrationsBackend({
+    dbStoreApiBase: `http://${dbHost}:${dbPort}`,
+  }),
+);
+watchIntegrationChanges(integrations);
+
+const options = {
+  integrations,
+  integrationRoutes: {
+    kit: integrations,
+    definitions: notificationIntegrationDefinitions({ platform: providers }),
+    resolveOrg: createSessionOrgResolver(),
+    checkPermission: createSessionPermissionCheck(),
+  },
+};
+
 const server = Bun.serve({
   port,
   async fetch(request) {
-    return handleNotificationsRequest(store, request, providers);
+    return handleNotificationsRequest(store, request, providers, options);
   },
 });
 
 console.log(
-  `[agentos notifications] listening on http://127.0.0.1:${server.port} (proxy /api/ext/notifications/*) db-store=http://${dbHost}:${dbPort} email=${providers.email.name} sms=${providers.sms.name}`,
+  `[agentos notifications] listening on http://127.0.0.1:${server.port} (proxy /api/ext/notifications/*) db-store=http://${dbHost}:${dbPort} email=${providers.email.name} sms=${providers.sms.name} (per-org overrides via Settings)`,
 );
