@@ -6,6 +6,7 @@ import {
   createMemoryIntegrationsBackend,
   handleIntegrationRoutes,
   INTEGRATION_CHANGED_TOPIC,
+  IntegrationError,
   integrationSecretKey,
   PERMISSION_INTEGRATIONS_MANAGE,
   type IntegrationDefinition,
@@ -591,5 +592,54 @@ describe('handleIntegrationRoutes', () => {
       req('DELETE', '/integrations/email.send'),
     );
     expect(again!.status).toBe(404);
+  });
+
+  test('beforeSave can amend the draft; afterDelete sees the old record', async () => {
+    const c = ctx();
+    const deleted: string[] = [];
+    c.definitions = [
+      {
+        ...definition,
+        async beforeSave({ existing, draft, body }) {
+          if (body.reject === true) throw new IntegrationError('nope', 422);
+          return {
+            ...draft,
+            settings: { ...draft.settings, hooked: existing ? 'again' : 'new' },
+            secrets: { ...draft.secrets, extra: 'generated' },
+          };
+        },
+        async afterDelete({ existing }) {
+          deleted.push(existing.secrets.extra ?? '');
+        },
+      },
+    ];
+    const body = {
+      provider: 'resend',
+      settings: { from: 'a@example.com' },
+      secrets: { apiKey: 'k' },
+    };
+    const rejected = await handleIntegrationRoutes(
+      c,
+      req('PUT', '/integrations/email.send', { ...body, reject: true }),
+    );
+    expect(rejected!.status).toBe(422);
+    await handleIntegrationRoutes(
+      c,
+      req('PUT', '/integrations/email.send', body),
+    );
+    const second = await handleIntegrationRoutes(
+      c,
+      req('PUT', '/integrations/email.send', body),
+    );
+    const view = (await second!.json()) as {
+      instance: { settings: Record<string, unknown>; secrets: object };
+    };
+    expect(view.instance.settings.hooked).toBe('again');
+    expect(Object.keys(view.instance.secrets).sort()).toEqual([
+      'apiKey',
+      'extra',
+    ]);
+    await handleIntegrationRoutes(c, req('DELETE', '/integrations/email.send'));
+    expect(deleted).toEqual(['generated']);
   });
 });

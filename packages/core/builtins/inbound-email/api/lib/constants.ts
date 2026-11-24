@@ -7,6 +7,9 @@ export const DEFAULT_DB_STORE_PORT = 6111;
 /** Platform collection: address → orgId directory. */
 export const ADDRESSES_COLLECTION = 'inbound_addresses';
 
+/** Platform collection: BYOK webhook connection id → orgId. */
+export const CONNECTIONS_COLLECTION = 'inbound_connections';
+
 /** Org-scoped collection for persisted inbound messages. */
 export const MESSAGES_COLLECTION = 'inbound_messages';
 

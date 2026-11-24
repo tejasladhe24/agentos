@@ -100,8 +100,8 @@ export function InboxSection() {
           <ul className="flex flex-col p-1">
             {messages.length === 0 && !busy ? (
               <li className="px-3 py-6 text-sm text-muted-foreground">
-                No inbound messages yet. Send a fixture webhook or wait for
-                Mailgun.
+                No inbound messages yet. Mail sent to your provisioned addresses
+                or connected Resend domain appears here.
               </li>
             ) : null}
             {messages.map((m) => (

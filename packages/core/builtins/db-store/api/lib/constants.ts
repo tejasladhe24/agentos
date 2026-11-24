@@ -41,6 +41,8 @@ export const PLATFORM_COLLECTIONS = new Set([
   'events_jobs',
   /** Inbound email address → orgId directory (ticket 86). */
   'inbound_addresses',
+  /** Inbound email BYOK webhook connection id → orgId (ticket 106). */
+  'inbound_connections',
   RETENTION_POLICIES_COLLECTION,
   ORG_RETENTION_COLLECTION,
 ]);

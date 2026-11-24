@@ -1,6 +1,6 @@
 # 106 — Inbound email via Resend (platform + BYOK) and remove Mailgun
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -40,13 +40,13 @@ Resend's `email.received` webhook carries metadata only (from, to, subject, atta
 
 ## Done when
 
-- [ ] Resend inbound works for platform default and BYOK routes
-- [ ] Webhook auto-registered on key save; manual fallback works
-- [ ] Attachments land in `files`; `email.received` published
-- [ ] Mailgun code, env, and docs removed
-- [ ] Tests with mocked Resend webhook + API payloads, bad signature rejected, unknown connection id → 404
-- [ ] Docs: `builtins.md` inbound section rewritten (Resend + fixture)
-- [ ] `bun run ci` green
+- [x] Resend inbound works for platform default and BYOK routes
+- [x] Webhook auto-registered on key save; manual fallback works
+- [x] Attachments land in `files`; `email.received` published
+- [x] Mailgun code, env, and docs removed
+- [x] Tests with mocked Resend webhook + API payloads, bad signature rejected, unknown connection id → 404
+- [x] Docs: `builtins.md` inbound section rewritten (Resend + fixture)
+- [x] `bun run ci` green
 
 ## Verify
 
