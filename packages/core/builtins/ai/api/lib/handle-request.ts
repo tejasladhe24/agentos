@@ -7,6 +7,7 @@ import {
   Output,
 } from 'ai';
 
+import type { ResolvedAiModels } from './ai-integration';
 import {
   aiErrorResponse,
   requireEmbeddingModel,
@@ -21,11 +22,24 @@ import {
   type ResolvedAttachment,
 } from './resolve-attachments';
 import { fetchAgentRegistry, runChat } from './run-chat';
+import {
+  usageTokens,
+  type AiOperation,
+  type AiUsageRecorder,
+} from './usage-attribution';
+
+export const AI_SOURCE_HEADER = 'x-agentos-ai-source';
 
 export type AiHandlerContext = {
+  /** Platform (env) models; also the fallback when no resolver is set. */
   models: AiModels;
   gatewayUrl: string;
   fetchImpl?: FetchLike;
+  /** Per-request models (org BYOK integration, else platform). */
+  resolveModels?: (request: Request) => Promise<ResolvedAiModels>;
+  /** `/integrations/*` and related routes; `null` → not handled. */
+  handleIntegrations?: (request: Request) => Promise<Response | null>;
+  recordUsage?: AiUsageRecorder;
 };
 
 function json(data: unknown, init: ResponseInit = {}): Response {
@@ -35,6 +49,13 @@ function json(data: unknown, init: ResponseInit = {}): Response {
   }
   return new Response(JSON.stringify(data), { ...init, headers });
 }
+
+const OPERATIONS: Record<string, AiOperation> = {
+  '/generate-text': 'generate-text',
+  '/generate-image': 'generate-image',
+  '/embed': 'embed',
+  '/chat': 'chat',
+};
 
 async function readJsonBody(
   request: Request,
@@ -123,11 +144,47 @@ export async function handleAiRequest(
     });
   }
 
-  if (method !== 'POST') {
+  if (ctx.handleIntegrations) {
+    const handled = await ctx.handleIntegrations(request);
+    if (handled) return handled;
+  }
+
+  const operation = OPERATIONS[path];
+  if (method !== 'POST' || !operation) {
     return json({ error: 'not found' }, { status: 404 });
   }
 
+  let resolved: ResolvedAiModels = {
+    models: ctx.models,
+    source: 'platform',
+    orgId: null,
+  };
+  const respond = (data: unknown, usage?: unknown): Response => {
+    const event = {
+      orgId: resolved.orgId,
+      source: resolved.source,
+      provider: resolved.models.provider,
+      model:
+        operation === 'embed'
+          ? (resolved.models.embeddingModel ?? resolved.models.model)
+          : operation === 'generate-image'
+            ? (resolved.models.imageModel ?? resolved.models.model)
+            : resolved.models.model,
+      operation,
+      ...usageTokens(usage),
+    };
+    const record = ctx.recordUsage;
+    if (record) {
+      void Promise.resolve()
+        .then(() => record(event))
+        .catch(() => {});
+    }
+    return json(data, { headers: { [AI_SOURCE_HEADER]: resolved.source } });
+  };
+
   try {
+    if (ctx.resolveModels) resolved = await ctx.resolveModels(request);
+    const { models } = resolved;
     switch (path) {
       case '/generate-text': {
         const body = await readJsonBody(request);
@@ -163,7 +220,7 @@ export async function handleAiRequest(
         if (schema) {
           try {
             const result = await generateText({
-              model: ctx.models.language,
+              model: models.language,
               messages: [{ role: 'user', content }],
               output: Output.object({
                 schema: jsonSchema(schema),
@@ -171,7 +228,7 @@ export async function handleAiRequest(
               ...temperature,
               ...maxTokens,
             });
-            return json({ object: result.output });
+            return respond({ object: result.output }, result.totalUsage);
           } catch (error) {
             if (NoObjectGeneratedError.isInstance(error)) {
               return json(
@@ -190,14 +247,14 @@ export async function handleAiRequest(
         }
 
         const result = await generateText({
-          model: ctx.models.language,
+          model: models.language,
           ...(typeof content === 'string'
             ? { prompt: content }
             : { messages: [{ role: 'user', content }] }),
           ...temperature,
           ...maxTokens,
         });
-        return json({ text: result.text });
+        return respond({ text: result.text }, result.totalUsage);
       }
       case '/generate-image': {
         const body = await readJsonBody(request);
@@ -206,12 +263,12 @@ export async function handleAiRequest(
           return json({ error: 'prompt required' }, { status: 400 });
         }
         const result = await generateImage({
-          model: requireImageModel(ctx.models),
+          model: requireImageModel(models),
           prompt,
         });
         const first = result.images[0];
-        return json({
-          stub: ctx.models.mode === 'mock',
+        return respond({
+          stub: models.mode === 'mock',
           mediaType: first?.mediaType ?? 'image/png',
           base64: first
             ? Buffer.from(first.uint8Array).toString('base64')
@@ -230,13 +287,13 @@ export async function handleAiRequest(
           return json({ error: 'value required' }, { status: 400 });
         }
         const result = await embed({
-          model: requireEmbeddingModel(ctx.models),
+          model: requireEmbeddingModel(models),
           value,
         });
-        return json({
-          embedding: result.embedding,
-          stub: ctx.models.mode === 'mock',
-        });
+        return respond(
+          { embedding: result.embedding, stub: models.mode === 'mock' },
+          result.usage,
+        );
       }
       case '/chat': {
         const body = await readJsonBody(request);
@@ -252,21 +309,24 @@ export async function handleAiRequest(
             : await fetchAgentRegistry(ctx.gatewayUrl, fetchImpl);
         const result = await runChat({
           prompt,
-          models: ctx.models,
+          models,
           gatewayUrl: ctx.gatewayUrl,
           registry,
           fetchImpl,
         });
-        return json({
-          text: result.text,
-          toolNames: result.toolNames,
-        });
+        return respond(
+          { text: result.text, toolNames: result.toolNames },
+          result.usage,
+        );
       }
       default:
         return json({ error: 'not found' }, { status: 404 });
     }
   } catch (error) {
-    const { status, body } = aiErrorResponse(error, ctx.models.provider);
-    return json(body, { status });
+    const { status, body } = aiErrorResponse(error, resolved.models.provider);
+    return json(body, {
+      status,
+      headers: { [AI_SOURCE_HEADER]: resolved.source },
+    });
   }
 }

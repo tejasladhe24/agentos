@@ -58,6 +58,11 @@ export type DeleteResult = {
   deleted: number;
 };
 
+export type VectorStoreStats = {
+  /** Vectors stored for the org across every index. */
+  vectors: number;
+};
+
 export type VectorStoreHealth = {
   ok: boolean;
   mode: 'memory' | 'pgvector';
@@ -140,5 +145,17 @@ export async function deleteVectors(
       headers: callHeaders(init),
     },
     'vector-store delete',
+  );
+}
+
+/** Count the org's stored vectors across every index. */
+export async function stats(
+  init?: VectorStoreCallInit,
+): Promise<VectorStoreStats> {
+  const base = resolveVectorStoreApiBase(init?.env ?? Bun.env);
+  return jsonFetch<VectorStoreStats>(
+    `${base}/stats`,
+    { method: 'GET', headers: callHeaders(init) },
+    'vector-store stats',
   );
 }

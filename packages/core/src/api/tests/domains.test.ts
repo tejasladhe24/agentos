@@ -60,6 +60,7 @@ import {
   health as vectorStoreHealth,
   query as vectorStoreQuery,
   resolveVectorStoreApiBase,
+  stats as vectorStoreStats,
   upsert as vectorStoreUpsert,
 } from '@agentos/core/api/vector-store';
 
@@ -761,6 +762,16 @@ describe('vector-store client', () => {
     expect(
       await deleteVectors('policies', { ids: ['c1'] }, { env, orgId: 'org_1' }),
     ).toEqual({ deleted: 1 });
+
+    mockFetch(({ url, method, headers }) => {
+      expect(method).toBe('GET');
+      expect(url).toBe('http://vs.test/stats');
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      return Response.json({ vectors: 2 });
+    });
+    expect(await vectorStoreStats({ env, orgId: 'org_1' })).toEqual({
+      vectors: 2,
+    });
   });
 });
 

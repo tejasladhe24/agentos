@@ -6,58 +6,13 @@ import {
   createAiModels,
   getCachedAiModels,
 } from '../api/lib/create-model';
-import type { FetchLike } from '../api/lib/fetch-like';
 import { handleAiRequest } from '../api/lib/handle-request';
 import {
   AiConfigError,
   aiConfigHash,
   type AiProviderConfig,
 } from '../api/lib/providers';
-
-type Captured = { url: string; body: Record<string, unknown> | null };
-
-function stubFetch(
-  respond: (url: string) => { status?: number; body: unknown },
-): { fetch: FetchLike; calls: Captured[] } {
-  const calls: Captured[] = [];
-  const fetchImpl: FetchLike = async (input, init) => {
-    const url = typeof input === 'string' ? input : input.toString();
-    const raw = typeof init?.body === 'string' ? init.body : null;
-    calls.push({ url, body: raw ? JSON.parse(raw) : null });
-    const { status = 200, body } = respond(url);
-    return new Response(JSON.stringify(body), {
-      status,
-      headers: { 'content-type': 'application/json' },
-    });
-  };
-  return { fetch: fetchImpl, calls };
-}
-
-const openaiResponse = (text: string) => ({
-  id: 'resp_1',
-  object: 'response',
-  created_at: 1_700_000_000,
-  status: 'completed',
-  model: 'gpt-test',
-  incomplete_details: null,
-  output: [
-    {
-      type: 'message',
-      id: 'msg_1',
-      status: 'completed',
-      role: 'assistant',
-      content: [{ type: 'output_text', text, annotations: [] }],
-    },
-  ],
-  usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
-});
-
-const post = (path: string, body: unknown) =>
-  new Request(`http://127.0.0.1:6113${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+import { openaiResponse, post, stubFetch } from './provider-stubs';
 
 const gatewayUrl = 'http://127.0.0.1:5173';
 

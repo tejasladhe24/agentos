@@ -68,6 +68,15 @@ export async function handleVectorStoreRequest(
     });
   }
 
+  if (method === 'GET' && path === '/stats') {
+    const resolve = ctx.resolveOrg ?? resolveOrgForRequest;
+    const org = await resolve(request, ctx.runtimeEnv);
+    if (!org.ok) {
+      return json({ error: org.error }, { status: org.status });
+    }
+    return json(await ctx.store.stats(org.orgId));
+  }
+
   if (method !== 'POST') {
     return json({ error: 'method not allowed' }, { status: 405 });
   }

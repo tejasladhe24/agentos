@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   IntegrationSettingsForm,
   integrationDraftBody,
+  switchDraftProvider,
   type IntegrationSectionData,
 } from '@agentos/core/client/components/integration-section';
 
@@ -91,5 +92,44 @@ describe('IntegrationSettingsForm', () => {
       settings: { from: 'a@example.com' },
       secrets: { other: 'x' },
     });
+  });
+
+  test('renderSetting swaps one control; renderExtra adds content', () => {
+    const html = render({
+      renderSetting: ({ field, value }) =>
+        field.name === 'from' ? `custom:${value || 'empty'}` : undefined,
+      renderExtra: ({ draft }) => `extra:${draft.provider}`,
+    });
+    expect(html).toContain('custom:empty');
+    expect(html).toContain('extra:resend');
+    expect(html).not.toContain('From address');
+  });
+
+  test('switching provider drops settings the new provider does not accept', () => {
+    const two = data({
+      definition: {
+        ...data().definition,
+        providers: [
+          ...data().definition.providers,
+          {
+            id: 'smtp',
+            label: 'SMTP',
+            settings: [{ name: 'host', label: 'Host' }],
+            secrets: [],
+          },
+        ],
+      },
+    });
+    expect(
+      switchDraftProvider(
+        two,
+        {
+          provider: 'resend',
+          settings: { from: 'a@example.com', host: 'h' },
+          secrets: { apiKey: 'k' },
+        },
+        'smtp',
+      ),
+    ).toEqual({ provider: 'smtp', settings: { host: 'h' }, secrets: {} });
   });
 });

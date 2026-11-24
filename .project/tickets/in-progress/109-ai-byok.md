@@ -1,6 +1,6 @@
 # 109 — AI BYOK (per-org provider keys)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -25,11 +25,11 @@ Let an org use **its own AI provider account and model choice**, configured from
 
 ## Done when
 
-- [ ] Org key/model used when set; platform env otherwise
-- [ ] Settings › AI configures, tests, and removes the integration
-- [ ] Embedding model change guarded
-- [ ] Tests: per-org isolation, fallback, rotation without restart
-- [ ] `bun run ci` green
+- [x] Org key/model used when set; platform env otherwise
+- [x] Settings › AI configures, tests, and removes the integration
+- [x] Embedding model change guarded
+- [x] Tests: per-org isolation, fallback, rotation without restart
+- [x] `bun run ci` green
 
 ## Verify
 

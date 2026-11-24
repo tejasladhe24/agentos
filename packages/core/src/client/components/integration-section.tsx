@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Button } from '@agentos/ui/components/button';
 import { FieldError } from '@agentos/ui/components/field';
 import { LoadingState } from '@agentos/ui/components/loading-state';
@@ -12,6 +19,7 @@ import {
   IntegrationSecretField,
   IntegrationTestButton,
   IntegrationTextField,
+  type IntegrationFieldSpec,
   type IntegrationProviderSpec,
   type IntegrationSecretStatus,
   type IntegrationTestOutcome,
@@ -63,7 +71,49 @@ export function integrationDraftBody(draft: IntegrationDraft) {
   return { provider: draft.provider, settings: draft.settings, secrets };
 }
 
-export type IntegrationSettingsFormProps = {
+/**
+ * Draft after picking another provider: secrets reset, and settings the new
+ * provider does not declare are dropped (the routes reject unknown settings).
+ */
+export function switchDraftProvider(
+  data: IntegrationSectionData,
+  draft: IntegrationDraft,
+  provider: string,
+): IntegrationDraft {
+  const accepted = new Set(
+    data.definition.providers
+      .find((p) => p.id === provider)
+      ?.settings.map((f) => f.name) ?? [],
+  );
+  const settings: Record<string, string> = {};
+  for (const [k, v] of Object.entries(draft.settings)) {
+    if (accepted.has(k)) settings[k] = v;
+  }
+  return { provider, settings, secrets: {} };
+}
+
+export type IntegrationSettingRenderInput = {
+  id: string;
+  field: IntegrationFieldSpec;
+  value: string;
+  onValueChange: (value: string) => void;
+  disabled: boolean;
+  draft: IntegrationDraft;
+  data: IntegrationSectionData;
+};
+
+/** Builtin-specific additions to the shared integration form. */
+export type IntegrationFormExtensions = {
+  /** Custom control for one setting; `undefined` keeps the text field. */
+  renderSetting?: (input: IntegrationSettingRenderInput) => ReactNode;
+  /** Extra content under the fields (hints, loaders, warnings). */
+  renderExtra?: (input: {
+    draft: IntegrationDraft;
+    data: IntegrationSectionData;
+  }) => ReactNode;
+};
+
+export type IntegrationSettingsFormProps = IntegrationFormExtensions & {
   data: IntegrationSectionData;
   draft: IntegrationDraft;
   onDraftChange: (draft: IntegrationDraft) => void;
@@ -86,6 +136,8 @@ export function IntegrationSettingsForm({
   onRemove,
   onTest,
   entryId,
+  renderSetting,
+  renderExtra,
 }: IntegrationSettingsFormProps) {
   const saved = data.instances[0];
   const provider = data.definition.providers.find(
@@ -141,24 +193,38 @@ export function IntegrationSettingsForm({
         value={draft.provider}
         disabled={readOnly || busy}
         onValueChange={(next) =>
-          onDraftChange({ ...draft, provider: next, secrets: {} })
+          onDraftChange(switchDraftProvider(data, draft, next))
         }
       />
-      {provider?.settings.map((field) => (
-        <IntegrationTextField
-          key={`setting-${field.name}`}
-          id={`${idBase}-setting-${field.name}`}
-          field={field}
-          value={draft.settings[field.name] ?? ''}
-          disabled={readOnly || busy}
-          onValueChange={(value) =>
+      {provider?.settings.map((field) => {
+        const input: IntegrationSettingRenderInput = {
+          id: `${idBase}-setting-${field.name}`,
+          field,
+          value: draft.settings[field.name] ?? '',
+          disabled: Boolean(readOnly || busy),
+          onValueChange: (value) =>
             onDraftChange({
               ...draft,
               settings: { ...draft.settings, [field.name]: value },
-            })
-          }
-        />
-      ))}
+            }),
+          draft,
+          data,
+        };
+        const custom = renderSetting?.(input);
+        if (custom !== undefined) {
+          return <Fragment key={`setting-${field.name}`}>{custom}</Fragment>;
+        }
+        return (
+          <IntegrationTextField
+            key={`setting-${field.name}`}
+            id={input.id}
+            field={field}
+            value={input.value}
+            disabled={input.disabled}
+            onValueChange={input.onValueChange}
+          />
+        );
+      })}
       {provider?.secrets.map((field) => (
         <IntegrationSecretField
           key={`secret-${draft.provider}-${field.name}`}
@@ -175,6 +241,7 @@ export function IntegrationSettingsForm({
           }
         />
       ))}
+      {renderExtra?.({ draft, data })}
       {error ? <FieldError>{error}</FieldError> : null}
     </IntegrationCard>
   );
@@ -198,10 +265,15 @@ export function IntegrationSection({
   integration,
   basePath = '/integrations',
   entryId,
-}: {
+  onSaved,
+  renderSetting,
+  renderExtra,
+}: IntegrationFormExtensions & {
   integration: string;
   basePath?: string;
   entryId?: string;
+  /** Called after a successful save or removal. */
+  onSaved?: () => void;
 }) {
   const api = useHostApi();
   const notifications = useHostNotifications();
@@ -248,6 +320,8 @@ export function IntegrationSection({
       busy={busy}
       error={error}
       entryId={entryId}
+      renderSetting={renderSetting}
+      renderExtra={renderExtra}
       onSave={async () => {
         setBusy(true);
         const res = await api.fetch(path, {
@@ -262,6 +336,7 @@ export function IntegrationSection({
         }
         await notifications.show(`${data.definition.label} saved`, 'info');
         await load();
+        onSaved?.();
       }}
       onRemove={async () => {
         setBusy(true);
@@ -273,6 +348,7 @@ export function IntegrationSection({
         }
         await notifications.show(`${data.definition.label} removed`, 'info');
         await load();
+        onSaved?.();
       }}
       onTest={async () => {
         const dirty =

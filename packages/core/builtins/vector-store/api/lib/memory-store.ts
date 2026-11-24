@@ -65,5 +65,11 @@ export function createMemoryStore(dimensions: number): VectorStore {
       }
       return { deleted };
     },
+
+    async stats(orgId) {
+      let vectors = 0;
+      for (const row of rows.values()) if (row.orgId === orgId) vectors += 1;
+      return { vectors };
+    },
   };
 }
