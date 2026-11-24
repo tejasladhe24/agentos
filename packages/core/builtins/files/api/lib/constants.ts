@@ -36,5 +36,12 @@ export const GOOGLE_CLIENT_ID_ENV = 'AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID';
 export const GOOGLE_CLIENT_SECRET_ENV =
   'AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET';
 
+/** Platform-wide Microsoft Entra app for personal OneDrive mounts. */
+export const MICROSOFT_CLIENT_ID_ENV = 'AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_ID';
+export const MICROSOFT_CLIENT_SECRET_ENV =
+  'AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_SECRET';
+/** Entra tenant (`common` = any work/school or personal Microsoft account). */
+export const MICROSOFT_TENANT_ENV = 'AGENT_OS_EXT_FILES_MICROSOFT_TENANT';
+
 /** Default page size for list / browse. */
 export const LIST_PAGE_SIZE = 100;

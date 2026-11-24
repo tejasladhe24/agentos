@@ -1,6 +1,6 @@
 # 114 — Files: OneDrive and SharePoint personal mounts
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -23,12 +23,12 @@ Let users connect **OneDrive** (and SharePoint document libraries they can acces
 
 ## Done when
 
-- [ ] User connects Microsoft account; OneDrive + SharePoint libraries browsable
-- [ ] Upload (incl. large files), download, delete, copy to org mount
-- [ ] Token refresh + reconnect flow
-- [ ] Tests with mocked Graph API
-- [ ] Docs: Entra app registration (platform)
-- [ ] `bun run ci` green
+- [x] User connects Microsoft account; OneDrive + SharePoint libraries browsable
+- [x] Upload (incl. large files), download, delete, copy to org mount
+- [x] Token refresh + reconnect flow
+- [x] Tests with mocked Graph API
+- [x] Docs: Entra app registration (platform)
+- [x] `bun run ci` green
 
 ## Verify
 

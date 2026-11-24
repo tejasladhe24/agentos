@@ -1,10 +1,5 @@
-import {
-  toStoredTokens,
-  type OAuthStoredTokens,
-  type OAuthTokenResponse,
-} from '@agentos/core/api/oauth';
-
-import { BlobStoreError, MountReconnectError } from './blob-store-error';
+import { BlobStoreError } from './blob-store-error';
+import { createOAuthHttpClient } from './oauth-http-client';
 import type { MountCredentials } from './storage-providers';
 
 export const GOOGLE_AUTHORIZE_URL =
@@ -22,7 +17,6 @@ const RATE_LIMIT_REASONS = new Set([
   'rateLimitExceeded',
   'userRateLimitExceeded',
 ]);
-const MAX_BACKOFF_MS = 16_000;
 
 export type DriveClientOptions = {
   credentials: MountCredentials;
@@ -95,15 +89,6 @@ export async function driveError(
   );
 }
 
-function retryDelay(res: Response | null, attempt: number): number {
-  const header = res?.headers.get('retry-after');
-  const seconds = header ? Number(header) : NaN;
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(seconds * 1000, MAX_BACKOFF_MS);
-  }
-  return Math.min(500 * 2 ** attempt, MAX_BACKOFF_MS);
-}
-
 async function shouldRetry(res: Response): Promise<boolean> {
   if (RETRYABLE_STATUS.has(res.status)) return true;
   if (res.status !== 403) return false;
@@ -112,124 +97,19 @@ async function shouldRetry(res: Response): Promise<boolean> {
 }
 
 export function createDriveClient(options: DriveClientOptions): DriveClient {
-  const fetchImpl = options.fetch ?? fetch;
-  const sleep = options.sleep ?? ((ms: number) => Bun.sleep(ms));
-  const now = options.now ?? Date.now;
-  const maxRetries = options.maxRetries ?? 4;
-  let tokens: OAuthStoredTokens | undefined;
-  let refreshing: Promise<string> | null = null;
-
-  async function reconnect(): Promise<MountReconnectError> {
-    await options.credentials
-      .revoked(DRIVE_RECONNECT_MESSAGE)
-      .catch(() => undefined);
-    return new MountReconnectError(DRIVE_RECONNECT_MESSAGE);
-  }
-
-  async function current(): Promise<OAuthStoredTokens> {
-    tokens ??= await options.credentials.load();
-    if (!tokens) throw await reconnect();
-    return tokens;
-  }
-
-  function expiring(t: OAuthStoredTokens): boolean {
-    if (!t.expiresAt) return false;
-    return Date.parse(t.expiresAt) - 60_000 <= now();
-  }
-
-  async function doRefresh(): Promise<string> {
-    const t = await current();
-    if (!t.refreshToken) throw await reconnect();
-    const body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: t.refreshToken,
-      client_id: options.client.clientId,
-      client_secret: options.client.clientSecret,
-    });
-    let res: Response;
-    try {
-      res = await fetchImpl(GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      });
-    } catch {
-      throw new BlobStoreError('Google sign-in is unreachable', 502);
-    }
-    if (res.status === 400 || res.status === 401) {
-      // invalid_grant: revoked, expired (7-day testing apps), or password reset.
-      throw await reconnect();
-    }
-    if (!res.ok) {
-      throw new BlobStoreError(
-        `Google token refresh failed (${res.status})`,
-        502,
-      );
-    }
-    const raw = (await res.json()) as OAuthTokenResponse;
-    const { raw: _raw, ...stored } = toStoredTokens(raw, {
-      provider: 'google-drive',
-      nowMs: now(),
-    });
-    const next: OAuthStoredTokens = {
-      ...stored,
-      refreshToken: raw.refresh_token ?? t.refreshToken,
-    };
-    tokens = next;
-    await options.credentials.save(next);
-    return next.accessToken;
-  }
-
-  function refresh(): Promise<string> {
-    refreshing ??= doRefresh().finally(() => {
-      refreshing = null;
-    });
-    return refreshing;
-  }
-
-  async function accessToken(): Promise<string> {
-    const t = await current();
-    return expiring(t) ? refresh() : t.accessToken;
-  }
-
-  async function request(url: string, init: RequestInit = {}) {
-    let token = await accessToken();
-    let refreshed = false;
-    let attempt = 0;
-    for (;;) {
-      const headers = new Headers(init.headers);
-      headers.set('authorization', `Bearer ${token}`);
-      let res: Response;
-      try {
-        res = await fetchImpl(url, { ...init, headers });
-      } catch (error) {
-        if (attempt < maxRetries) {
-          await sleep(retryDelay(null, attempt));
-          attempt += 1;
-          continue;
-        }
-        const detail = error instanceof Error ? error.message : String(error);
-        throw new BlobStoreError(`Google Drive is unreachable: ${detail}`, 502);
-      }
-      if (res.status === 401 && !refreshed) {
-        refreshed = true;
-        token = await refresh();
-        continue;
-      }
-      if (res.status === 401) throw await reconnect();
-      if (attempt < maxRetries && (await shouldRetry(res))) {
-        await sleep(retryDelay(res, attempt));
-        attempt += 1;
-        continue;
-      }
-      return res;
-    }
-  }
-
+  const http = createOAuthHttpClient({
+    ...options,
+    provider: 'google-drive',
+    label: 'Google Drive',
+    signInLabel: 'Google',
+    tokenUrl: GOOGLE_TOKEN_URL,
+    reconnectMessage: DRIVE_RECONNECT_MESSAGE,
+    shouldRetry,
+  });
   return {
-    request,
+    request: http.request,
     async json<T>(url: string, init: RequestInit | undefined, op: string) {
-      const res = await request(url, init);
+      const res = await http.request(url, init);
       if (!res.ok) throw await driveError(res, op);
       return (await res.json()) as T;
     },

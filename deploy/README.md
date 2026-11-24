@@ -88,17 +88,20 @@ Set the Redis URL before raising `max_instances` / replicas above **1** when rep
 
 On ephemeral disks, local filesystem storage is not durable. Set the S3-compatible vars (works with **R2**, **AWS S3**, **GCS** HMAC):
 
-| Variable                                  | Role                                                                                      |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `AGENT_OS_EXT_FILES_S3_BUCKET`            | Enables S3 backend                                                                        |
-| `AGENT_OS_EXT_FILES_S3_ENDPOINT`          | Required for R2 / GCS / MinIO; optional for AWS                                           |
-| `AGENT_OS_EXT_FILES_S3_REGION`            | e.g. `auto` (R2) or `us-east-1`                                                           |
-| `AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID`     | Access key                                                                                |
-| `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY` | Secret key                                                                                |
-| `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`     | Optional                                                                                  |
-| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID`     | Optional — platform Google OAuth app for personal Google Drive mounts (see builtins docs) |
-| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET` | Optional — secret of that OAuth app (`wrangler secret put`)                               |
-| `AGENT_OS_EXT_FILES_PATH`                 | Local root only — ignored when bucket is set; avoid in prod containers                    |
+| Variable                                     | Role                                                                                      |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `AGENT_OS_EXT_FILES_S3_BUCKET`               | Enables S3 backend                                                                        |
+| `AGENT_OS_EXT_FILES_S3_ENDPOINT`             | Required for R2 / GCS / MinIO; optional for AWS                                           |
+| `AGENT_OS_EXT_FILES_S3_REGION`               | e.g. `auto` (R2) or `us-east-1`                                                           |
+| `AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID`        | Access key                                                                                |
+| `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY`    | Secret key                                                                                |
+| `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`        | Optional                                                                                  |
+| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID`        | Optional — platform Google OAuth app for personal Google Drive mounts (see builtins docs) |
+| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET`    | Optional — secret of that OAuth app (`wrangler secret put`)                               |
+| `AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_ID`     | Optional — platform Microsoft Entra app for personal OneDrive / SharePoint mounts         |
+| `AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_SECRET` | Optional — client secret of that Entra app (`wrangler secret put`)                        |
+| `AGENT_OS_EXT_FILES_MICROSOFT_TENANT`        | Optional — Entra tenant (default `common`)                                                |
+| `AGENT_OS_EXT_FILES_PATH`                    | Local root only — ignored when bucket is set; avoid in prod containers                    |
 
 Do **not** import Cloudflare R2 bindings into `@agentos/core` — inject credentials as env only.
 

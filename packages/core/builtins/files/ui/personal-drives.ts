@@ -56,3 +56,25 @@ export function readDriveConnectResult(): DriveConnectResult | null {
     return null;
   }
 }
+
+type DriveCopy = {
+  /** Product the "Open in …" button names. */
+  app: string;
+  /** Where deletes go; absent → the AgentOS Bin. */
+  trash?: string;
+  /** Copy-out note on exported documents. */
+  exportNote?: string;
+};
+
+const DRIVE_COPY: Record<string, DriveCopy> = {
+  'google-drive': {
+    app: 'Google',
+    exportNote:
+      'Google Docs, Sheets, and Slides are exported (DOCX / XLSX / PPTX).',
+  },
+  onedrive: { app: 'Microsoft 365', trash: 'the OneDrive recycle bin' },
+};
+
+export function driveCopy(provider: string | undefined): DriveCopy {
+  return (provider && DRIVE_COPY[provider]) || { app: 'provider' };
+}
