@@ -94,6 +94,20 @@ describe('SidebarSlot contextual + shell panels', () => {
     expect(html).toContain('data-sidebar-active="false"');
   });
 
+  test('settings view renders the Shell-hosted settings navigation', () => {
+    const html = renderToStaticMarkup(
+      <SidebarSlot
+        sidebarOpen
+        activeView="settings"
+        contributions={sidebars}
+        sidebarPanel="contribution"
+      />,
+    );
+    expect(html).toContain('data-slot="settings-sidebar-host"');
+    expect(html).toContain('data-slot="settings-sidebar"');
+    expect(html).toContain('data-slot="settings-sidebar-nav"');
+  });
+
   test('extensions panel renders Extension Manager inside sidebar (no sheet)', () => {
     const html = renderToStaticMarkup(
       <SidebarSlot

@@ -1,17 +1,14 @@
 import { useState, type SubmitEvent } from 'react';
 import { Button } from '@agentos/ui/components/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@agentos/ui/components/card';
-import {
   Field,
+  FieldContent,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 
@@ -60,67 +57,97 @@ export function AccountSecuritySection({
   }
 
   const disabled = busy || saving;
+  const invalid = Boolean(error);
 
   return (
-    <Card data-slot="account-security" size="sm">
-      <CardHeader>
-        <CardTitle>Security</CardTitle>
-        <CardDescription>Change your password while signed in</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit}>
-          <FieldGroup>
-            <Field>
+    <form onSubmit={onSubmit} data-slot="account-security">
+      <FieldSet data-setting-entry="change-password">
+        <FieldLegend>Security</FieldLegend>
+        <FieldDescription>
+          Change your password while signed in.
+        </FieldDescription>
+        <FieldGroup>
+          <Field orientation="responsive">
+            <FieldContent>
               <FieldLabel htmlFor="account-current-password">
                 Current password
               </FieldLabel>
-              <Input
-                id="account-current-password"
-                type="password"
-                value={currentPassword}
-                onValueChange={setCurrentPassword}
-                disabled={disabled}
-                autoComplete="current-password"
-                required
-              />
-            </Field>
-            <Field>
+              <FieldDescription>
+                Verify your existing password first.
+              </FieldDescription>
+            </FieldContent>
+            <Input
+              id="account-current-password"
+              type="password"
+              value={currentPassword}
+              onValueChange={(v) => {
+                setCurrentPassword(v);
+                if (error) setError(null);
+              }}
+              disabled={disabled}
+              autoComplete="current-password"
+              required
+              className="sm:max-w-60"
+            />
+          </Field>
+
+          <Field orientation="responsive">
+            <FieldContent>
               <FieldLabel htmlFor="account-new-password">
                 New password
               </FieldLabel>
-              <Input
-                id="account-new-password"
-                type="password"
-                value={newPassword}
-                onValueChange={setNewPassword}
-                disabled={disabled}
-                autoComplete="new-password"
-                required
-              />
-            </Field>
-            <Field>
+              <FieldDescription>
+                Choose a strong password you don&apos;t reuse elsewhere.
+              </FieldDescription>
+            </FieldContent>
+            <Input
+              id="account-new-password"
+              type="password"
+              value={newPassword}
+              onValueChange={(v) => {
+                setNewPassword(v);
+                if (error) setError(null);
+              }}
+              disabled={disabled}
+              autoComplete="new-password"
+              required
+              className="sm:max-w-60"
+            />
+          </Field>
+
+          <Field orientation="responsive" data-invalid={invalid || undefined}>
+            <FieldContent>
               <FieldLabel htmlFor="account-confirm-password">
-                Confirm new password
+                Confirm password
               </FieldLabel>
-              <Input
-                id="account-confirm-password"
-                type="password"
-                value={confirm}
-                onValueChange={setConfirm}
-                disabled={disabled}
-                autoComplete="new-password"
-                required
-              />
-            </Field>
-            {error ? <FieldError>{error}</FieldError> : null}
-            <Field>
-              <Button type="submit" disabled={disabled}>
-                {saving ? 'Updating…' : 'Change password'}
-              </Button>
-            </Field>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
+              <FieldDescription>
+                Re-enter your new password to confirm.
+              </FieldDescription>
+              {error ? <FieldError>{error}</FieldError> : null}
+            </FieldContent>
+            <Input
+              id="account-confirm-password"
+              type="password"
+              value={confirm}
+              onValueChange={(v) => {
+                setConfirm(v);
+                if (error) setError(null);
+              }}
+              disabled={disabled}
+              aria-invalid={invalid || undefined}
+              autoComplete="new-password"
+              required
+              className="sm:max-w-60"
+            />
+          </Field>
+
+          <Field orientation="horizontal" className="justify-end">
+            <Button type="submit" size="sm" disabled={disabled}>
+              {saving ? 'Updating…' : 'Update password'}
+            </Button>
+          </Field>
+        </FieldGroup>
+      </FieldSet>
+    </form>
   );
 }

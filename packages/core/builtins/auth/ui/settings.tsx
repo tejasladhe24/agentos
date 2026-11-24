@@ -1,9 +1,32 @@
-import { useEffect, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  useHostApi,
+  useHostNotifications,
+  useSettingsTarget,
+} from '@agentos/core/client';
+import {
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+} from '@agentos/ui/components/field';
+import { LoadingState } from '@agentos/ui/components/loading-state';
 
-import { AccountPanel } from './account-panel';
+import { AccountOrganizationSection } from './account-organization-section';
+import { AccountProfileSection } from './account-profile-section';
+import { AccountRolesSection } from './account-roles-section';
+import { AccountSecuritySection } from './account-security-section';
+import { AccountSessionSection } from './account-session-section';
 import type { AccountSessionView } from './account-types';
-import { useAccountSection } from './use-account-section';
+
+type AuthSettingsSectionId = 'profile' | 'organization';
+
+function parseAuthSettingsSection(raw: string): AuthSettingsSectionId {
+  if (raw === 'organization' || raw === 'roles') return 'organization';
+  return 'profile';
+}
 
 function parseErrorBody(body: string, fallback: string): string {
   try {
@@ -27,18 +50,21 @@ function parseSession(body: string): AccountSessionView {
 }
 
 /**
- * Auth secondary Activity Bar page — account settings (not public sign-in).
- * Public auth lives at `/login`, `/register`, `/reset-password` (Shell gate).
+ * Auth extension settings view — mounted by the Shell Settings host.
+ *
+ * - `profile`: Profile, Security, and Session
+ * - `organization`: Organization and Roles
  */
-export default function AuthAccountPage() {
+export default function AuthSettings() {
   const api = useHostApi();
   const notifications = useHostNotifications();
-  const [section] = useAccountSection();
+  const target = useSettingsTarget();
+  const section = parseAuthSettingsSection(target.section);
   const [session, setSession] = useState<AccountSessionView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function refreshSession() {
+  const refreshSession = useCallback(async () => {
     const res = await api.fetch('/session');
     if (res.status === 401) {
       setSession({ user: null, roles: [], orgId: null, orgs: [] });
@@ -55,11 +81,11 @@ export default function AuthAccountPage() {
     }
     setSession(parseSession(res.body));
     setError(null);
-  }
+  }, [api]);
 
   useEffect(() => {
     void refreshSession();
-  }, []);
+  }, [refreshSession]);
 
   async function onSaveName(name: string) {
     const res = await api.fetch('/update-profile', {
@@ -134,16 +160,56 @@ export default function AuthAccountPage() {
   }
 
   return (
-    <AccountPanel
-      session={session}
-      section={section}
-      error={error}
-      busy={busy}
-      onSaveName={onSaveName}
-      onChangePassword={onChangePassword}
-      onCreateOrg={onCreateOrg}
-      onSwitchOrg={onSwitchOrg}
-      onSignOut={onSignOut}
-    />
+    <div
+      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
+      data-slot="auth-settings"
+      data-account-section={section}
+    >
+      {!session ? (
+        <LoadingState size="sm">Loading session…</LoadingState>
+      ) : !session.user ? (
+        <FieldSet>
+          <FieldLegend>Not signed in</FieldLegend>
+          <FieldDescription>
+            Open <span className="font-medium text-foreground">/login</span> to
+            authenticate.
+          </FieldDescription>
+          {error ? <FieldError>{error}</FieldError> : null}
+        </FieldSet>
+      ) : (
+        <FieldGroup className="gap-8">
+          {error ? <FieldError>{error}</FieldError> : null}
+          {section === 'profile' ? (
+            <>
+              <AccountProfileSection
+                email={session.user.email}
+                name={session.user.name}
+                busy={busy}
+                onSaveName={onSaveName}
+              />
+              <FieldSeparator />
+              <AccountSecuritySection
+                busy={busy}
+                onChangePassword={onChangePassword}
+              />
+              <FieldSeparator />
+              <AccountSessionSection busy={busy} onSignOut={onSignOut} />
+            </>
+          ) : (
+            <>
+              <AccountOrganizationSection
+                orgId={session.orgId}
+                orgs={session.orgs}
+                busy={busy}
+                onCreateOrg={onCreateOrg}
+                onSwitchOrg={onSwitchOrg}
+              />
+              <FieldSeparator />
+              <AccountRolesSection roles={session.roles} />
+            </>
+          )}
+        </FieldGroup>
+      )}
+    </div>
   );
 }

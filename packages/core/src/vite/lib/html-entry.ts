@@ -35,7 +35,9 @@ export function resolvedVirtualExtEntryId(
 export function parseVirtualExtEntryId(id: string): ParsedExtHtmlPath | null {
   const bare = id.startsWith('\0') ? id.slice(1) : id;
   const match =
-    /^virtual:agentos-ext-entry\/([^/]+)\/(page|sidebar|widget)$/.exec(bare);
+    /^virtual:agentos-ext-entry\/([^/]+)\/(page|sidebar|widget|settings)$/.exec(
+      bare,
+    );
   if (!match) return null;
   const extensionId = match[1];
   const view = match[2] as UiViewName;

@@ -100,7 +100,7 @@ export function buildActivityBarSections(input: {
       secondaryChrome.push({ id: ext.id, ...chrome });
       continue;
     }
-    if (pageExtensionIds.has(ext.id)) {
+    if (pageExtensionIds.has(ext.id) || ext.id === 'settings') {
       secondaryPages.push({
         id: ext.id,
         label: ext.name,

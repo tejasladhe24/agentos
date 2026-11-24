@@ -1,9 +1,84 @@
 {
   "name": "Auth",
-  "icon": "User",
-  "activityBarSection": "secondary",
   "api": {
     "language": "bun",
     "port": 6110
-  }
+  },
+  "settings": [
+    {
+      "id": "profile",
+      "label": "Profile",
+      "description": "Manage your account identity, password, and active session.",
+      "icon": "User",
+      "group": "Account",
+      "keywords": [
+        "account",
+        "email",
+        "name",
+        "security",
+        "password",
+        "session",
+        "sign out",
+        "logout",
+        "auth"
+      ],
+      "entries": [
+        {
+          "id": "email",
+          "label": "Email",
+          "hint": "sign in address login account email identity"
+        },
+        {
+          "id": "display-name",
+          "label": "Display name",
+          "hint": "full name username shown to teammates rename profile"
+        },
+        {
+          "id": "change-password",
+          "label": "Change password",
+          "hint": "update current new confirm password credentials secret pwd security"
+        },
+        {
+          "id": "log-out",
+          "label": "Sign out",
+          "hint": "log out logout end session leave device"
+        }
+      ]
+    },
+    {
+      "id": "organization",
+      "label": "Organization",
+      "description": "Manage organizations and assigned workspace roles.",
+      "icon": "Buildings",
+      "group": "Account",
+      "keywords": [
+        "org",
+        "tenant",
+        "team",
+        "workspace",
+        "roles",
+        "rbac",
+        "permissions",
+        "access",
+        "auth"
+      ],
+      "entries": [
+        {
+          "id": "active-org",
+          "label": "Active organization",
+          "hint": "switch change current tenant workspace team org"
+        },
+        {
+          "id": "create-org",
+          "label": "Create organization",
+          "hint": "new add tenant team workspace org company"
+        },
+        {
+          "id": "roles",
+          "label": "Roles",
+          "hint": "rbac permissions assigned access admin member privileges"
+        }
+      ]
+    }
+  ]
 }

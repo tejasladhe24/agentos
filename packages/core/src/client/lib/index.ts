@@ -22,6 +22,11 @@ export { useHostAI } from './use-host-ai';
 export { useHostHITL } from './use-host-hitl';
 export { useHostNotifications } from './use-host-notifications';
 export { useHostApi } from './use-host-api';
+export {
+  parseSettingsTarget,
+  useSettingsTarget,
+  type SettingsTarget,
+} from './use-settings-target';
 
 export type {
   AiGenerateOptions,

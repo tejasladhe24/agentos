@@ -22,7 +22,7 @@ export type SidebarColumnVisibleInput = SidebarColumnContentInput & {
  *
  * Active-extension host: in contribution mode, no content when the active view
  * has nothing (no Home `dashboardSidebar`, no matching `ui/sidebar.tsx`).
- * Shell panels (extensions / hitl) always count as content.
+ * Shell panels (extensions / hitl) and the Settings view always count as content.
  */
 export function sidebarColumnHasContent({
   sidebarPanel,
@@ -32,6 +32,8 @@ export function sidebarColumnHasContent({
 }: SidebarColumnContentInput): boolean {
   if (sidebarPanel !== 'contribution') return true;
   if (activeView === 'home' && hasDashboardSidebar) return true;
+  // Settings nav is Shell-hosted (extensions register sections, not a sidebar).
+  if (activeView === 'settings') return true;
   return sidebars.some((c) => c.extensionId === activeView);
 }
 

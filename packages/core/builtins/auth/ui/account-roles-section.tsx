@@ -1,11 +1,13 @@
 import { Badge } from '@agentos/ui/components/badge';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@agentos/ui/components/card';
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLegend,
+  FieldSet,
+  FieldTitle,
+} from '@agentos/ui/components/field';
 
 export type AccountRolesSectionProps = {
   roles: string[];
@@ -13,24 +15,30 @@ export type AccountRolesSectionProps = {
 
 export function AccountRolesSection({ roles }: AccountRolesSectionProps) {
   return (
-    <Card data-slot="account-roles" size="sm">
-      <CardHeader>
-        <CardTitle>Roles</CardTitle>
-        <CardDescription>Assigned via Auth RBAC</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {roles.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {roles.map((role) => (
-              <Badge key={role} variant="secondary">
-                {role}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No roles assigned</p>
-        )}
-      </CardContent>
-    </Card>
+    <FieldSet data-slot="account-roles" data-setting-entry="roles">
+      <FieldLegend>Roles</FieldLegend>
+      <FieldDescription>
+        Access roles granted to your account in this workspace.
+      </FieldDescription>
+      <FieldGroup>
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Assigned roles</FieldTitle>
+            <FieldDescription>Assigned via Auth RBAC.</FieldDescription>
+          </FieldContent>
+          {roles.length > 0 ? (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {roles.map((role) => (
+                <Badge key={role} variant="secondary">
+                  {role}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <FieldDescription>No roles assigned</FieldDescription>
+          )}
+        </Field>
+      </FieldGroup>
+    </FieldSet>
   );
 }

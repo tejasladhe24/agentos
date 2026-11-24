@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useExtensionHost } from '@agentos/core/shell/hooks';
 import {
   contributionKey,
@@ -21,6 +22,11 @@ export type ExtensionFrameProps = {
    * Useful in unit tests without a ThemeProvider.
    */
   theme?: string;
+  /**
+   * Optional URL hash fragment synced into the iframe via `location.hash`
+   * without reloading or re-handshaking the frame (e.g. multi-section settings).
+   */
+  hash?: string;
 };
 
 /**
@@ -33,6 +39,7 @@ export function ExtensionFrame({
   handshakeTimeoutMs,
   rpcTimeoutMs,
   theme: themeProp,
+  hash,
 }: ExtensionFrameProps) {
   const { extensionId, view, src } = contribution;
   const { resolvedTheme } = useTheme();
@@ -49,6 +56,20 @@ export function ExtensionFrame({
     (s) => s.runtimeStatus[contributionKey(extensionId, view)],
   );
   const showLoading = shouldShowExtensionFrameLoading(runtimeStatus, visible);
+
+  useEffect(() => {
+    if (hash === undefined) return;
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    const target = hash ? `#${hash}` : '';
+    try {
+      if (win.location.hash !== target) {
+        win.location.hash = target;
+      }
+    } catch {
+      // Ignore cross-origin access in restricted environments/tests.
+    }
+  }, [hash, runtimeStatus, iframeRef]);
 
   return (
     <div
