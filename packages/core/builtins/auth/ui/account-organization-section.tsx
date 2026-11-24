@@ -1,14 +1,19 @@
 import { useState, type FormEvent } from 'react';
+import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@agentos/ui/components/card';
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+  FieldTitle,
+} from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
-import { Badge } from '@agentos/ui/components/badge';
 
 import type { AccountOrgMembership } from './account-types';
 
@@ -64,86 +69,89 @@ export function AccountOrganizationSection({
   }
 
   const disabled = busy || pending;
+  const invalid = Boolean(localError);
 
   return (
-    <div className="flex flex-col gap-4" data-slot="account-organization">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Active organization</CardTitle>
-          <CardDescription>
-            Tenant context for db-store and extension APIs
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+    <FieldGroup data-slot="account-organization">
+      <FieldSet data-setting-entry="active-org">
+        <FieldLegend>Active organization</FieldLegend>
+        <FieldDescription>
+          Tenant context for db-store and extension APIs.
+        </FieldDescription>
+        <FieldGroup>
           {orgs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <FieldDescription>
               You are not a member of any organization yet.
-            </p>
+            </FieldDescription>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {orgs.map((org) => {
-                const active = org.id === orgId;
-                return (
-                  <li
-                    key={org.id}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{org.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {org.role}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {active ? (
-                        <Badge variant="secondary">Active</Badge>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={disabled}
-                          onClick={() => void handleSwitch(org.id)}
-                        >
-                          Switch
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            orgs.map((org) => {
+              const active = org.id === orgId;
+              return (
+                <Field key={org.id} orientation="horizontal">
+                  <FieldContent>
+                    <FieldTitle>{org.name}</FieldTitle>
+                    <FieldDescription>{org.role}</FieldDescription>
+                  </FieldContent>
+                  {active ? (
+                    <Badge variant="secondary">Active</Badge>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => void handleSwitch(org.id)}
+                    >
+                      Switch
+                    </Button>
+                  )}
+                </Field>
+              );
+            })
           )}
-        </CardContent>
-      </Card>
+        </FieldGroup>
+      </FieldSet>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Create organization</CardTitle>
-          <CardDescription>
-            You become the owner and it becomes your active org
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-3" onSubmit={handleCreate}>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Organization name"
-              disabled={disabled}
-              aria-label="Organization name"
-            />
-            {localError ? (
-              <p className="text-xs text-destructive" role="alert">
-                {localError}
-              </p>
-            ) : null}
-            <Button type="submit" disabled={disabled}>
-              Create
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+      <FieldSeparator />
+
+      <form onSubmit={handleCreate}>
+        <FieldSet data-setting-entry="create-org">
+          <FieldLegend>Create organization</FieldLegend>
+          <FieldDescription>
+            You become the owner and it becomes your active organization.
+          </FieldDescription>
+          <FieldGroup>
+            <Field orientation="responsive" data-invalid={invalid || undefined}>
+              <FieldContent>
+                <FieldLabel htmlFor="account-new-org">
+                  Organization name
+                </FieldLabel>
+                <FieldDescription>
+                  Enter a name for your new workspace tenant.
+                </FieldDescription>
+                {localError ? <FieldError>{localError}</FieldError> : null}
+              </FieldContent>
+              <Input
+                id="account-new-org"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (localError) setLocalError(null);
+                }}
+                placeholder="Acme Inc."
+                disabled={disabled}
+                aria-invalid={invalid || undefined}
+                className="sm:max-w-60"
+              />
+            </Field>
+            <Field orientation="horizontal" className="justify-end">
+              <Button type="submit" size="sm" disabled={disabled}>
+                Create
+              </Button>
+            </Field>
+          </FieldGroup>
+        </FieldSet>
+      </form>
+    </FieldGroup>
   );
 }

@@ -7,7 +7,7 @@ import { scanExtensions } from '@agentos/core/vite/lib/scan-extensions';
 const builtinsDir = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('scan builtin settings', () => {
-  test('discovers settings as driven builtin with page entry', () => {
+  test('discovers settings as driven secondary builtin', () => {
     const model = scanExtensions({
       extensionsDir: join(builtinsDir, '__no_customer_extensions__'),
       builtinsDir,
@@ -21,7 +21,5 @@ describe('scan builtin settings', () => {
     expect(settings?.meta.name).toBe('Settings');
     expect(settings?.meta.icon).toBe('GearSix');
     expect(settings?.meta.activityBarSection).toBe('secondary');
-    expect(settings?.ui.page).toBeTruthy();
-    expect(settings?.uiEntries.page).toBe('/__agentos/ext/settings/page.html');
   });
 });

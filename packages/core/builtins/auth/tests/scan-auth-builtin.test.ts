@@ -22,7 +22,13 @@ describe('scan builtin auth', () => {
       language: 'bun',
       port: 6110,
     });
-    expect(auth?.ui.page).toBeTruthy();
-    expect(auth?.ui.sidebar).toBeTruthy();
+    expect(auth?.ui.page).toBeUndefined();
+    expect(auth?.ui.sidebar).toBeUndefined();
+    expect(auth?.ui.settings).toBeTruthy();
+    expect(auth?.uiEntries.settings).toBe('/__agentos/ext/auth/settings.html');
+    expect(auth?.meta.settings?.map((s) => s.id)).toEqual([
+      'profile',
+      'organization',
+    ]);
   });
 });

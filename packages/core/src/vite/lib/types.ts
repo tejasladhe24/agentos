@@ -53,8 +53,45 @@ export const DEFAULT_SERVICE_MOUNT = '/_service';
 /** Activity Bar vertical region (`meta.json` `activityBarSection`). */
 export type ActivityBarSection = 'primary' | 'secondary';
 
-export type UiViewName = 'page' | 'sidebar' | 'widget';
+export type UiViewName = 'page' | 'sidebar' | 'widget' | 'settings';
 export type AgentFileName = 'tools' | 'skills' | 'instructions';
+
+/**
+ * One individual setting inside a settings section (`meta.json`
+ * `settings[].entries`). Powers Settings search: users can find and jump to
+ * a specific setting, not just the broader section.
+ *
+ * The extension UI should mark the matching element with
+ * `data-setting-entry="<id>"` so the Shell can scroll to it.
+ */
+export type ExtensionSettingsEntryMeta = {
+  /** Entry id unique within the section (e.g. `"display-name"`). */
+  id: string;
+  /** Display label shown in search results. */
+  label: string;
+  /** Plain-text search hint (synonyms / what the setting does). */
+  hint?: string;
+  /** Optional extra search keywords. */
+  keywords?: string[];
+};
+
+/** One settings sidebar entry declared in `meta.json` `settings`. */
+export type ExtensionSettingsSectionMeta = {
+  /** Section id unique within the extension (e.g. `"profile"`, `"files"`). */
+  id: string;
+  /** Display label in the Settings sidebar. */
+  label: string;
+  /** Optional subtitle shown in the Settings header. */
+  description?: string;
+  /** Optional Phosphor icon basename (defaults to extension icon). */
+  icon?: string;
+  /** Optional sidebar group name (e.g. `"Account"`, `"Workspace"`). */
+  group?: string;
+  /** Optional extra search keywords. */
+  keywords?: string[];
+  /** Individual settings inside this section, searchable from the sidebar. */
+  entries?: ExtensionSettingsEntryMeta[];
+};
 
 /** One public SPA UI entry from `meta.json` `public.ui`. */
 export type ExtensionPublicUiRoute = {
@@ -101,6 +138,8 @@ export type ExtensionMeta = {
   service?: ExtensionMetaService;
   /** Public (unauthenticated) UI paths and/or API prefixes. */
   public?: ExtensionMetaPublic;
+  /** Optional settings sidebar sections backed by `ui/settings.tsx`. */
+  settings?: ExtensionSettingsSectionMeta[];
 };
 
 /**

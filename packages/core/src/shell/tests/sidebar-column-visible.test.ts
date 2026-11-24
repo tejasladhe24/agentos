@@ -53,6 +53,17 @@ describe('sidebarColumnHasContent', () => {
     ).toBe(true);
   });
 
+  test('settings view always has the Shell-hosted settings sidebar', () => {
+    expect(
+      sidebarColumnHasContent({
+        sidebarPanel: 'contribution',
+        activeView: 'settings',
+        sidebars: [],
+        hasDashboardSidebar: false,
+      }),
+    ).toBe(true);
+  });
+
   test('extension without sidebar hides; CRM with sidebar shows', () => {
     expect(
       sidebarColumnHasContent({

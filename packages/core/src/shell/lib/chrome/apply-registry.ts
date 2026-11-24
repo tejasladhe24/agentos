@@ -29,6 +29,7 @@ export function mapRegistry(registry: RegistryModel): AppliedRegistry {
       driven: ext.driven,
       ...(ext.meta.icon ? { icon: ext.meta.icon } : {}),
       ...(activityBarSection !== 'primary' ? { activityBarSection } : {}),
+      ...(ext.meta.settings?.length ? { settings: ext.meta.settings } : {}),
     };
   });
 
@@ -36,7 +37,7 @@ export function mapRegistry(registry: RegistryModel): AppliedRegistry {
   const skillsByExtension: Record<string, string[]> = {};
 
   for (const ext of registry.extensions) {
-    for (const view of ['page', 'sidebar', 'widget'] as const) {
+    for (const view of ['page', 'sidebar', 'widget', 'settings'] as const) {
       const src = ext.uiEntries[view];
       if (src) {
         contributions.push({

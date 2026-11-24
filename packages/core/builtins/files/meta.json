@@ -5,5 +5,22 @@
   "api": {
     "language": "bun",
     "port": 6116
-  }
+  },
+  "settings": [
+    {
+      "id": "files",
+      "label": "Files",
+      "description": "Configure file storage and bin retention preferences.",
+      "icon": "Folder",
+      "group": "Workspace",
+      "keywords": ["storage", "bin", "trash", "retention", "delete"],
+      "entries": [
+        {
+          "id": "bin-retention",
+          "label": "Bin auto-delete",
+          "hint": "trash deleted files recycle retention days permanently remove never 15 30"
+        }
+      ]
+    }
+  ]
 }

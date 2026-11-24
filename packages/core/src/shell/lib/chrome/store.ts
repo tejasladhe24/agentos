@@ -47,6 +47,17 @@ export type ShellUiState = {
   chatOpen: boolean;
   chatMessages: ChatMessage[];
   chatBusy: boolean;
+  /**
+   * Selected Settings section key (`${extensionId}:${sectionId}`). Shared by
+   * the Settings sidebar (left Shell column) and the Settings main view.
+   * `null` → restore from storage, then first registered section.
+   */
+  settingsKey: string | null;
+  /**
+   * Individual setting to scroll to inside the selected section (set when a
+   * Settings search result for a specific entry is chosen).
+   */
+  settingsEntryId: string | null;
   /** Catalog entries shown in Extension Manager (from registry). */
   extensions: ExtensionEntry[];
   /** Per-extension enable flag; builtins stay true. */
@@ -72,6 +83,7 @@ export type ShellUiState = {
   toggleChat: () => void;
   appendChatMessage: (message: ChatMessage) => void;
   setChatBusy: (busy: boolean) => void;
+  setSettingsKey: (key: string | null, entryId?: string | null) => void;
   toggleSidebar: () => void;
   setExtensions: (extensions: ExtensionEntry[]) => void;
   setContributions: (contributions: UiContribution[]) => void;
@@ -98,6 +110,8 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
   chatOpen: false,
   chatMessages: [],
   chatBusy: false,
+  settingsKey: null,
+  settingsEntryId: null,
   extensions: [],
   enabledById: {},
   desiredContributions: [],
@@ -124,6 +138,8 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
   appendChatMessage: (message) =>
     set((s) => ({ chatMessages: [...s.chatMessages, message] })),
   setChatBusy: (busy) => set({ chatBusy: busy }),
+  setSettingsKey: (key, entryId = null) =>
+    set({ settingsKey: key, settingsEntryId: entryId }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setExtensions: (extensions) =>
     set((s) => {

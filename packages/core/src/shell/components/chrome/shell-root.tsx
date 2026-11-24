@@ -24,6 +24,7 @@ import {
 import { Toaster, toast } from '@agentos/ui/components/toast';
 import { cn } from '@agentos/ui/lib/utils';
 import { HomeDashboard } from '../home/home-dashboard';
+import { SettingsView } from '../settings/settings-view';
 import { HiddenSlot } from '../ui-contribs/hidden-slot';
 import { SidebarSlot } from '../ui-contribs/sidebar-slot';
 import { StatusBar } from '../ui-contribs/status-bar';
@@ -52,12 +53,16 @@ export type ShellRootProps = {
 };
 
 function MainWorkspace({
-  isHome,
+  activeView,
   dashboard,
 }: {
-  isHome: boolean;
+  activeView: ShellView;
   dashboard?: ComponentType;
 }) {
+  const isHome = activeView === 'home';
+  const isSettings = activeView === 'settings';
+  const isMainCanvas = !isHome && !isSettings;
+
   return (
     <div className="relative h-full min-h-0 min-w-0 overflow-hidden bg-background">
       <div
@@ -67,10 +72,15 @@ function MainWorkspace({
       >
         <HomeDashboard dashboard={dashboard} />
       </div>
+      {isSettings ? (
+        <div className="h-full w-full overflow-hidden" data-active="true">
+          <SettingsView />
+        </div>
+      ) : null}
       <div
         className="h-full w-full overflow-auto"
-        data-active={isHome ? 'false' : 'true'}
-        hidden={isHome}
+        data-active={isMainCanvas ? 'true' : 'false'}
+        hidden={!isMainCanvas}
       >
         <MainCanvas />
       </div>
@@ -94,7 +104,6 @@ export function ShellRoot({
     contributions: contributionsProp,
     view: 'sidebar',
   });
-  const isHome = activeView === 'home';
   // Allocate the resizable column when there is content — do not tear it down
   // on toggle, or MainCanvas / extension pages remount.
   const hasSidebarContent = sidebarColumnHasContent({
@@ -176,12 +185,15 @@ export function ShellRoot({
                   minSize="40%"
                   className="min-h-0 min-w-0"
                 >
-                  <MainWorkspace isHome={isHome} dashboard={dashboard} />
+                  <MainWorkspace
+                    activeView={activeView}
+                    dashboard={dashboard}
+                  />
                 </ResizablePanel>
               </ResizablePanelGroup>
             ) : (
               <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                <MainWorkspace isHome={isHome} dashboard={dashboard} />
+                <MainWorkspace activeView={activeView} dashboard={dashboard} />
               </div>
             )}
           </div>

@@ -15,7 +15,7 @@
  * App Home surfaces (`ui/dashboard.tsx`, `ui/dashboard-sidebar.tsx`) are
  * in-process via `mountShell` — not `ExtensionView` / iframe entries.
  */
-export type ExtensionView = 'page' | 'sidebar' | 'widget';
+export type ExtensionView = 'page' | 'sidebar' | 'widget' | 'settings';
 
 /** Runtime lifecycle status for one mounted contribution frame. */
 export type ContributionRuntimeStatus = 'loading' | 'active' | 'crashed';

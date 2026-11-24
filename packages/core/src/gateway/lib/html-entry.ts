@@ -3,7 +3,12 @@ import type { UiViewName } from '@agentos/core/vite/lib/types';
 /** URL prefix for virtual iframe HTML entries. */
 export const EXT_HTML_PREFIX = '/__agentos/ext';
 
-const VIEW_NAMES = new Set<UiViewName>(['page', 'sidebar', 'widget']);
+const VIEW_NAMES = new Set<UiViewName>([
+  'page',
+  'sidebar',
+  'widget',
+  'settings',
+]);
 
 export type ParsedExtHtmlPath = {
   extensionId: string;
@@ -16,9 +21,10 @@ export type ParsedExtHtmlPath = {
  */
 export function parseExtHtmlPath(pathname: string): ParsedExtHtmlPath | null {
   const path = pathname.split('?')[0] ?? pathname;
-  const match = /^\/__agentos\/ext\/([^/]+)\/(page|sidebar|widget)\.html$/.exec(
-    path,
-  );
+  const match =
+    /^\/__agentos\/ext\/([^/]+)\/(page|sidebar|widget|settings)\.html$/.exec(
+      path,
+    );
   if (!match) return null;
   const extensionId = match[1];
   const view = match[2] as UiViewName;

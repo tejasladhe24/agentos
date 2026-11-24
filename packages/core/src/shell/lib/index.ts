@@ -71,8 +71,27 @@ export {
   type ExtensionEntry,
   type ExtensionKind,
   type ExtensionManagerStatus,
+  type ExtensionSettingsEntry,
+  type ExtensionSettingsSection,
   type PaletteSkill,
 } from './chrome/extension-catalog';
+export {
+  readStoredSettingsKey,
+  resolveActiveSettingsItem,
+  SETTINGS_SELECTED_KEY,
+  writeStoredSettingsKey,
+} from './settings/settings-selection';
+export {
+  buildSettingsItems,
+  filterSettingsItems,
+  groupSettingsItems,
+  searchSettings,
+  type SettingsEntryItem,
+  type SettingsNavGroup,
+  type SettingsNavItem,
+  type SettingsSearchResult,
+} from './settings/build-settings-items';
+export { fuzzyScore, type FuzzyField } from './settings/fuzzy';
 export {
   requestExtensionEnable,
   requestExtensionEnableState,

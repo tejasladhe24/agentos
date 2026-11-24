@@ -11,6 +11,8 @@ import type {
   ExtensionMetaPublic,
   ExtensionMetaService,
   ExtensionPublicUiRoute,
+  ExtensionSettingsEntryMeta,
+  ExtensionSettingsSectionMeta,
   PythonServiceKind,
   RegistryModel,
   ScannedExtension,
@@ -25,7 +27,7 @@ type RawScannedExtension = Omit<
   'driven' | 'toggleable' | 'uiEntries' | 'agentDescriptors'
 >;
 
-const UI_VIEWS: UiViewName[] = ['page', 'sidebar', 'widget'];
+const UI_VIEWS: UiViewName[] = ['page', 'sidebar', 'widget', 'settings'];
 const UI_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const;
 
 const AGENT_FILES: ReadonlyArray<{ key: AgentFileName; file: string }> = [
@@ -209,6 +211,72 @@ function parseMetaPublic(raw: unknown): ExtensionMetaPublic | undefined {
   return result;
 }
 
+function parseStringList(raw: unknown[]): string[] {
+  return raw.filter(
+    (kw): kw is string => typeof kw === 'string' && kw.trim().length > 0,
+  );
+}
+
+function parseSettingsEntries(
+  raw: unknown,
+): ExtensionSettingsEntryMeta[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const entries: ExtensionSettingsEntryMeta[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.id !== 'string' || !obj.id.trim()) continue;
+    if (typeof obj.label !== 'string' || !obj.label.trim()) continue;
+    const entry: ExtensionSettingsEntryMeta = {
+      id: obj.id.trim(),
+      label: obj.label.trim(),
+    };
+    if (typeof obj.hint === 'string' && obj.hint.trim()) {
+      entry.hint = obj.hint.trim();
+    }
+    if (Array.isArray(obj.keywords)) {
+      const keywords = parseStringList(obj.keywords);
+      if (keywords.length > 0) entry.keywords = keywords;
+    }
+    entries.push(entry);
+  }
+  return entries.length > 0 ? entries : undefined;
+}
+
+function parseMetaSettings(
+  raw: unknown,
+): ExtensionSettingsSectionMeta[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const sections: ExtensionSettingsSectionMeta[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.id !== 'string' || !obj.id.trim()) continue;
+    if (typeof obj.label !== 'string' || !obj.label.trim()) continue;
+    const entry: ExtensionSettingsSectionMeta = {
+      id: obj.id.trim(),
+      label: obj.label.trim(),
+    };
+    if (typeof obj.description === 'string' && obj.description.trim()) {
+      entry.description = obj.description.trim();
+    }
+    if (typeof obj.icon === 'string' && obj.icon.trim()) {
+      entry.icon = obj.icon.trim();
+    }
+    if (typeof obj.group === 'string' && obj.group.trim()) {
+      entry.group = obj.group.trim();
+    }
+    if (Array.isArray(obj.keywords)) {
+      const keywords = parseStringList(obj.keywords);
+      if (keywords.length > 0) entry.keywords = keywords;
+    }
+    const entries = parseSettingsEntries(obj.entries);
+    if (entries) entry.entries = entries;
+    sections.push(entry);
+  }
+  return sections.length > 0 ? sections : undefined;
+}
+
 function readMeta(metaPath: string): ExtensionMeta | undefined {
   try {
     const text = readFileSync(metaPath, 'utf8');
@@ -235,6 +303,8 @@ function readMeta(metaPath: string): ExtensionMeta | undefined {
     if (service) meta.service = service;
     const pub = parseMetaPublic(obj.public);
     if (pub) meta.public = pub;
+    const settings = parseMetaSettings(obj.settings);
+    if (settings) meta.settings = settings;
     return meta;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

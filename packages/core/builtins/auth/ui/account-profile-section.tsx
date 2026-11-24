@@ -1,17 +1,14 @@
 import { useEffect, useState, type SubmitEvent } from 'react';
 import { Button } from '@agentos/ui/components/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@agentos/ui/components/card';
-import {
   Field,
+  FieldContent,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 
@@ -59,48 +56,69 @@ export function AccountProfileSection({
   }
 
   const disabled = busy || saving;
+  const invalid = Boolean(error);
 
   return (
-    <Card data-slot="account-profile" size="sm">
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-        <CardDescription>Your account identity</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit}>
-          <FieldGroup>
-            <Field>
+    <form onSubmit={onSubmit} data-slot="account-profile">
+      <FieldSet>
+        <FieldLegend>Profile</FieldLegend>
+        <FieldDescription>
+          Your account identity across this workspace.
+        </FieldDescription>
+        <FieldGroup>
+          <Field orientation="responsive" data-setting-entry="email">
+            <FieldContent>
               <FieldLabel htmlFor="account-email">Email</FieldLabel>
-              <Input
-                id="account-email"
-                type="email"
-                value={email}
-                disabled
-                readOnly
-                autoComplete="username"
-              />
-            </Field>
-            <Field>
+              <FieldDescription>
+                Used to sign in and receive workspace notifications.
+              </FieldDescription>
+            </FieldContent>
+            <Input
+              id="account-email"
+              type="email"
+              value={email}
+              disabled
+              readOnly
+              autoComplete="username"
+              className="sm:max-w-60"
+            />
+          </Field>
+
+          <Field
+            orientation="responsive"
+            data-setting-entry="display-name"
+            data-invalid={invalid || undefined}
+          >
+            <FieldContent>
               <FieldLabel htmlFor="account-name">Display name</FieldLabel>
-              <Input
-                id="account-name"
-                type="text"
-                value={draftName}
-                onValueChange={setDraftName}
-                disabled={disabled}
-                autoComplete="name"
-                required
-              />
-            </Field>
-            {error ? <FieldError>{error}</FieldError> : null}
-            <Field>
-              <Button type="submit" disabled={disabled}>
-                {saving ? 'Saving…' : 'Save name'}
-              </Button>
-            </Field>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
+              <FieldDescription>
+                Shown to teammates in activity logs and organizations.
+              </FieldDescription>
+              {error ? <FieldError>{error}</FieldError> : null}
+            </FieldContent>
+            <Input
+              id="account-name"
+              type="text"
+              value={draftName}
+              onValueChange={(v) => {
+                setDraftName(v);
+                if (error) setError(null);
+              }}
+              disabled={disabled}
+              aria-invalid={invalid || undefined}
+              autoComplete="name"
+              required
+              className="sm:max-w-60"
+            />
+          </Field>
+
+          <Field orientation="horizontal" className="justify-end">
+            <Button type="submit" size="sm" disabled={disabled}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </Button>
+          </Field>
+        </FieldGroup>
+      </FieldSet>
+    </form>
   );
 }

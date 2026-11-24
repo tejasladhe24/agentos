@@ -4,6 +4,26 @@ export type ExtensionKind = 'builtin' | 'customer';
 /** Activity Bar vertical region (from `meta.json`, coerced for customers). */
 export type ActivityBarSection = 'primary' | 'secondary';
 
+/** One individual setting inside a section (search + deep-link target). */
+export type ExtensionSettingsEntry = {
+  id: string;
+  label: string;
+  /** Plain-text search hint. */
+  hint?: string;
+  keywords?: string[];
+};
+
+/** One settings sidebar section registered by an extension's `meta.json`. */
+export type ExtensionSettingsSection = {
+  id: string;
+  label: string;
+  description?: string;
+  icon?: string;
+  group?: string;
+  keywords?: string[];
+  entries?: ExtensionSettingsEntry[];
+};
+
 /** One row in the Extension Manager list. */
 export type ExtensionEntry = {
   id: string;
@@ -22,6 +42,8 @@ export type ExtensionEntry = {
    * Activity Bar section. Defaults to `primary`. Only builtins may be `secondary`.
    */
   activityBarSection?: ActivityBarSection;
+  /** Optional settings sidebar sections backed by `ui/settings.tsx`. */
+  settings?: ExtensionSettingsSection[];
 };
 
 /** Builtins that own Activity Bar secondary chrome when meta omits a section. */

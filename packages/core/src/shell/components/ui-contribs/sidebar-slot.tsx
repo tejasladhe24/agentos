@@ -14,6 +14,7 @@ import {
 import { cn } from '@agentos/ui/lib/utils';
 import { ExtensionManagerPanel } from '../chrome/extension-manager-drawer';
 import { HitlInbox } from '../chrome/hitl-inbox';
+import { SettingsSidebar } from '../settings/settings-sidebar';
 import { ExtensionFrame } from './extension-frame';
 
 export type SidebarSlotProps = {
@@ -27,7 +28,7 @@ export type SidebarSlotProps = {
   dashboardSidebar?: ComponentType;
 };
 
-/** Left sidebar host: active extension `ui/sidebar.tsx`, Home sidebar, or Shell manager/HITL. */
+/** Left sidebar host: active extension `ui/sidebar.tsx`, Home sidebar, Settings nav, or Shell manager/HITL. */
 export function SidebarSlot({
   contributions: contributionsProp,
   sidebarOpen: sidebarOpenProp,
@@ -47,6 +48,7 @@ export function SidebarSlot({
   const contributionMode = mode === 'contribution';
   const homeSidebarActive =
     contributionMode && activeView === 'home' && DashboardSidebar != null;
+  const settingsSidebarActive = contributionMode && activeView === 'settings';
 
   return (
     <aside
@@ -79,6 +81,15 @@ export function SidebarSlot({
               data-sidebar-active="true"
             >
               <DashboardSidebar />
+            </div>
+          ) : null}
+          {settingsSidebarActive ? (
+            <div
+              className="h-full w-full overflow-hidden"
+              data-slot="settings-sidebar-host"
+              data-sidebar-active="true"
+            >
+              <SettingsSidebar />
             </div>
           ) : null}
           {sidebars.map((contribution) => {
