@@ -102,12 +102,18 @@ Do **not** import Cloudflare R2 bindings into `@agentos/core` — inject credent
 
 ### AI
 
-| Variable                      | Role                                                                                                         |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `AGENT_OS_EXT_AI_MODEL`       | Optional model id; **unset → mock** models (`ai/test`, [ADR 006](../.project/docs/adr/006-vercel-ai-sdk.md)) |
-| `AGENT_OS_EXT_AI_GATEWAY_URL` | Gateway URL for the AI builtin (defaults for in-container loopback)                                          |
+| Variable                              | Role                                                                                                                             |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_OS_EXT_AI_PROVIDER`            | `openai` / `anthropic` / `google` / `ai-gateway`; **unset → mock** models ([ADR 006](../.project/docs/adr/006-vercel-ai-sdk.md)) |
+| `AGENT_OS_EXT_AI_API_KEY`             | Provider API key (secret)                                                                                                        |
+| `AGENT_OS_EXT_AI_MODEL`               | Language model id (required with a provider)                                                                                     |
+| `AGENT_OS_EXT_AI_EMBEDDING_MODEL`     | Optional embedding model                                                                                                         |
+| `AGENT_OS_EXT_AI_IMAGE_MODEL`         | Optional image model                                                                                                             |
+| `AGENT_OS_EXT_AI_BASE_URL`            | Optional provider base URL (regional / proxy)                                                                                    |
+| `AGENT_OS_EXT_AI_ZERO_DATA_RETENTION` | `ai-gateway` only: restrict to zero-data-retention providers                                                                     |
+| `AGENT_OS_EXT_AI_GATEWAY_URL`         | Gateway URL for the AI builtin (defaults for in-container loopback)                                                              |
 
-Provider API key env vars are not part of the contract yet; when added they will follow `AGENT_OS_EXT_AI_*` / createEnv, not cloud-specific bindings.
+Full semantics: [builtins.md › AI env](../.project/docs/builtins.md#ai-env).
 
 ## Non-goals
 
