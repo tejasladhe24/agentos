@@ -70,15 +70,28 @@ export function SecretsTable({
                 {formatStamp(item.expiresAt)}
               </TableCell>
               <TableCell>
-                <Badge variant="secondary">vault</Badge>
+                {item.managed ? (
+                  <Badge variant="outline" data-slot="secret-managed">
+                    Managed by Settings
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">vault</Badge>
+                )}
               </TableCell>
               <TableCell>
-                <SecretRevealControls
-                  secretKey={item.key}
-                  onReveal={onReveal}
-                />
+                {item.managed ? (
+                  <span className="text-xs text-muted-foreground">
+                    Hidden — edit in Settings
+                  </span>
+                ) : (
+                  <SecretRevealControls
+                    secretKey={item.key}
+                    onReveal={onReveal}
+                  />
+                )}
               </TableCell>
-              {canWrite ? (
+              {canWrite && item.managed ? <TableCell /> : null}
+              {canWrite && !item.managed ? (
                 <TableCell>
                   <div className="flex gap-1">
                     <Button

@@ -1,6 +1,6 @@
 # 103 — Tenant integrations foundation (BYOK)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -74,14 +74,14 @@ Decisions (from planning chat):
 
 ## Done when
 
-- [ ] `integrations` collection + kit (TS + Python) with secret refs into the vault
-- [ ] `resolveProvider` helper with cache + `integration.changed` invalidation
-- [ ] Reserved vault prefix hidden/locked in the Secrets manager
-- [ ] Shared integration card components + `integrations.manage` permission
-- [ ] Audit entries without secret values
-- [ ] Tests: fallback to env when unset, per-org isolation, cache invalidation, no value leakage in reads
-- [ ] Docs: `builtins.md` BYOK section with the platform vs tenant table above
-- [ ] `bun run ci` green
+- [x] `integrations` collection + kit (TS + Python) with secret refs into the vault
+- [x] `resolveProvider` helper with cache + `integration.changed` invalidation
+- [x] Reserved vault prefix hidden/locked in the Secrets manager
+- [x] Shared integration card components + `integrations.manage` permission
+- [x] Audit entries without secret values
+- [x] Tests: fallback to env when unset, per-org isolation, cache invalidation, no value leakage in reads
+- [x] Docs: `builtins.md` BYOK section with the platform vs tenant table above
+- [x] `bun run ci` green
 
 ## Verify
 

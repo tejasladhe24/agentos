@@ -34,6 +34,8 @@ export type SecretListItem = {
   updatedAt?: string;
   expiresAt?: string;
   hasValue: true;
+  /** Reserved `integrations/` key — managed by the integrations kit. */
+  managed?: true;
 };
 
 export type SecretListResult = {

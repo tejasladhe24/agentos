@@ -1,6 +1,7 @@
 import { appendEntry } from '@agentos/core/api/audit';
 
 import {
+  MANAGED_KEY_PREFIX,
   PERMISSION_SECRETS_READ,
   PERMISSION_SECRETS_WRITE,
   SECRETS_ALG,
@@ -167,6 +168,17 @@ export async function handleSecretsRequest(
     return json({ error: 'not found' }, { status: 404 });
   }
 
+  if (key.startsWith(MANAGED_KEY_PREFIX)) {
+    const resolveOrg = ctx.resolveOrg ?? resolveOrgForSecretsRequest;
+    const org = await resolveOrg(request, ctx.runtimeEnv);
+    if (!org.ok || org.via !== 'header') {
+      return json(
+        { error: 'managed by integrations; edit it in Settings' },
+        { status: 403 },
+      );
+    }
+  }
+
   if (method === 'GET') {
     return handleGet(ctx, request, key);
   }
@@ -212,6 +224,7 @@ async function handleList(
       };
       if (record.rotatedAt) item.updatedAt = record.rotatedAt;
       if (record.expiresAt) item.expiresAt = record.expiresAt;
+      if (record.key.startsWith(MANAGED_KEY_PREFIX)) item.managed = true;
       return item;
     });
     return json({ orgId: org.orgId, canWrite, keys });

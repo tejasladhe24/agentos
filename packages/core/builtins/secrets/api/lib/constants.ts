@@ -22,5 +22,11 @@ export const SECRETS_ALG = 'AES-256-GCM' as const;
  */
 export const SECRET_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9._/-]{0,127}$/;
 
+/**
+ * Vault prefix owned by the integrations kit (ticket 103). Session callers
+ * cannot reveal, write, or delete these keys — only trusted peers can.
+ */
+export const MANAGED_KEY_PREFIX = 'integrations/';
+
 /** Max rows returned by `GET /secrets` (org-scoped). */
 export const SECRETS_LIST_LIMIT = 500;

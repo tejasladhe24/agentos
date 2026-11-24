@@ -53,6 +53,7 @@ class SecretListItem(BaseModel):
     updatedAt: str | None = None
     expiresAt: str | None = None
     hasValue: bool = True
+    managed: bool | None = None
 
 
 class SecretListResult(BaseModel):

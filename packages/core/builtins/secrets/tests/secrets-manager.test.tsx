@@ -86,4 +86,23 @@ describe('SecretsManager', () => {
     expect(html).not.toContain('>Rotate<');
     expect(html).not.toContain('>Delete<');
   });
+
+  test('integration-managed keys are locked (no reveal / rotate / delete)', () => {
+    const html = renderToStaticMarkup(
+      createElement(SecretsManager, {
+        ...baseProps,
+        keys: [
+          {
+            key: 'integrations/email.send/default/apiKey',
+            hasValue: true as const,
+            managed: true as const,
+          },
+        ],
+      }),
+    );
+    expect(html).toContain('Managed by Settings');
+    expect(html).toContain('Hidden — edit in Settings');
+    expect(html).not.toContain('>Rotate<');
+    expect(html).not.toContain('>Delete<');
+  });
 });
