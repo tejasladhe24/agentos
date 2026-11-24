@@ -118,8 +118,28 @@ Agents must never promote tickets to `done/` themselves.
 98. Secrets manager UI (fully functional)
 99. Email manager UI (send + receive, fully functional) — **in-progress**
 100. Python store org context + invoice-bot tenancy fix — **in-progress**
+101. Extension-registered Settings — **in-progress**
+102. Shell keep views mounted — **in-progress**
+103. Tenant integrations foundation (BYOK: per-org records + vault refs, env fallback)
+104. User-owned secrets in the vault (personal OAuth tokens)
+105. Email + SMS sending BYOK (Resend / Cloudflare / Twilio)
+106. Inbound email via Resend (platform + BYOK, webhook auto-registration); remove Mailgun
+107. Inbound email via Cloudflare Email Worker (platform default)
+108. AI: real model providers (platform env)
+109. AI BYOK (per-org provider keys)
+110. Files: storage mounts foundation (adapters, `files://` refs, sidebar mounts)
+111. Files: S3-compatible org mounts (presets)
+112. Files: UploadThing + Vercel Blob org mounts
+113. Files: personal mounts + Google Drive
+114. Files: OneDrive + SharePoint personal mounts
+115. (Later) Inbound email via an org's own Cloudflare account
+116. (Later) Files: more storage adapters (Dropbox, Box, Azure, …)
+117. (Later) Files: bulk move between mounts
+118. (Later) Per-org OAuth app credentials
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**. `in-progress/` — **94**–**100** (plus stale peers pending reconciliation).
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **103**–**118**. `in-progress/` — **94**–**102** (plus stale peers pending reconciliation).
+
+**BYOK + storage mounts order:** **103 → 104**; email **105 → 106 → 107**; AI **108 → 109**; files **110 → 111 → 112 → 113 → 114**. Later: **115**–**118**.
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 
