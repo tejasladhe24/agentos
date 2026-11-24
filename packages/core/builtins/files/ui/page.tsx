@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import {
+  useHostApi,
+  useHostNavigation,
+  useHostNotifications,
+} from '@agentos/core/client';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -23,11 +27,13 @@ import {
   resolveSelectedMount,
   type FilesBlobJson,
   type FilesListItem,
+  type FilesMount,
   type FilesViewMode,
   type UploadProgressItem,
 } from './files-types';
+import { startDriveConnect } from './personal-drives';
 import { useFilesMount } from './use-files-mount';
-import { useFilesMounts } from './use-files-mounts';
+import { broadcastMountsChanged, useFilesMounts } from './use-files-mounts';
 import { useFilesPrefix } from './use-files-prefix';
 import { useFilesSection } from './use-files-section';
 
@@ -60,11 +66,29 @@ function renameTargetKey(item: FilesListItem, newName: string): string {
   return next;
 }
 
+/** `&export=` for provider-native documents (Google Docs…). */
+function exportQuery(item: FilesListItem, format?: string): string {
+  if (!item.exportFormats?.length) return '';
+  const pick = format ?? item.exportFormats[0];
+  return pick ? `&export=${encodeURIComponent(pick)}` : '';
+}
+
+function isReconnectError(body: string): boolean {
+  try {
+    return (
+      (JSON.parse(body) as { code?: string }).code === 'reconnect_required'
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Files secondary Activity Bar page — org-scoped Drive-style manager.
  */
 export default function FilesPage() {
   const api = useHostApi();
+  const navigation = useHostNavigation();
   const notifications = useHostNotifications();
   const [prefix, setPrefix] = useFilesPrefix();
   const [section] = useFilesSection();
@@ -169,6 +193,7 @@ export default function FilesPage() {
       setError(parseErrorBody(res.body, 'Failed to load files'));
       setItems([]);
       setLoading(false);
+      if (isReconnectError(res.body)) broadcastMountsChanged();
       return;
     }
     const list = parseListResponse(res.body);
@@ -199,8 +224,11 @@ export default function FilesPage() {
     void (async () => {
       setPreviewLoading(true);
       const path = encodeBlobPath(primary.relativeKey);
+      const previewFormat = primary.exportFormats?.includes('pdf')
+        ? 'pdf'
+        : undefined;
       const res = await api.fetch(
-        `/blobs/${path}?format=json${mountQuery(mountOf(primary), '&')}`,
+        `/blobs/${path}?format=json${mountQuery(mountOf(primary), '&')}${exportQuery(primary, previewFormat)}`,
       );
       if (cancelled) return;
       if (!res.ok) {
@@ -236,11 +264,11 @@ export default function FilesPage() {
     };
   }, [api, detailOpen, mountOf, primary, revokePreviewUrl]);
 
-  async function downloadItem(item: FilesListItem) {
+  async function downloadItem(item: FilesListItem, format?: string) {
     if (item.kind === 'folder') return;
     const path = encodeBlobPath(item.relativeKey);
     const res = await api.fetch(
-      `/blobs/${path}?format=json${mountQuery(mountOf(item), '&')}`,
+      `/blobs/${path}?format=json${mountQuery(mountOf(item), '&')}${exportQuery(item, format)}`,
     );
     if (!res.ok) {
       await notifications.show(
@@ -260,12 +288,23 @@ export default function FilesPage() {
         type: blob.contentType || 'application/octet-stream',
       }),
     );
+    const name = blob.name ?? item.name;
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = item.name;
+    anchor.download = name;
     anchor.click();
     URL.revokeObjectURL(url);
-    await notifications.show(`Downloaded ${item.name}`, 'info');
+    await notifications.show(`Downloaded ${name}`, 'info');
+  }
+
+  async function reconnect(target: FilesMount) {
+    const failure = await startDriveConnect(
+      api,
+      navigation,
+      target.provider,
+      target.id,
+    );
+    if (failure) await notifications.show(failure, 'error');
   }
 
   async function onUploadFiles(files: File[]) {
@@ -530,6 +569,7 @@ export default function FilesPage() {
       mount={mount}
       mounts={mounts}
       onCopyTo={onCopyTo}
+      onReconnect={(target) => void reconnect(target)}
     />
   );
 
@@ -542,7 +582,10 @@ export default function FilesPage() {
       blobUrl={previewUrl}
       previewLoading={previewLoading}
       previewError={previewError}
-      onDownload={downloadItem}
+      onDownload={(item, format) => void downloadItem(item, format)}
+      onOpenExternal={(url) =>
+        void navigation.openExternal(url).catch(() => undefined)
+      }
       onClose={() => setDetailOpen(false)}
     />
   );

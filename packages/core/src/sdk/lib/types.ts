@@ -31,6 +31,10 @@ export interface HitlApprovalResult {
   id: string;
 }
 
+export interface OpenExternalOptions {
+  sameTab?: boolean;
+}
+
 export interface AiGenerateResult {
   text: string;
 }
@@ -62,6 +66,13 @@ export interface HostAPI {
   };
   events: {
     publish(topic: string, payload: EventPayload): Promise<void>;
+  };
+  navigation: {
+    /**
+     * Open an absolute `http(s)` URL outside the sandboxed iframe — a new tab,
+     * or the Shell tab itself with `sameTab` (OAuth consent redirects).
+     */
+    openExternal(url: string, options?: OpenExternalOptions): Promise<void>;
   };
 }
 

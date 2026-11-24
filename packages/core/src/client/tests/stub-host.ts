@@ -52,5 +52,12 @@ export function createStubHost(
         calls.push(`events.publish:${topic}`);
       },
     },
+    navigation: {
+      openExternal: async (url, options) => {
+        calls.push(
+          `navigation.openExternal:${options?.sameTab ? 'same' : 'new'}:${url}`,
+        );
+      },
+    },
   };
 }

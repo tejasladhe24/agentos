@@ -27,6 +27,10 @@ export type OAuthStatePayload = {
   codeVerifier?: string;
   /** Optional post-connect redirect path inside the app. */
   returnTo?: string;
+  /** User who started the flow — the callback must be completed by them. */
+  userId?: string;
+  /** Opaque flow context (e.g. the mount being reconnected). */
+  context?: string;
 };
 
 export type SignOAuthStateInput = {
@@ -37,6 +41,8 @@ export type SignOAuthStateInput = {
   ttlSeconds?: number;
   codeVerifier?: string;
   returnTo?: string;
+  userId?: string;
+  context?: string;
   /** Override signing secret (tests). */
   secret?: string;
 };
@@ -126,6 +132,8 @@ function stableStateJson(payload: OAuthStatePayload): string {
   };
   if (payload.codeVerifier != null) ordered.codeVerifier = payload.codeVerifier;
   if (payload.returnTo != null) ordered.returnTo = payload.returnTo;
+  if (payload.userId != null) ordered.userId = payload.userId;
+  if (payload.context != null) ordered.context = payload.context;
   return JSON.stringify(ordered);
 }
 
@@ -149,6 +157,8 @@ export async function signOAuthState(
   };
   if (input.codeVerifier) payload.codeVerifier = input.codeVerifier;
   if (input.returnTo) payload.returnTo = input.returnTo;
+  if (input.userId) payload.userId = input.userId;
+  if (input.context) payload.context = input.context;
 
   const bodyB64 = encodeBase64Url(
     new TextEncoder().encode(stableStateJson(payload)),
@@ -196,6 +206,8 @@ export async function verifyOAuthState(
     if (typeof parsed.returnTo === 'string') {
       payload.returnTo = parsed.returnTo;
     }
+    if (typeof parsed.userId === 'string') payload.userId = parsed.userId;
+    if (typeof parsed.context === 'string') payload.context = parsed.context;
     return payload;
   } catch {
     return null;

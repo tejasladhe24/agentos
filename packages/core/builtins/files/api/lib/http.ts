@@ -20,7 +20,12 @@ export async function readJson<T>(request: Request): Promise<T | Response> {
 /** Map known storage errors to JSON responses; rethrow anything else. */
 export function errorResponse(error: unknown): Response {
   if (error instanceof BlobStoreError) {
-    return json({ error: error.message }, { status: error.status });
+    return json(
+      error.code
+        ? { error: error.message, code: error.code }
+        : { error: error.message },
+      { status: error.status },
+    );
   }
   if (error instanceof MountUnavailableError) {
     return json({ error: error.message }, { status: error.status });

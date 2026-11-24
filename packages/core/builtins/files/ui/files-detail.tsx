@@ -1,4 +1,4 @@
-import { XIcon } from '@phosphor-icons/react';
+import { ArrowSquareOutIcon, XIcon } from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
 import { Separator } from '@agentos/ui/components/separator';
 import { Badge } from '@agentos/ui/components/badge';
@@ -20,7 +20,9 @@ export type FilesDetailProps = {
   blobUrl: string | null;
   previewLoading: boolean;
   previewError: string | null;
-  onDownload: (item: FilesListItem) => void;
+  /** `format` exports provider-native documents (Google Docs…). */
+  onDownload: (item: FilesListItem, format?: string) => void;
+  onOpenExternal?: (url: string) => void;
   onClose: () => void;
 };
 
@@ -33,6 +35,7 @@ export function FilesDetail({
   previewLoading,
   previewError,
   onDownload,
+  onOpenExternal,
   onClose,
 }: FilesDetailProps) {
   if (!open) return null;
@@ -122,6 +125,35 @@ export function FilesDetail({
                   {primary.originalKey || primary.relativeKey || '/'}
                 </dd>
               </dl>
+              {primary.webUrl || primary.exportFormats?.length ? (
+                <div
+                  className="flex flex-wrap gap-2"
+                  data-slot="files-native-actions"
+                >
+                  {primary.webUrl && onOpenExternal ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onOpenExternal(primary.webUrl!)}
+                    >
+                      <ArrowSquareOutIcon className="size-4" aria-hidden />
+                      Open in Google
+                    </Button>
+                  ) : null}
+                  {primary.exportFormats?.map((format) => (
+                    <Button
+                      key={format}
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onDownload(primary, format)}
+                    >
+                      Export {format.toUpperCase()}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
               <Separator />
               <FilesPreview
                 item={primary}

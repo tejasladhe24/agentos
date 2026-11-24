@@ -23,6 +23,9 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
       AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
       AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
       AGENT_OS_EXT_FILES_S3_SESSION_TOKEN: z.string().min(1).optional(),
+      /** Platform Google OAuth app for personal Google Drive mounts. */
+      AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+      AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     },
     clientPrefix: 'AGENT_OS_EXT_FILES_CLIENT',
     client: {},
@@ -38,6 +41,10 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         runtimeEnv.AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY,
       AGENT_OS_EXT_FILES_S3_SESSION_TOKEN:
         runtimeEnv.AGENT_OS_EXT_FILES_S3_SESSION_TOKEN,
+      AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID:
+        runtimeEnv.AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID,
+      AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET:
+        runtimeEnv.AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET,
     },
     emptyStringAsUndefined: true,
   });

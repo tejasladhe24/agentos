@@ -58,6 +58,10 @@ export function hostApiFromRemote(
       publish: async (topic, payload) =>
         (await remote.events).publish(topic, payload),
     },
+    navigation: {
+      openExternal: async (url, options) =>
+        (await remote.navigation).openExternal(url, options),
+    },
   };
 }
 
@@ -106,6 +110,10 @@ function createLazyHostProxy(
     events: {
       publish: async (topic, payload) =>
         (await hostPromise).events.publish(topic, payload),
+    },
+    navigation: {
+      openExternal: async (url, options) =>
+        (await hostPromise).navigation.openExternal(url, options),
     },
   };
 }

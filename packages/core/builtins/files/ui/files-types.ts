@@ -17,6 +17,10 @@ export type FilesListItem = {
   trashedAt?: string;
   purgeAt?: string | null;
   originalKey?: string;
+  /** Open in the provider's own app (live drives). */
+  webUrl?: string;
+  /** Provider-native document (Google Docs…) — export formats. */
+  exportFormats?: string[];
 };
 
 export type StorageCapabilities = {
@@ -32,8 +36,10 @@ export type StorageCapabilities = {
 export type FilesMount = {
   id: string;
   kind: 'org' | 'personal';
+  ownerUserId?: string;
   provider: string;
   name: string;
+  config?: Record<string, unknown>;
   isDefault: boolean;
   status: 'connected' | 'disconnected' | 'error';
   statusMessage?: string;
@@ -41,6 +47,8 @@ export type FilesMount = {
   capabilities?: StorageCapabilities;
   indexMode?: 'indexed' | 'live';
   usage?: { files: number; bytes: number };
+  /** Provider quota (live drives). */
+  quota?: { usedBytes: number; limitBytes?: number };
 };
 
 export type StorageProviderField = {
@@ -67,6 +75,8 @@ export type StorageProviderInfo = {
   icon?: string;
   orgAddable: boolean;
   personal: boolean;
+  /** Personal provider whose platform OAuth app is configured. */
+  connectable?: boolean;
   fields?: StorageProviderField[];
   presets?: StorageProviderPreset[];
 };
@@ -145,6 +155,8 @@ export type FilesBlobJson = {
   base64: string;
   bytes: number;
   contentType: string;
+  /** Download name (exports carry their extension). */
+  name?: string;
   updatedAt?: string;
 };
 

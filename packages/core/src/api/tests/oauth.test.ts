@@ -49,6 +49,21 @@ describe('oauth state', () => {
     expect(payload!.exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
   });
 
+  test('binds the starting user and flow context', async () => {
+    const state = await signOAuthState({
+      orgId: 'org-1',
+      extensionId: 'files',
+      provider: 'google-drive',
+      userId: 'user-1',
+      context: 'p_mount',
+      secret: SECRET,
+    });
+    expect(await verifyOAuthState(state, { secret: SECRET })).toMatchObject({
+      userId: 'user-1',
+      context: 'p_mount',
+    });
+  });
+
   test('rejects expired and tampered state', async () => {
     const state = await signOAuthState({
       orgId: 'org-1',

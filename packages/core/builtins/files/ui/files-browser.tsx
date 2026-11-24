@@ -11,6 +11,7 @@ import {
   ArrowsLeftRightIcon,
   ArrowCounterClockwiseIcon,
   CopyIcon,
+  WarningIcon,
 } from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
 import { Input } from '@agentos/ui/components/input';
@@ -106,6 +107,8 @@ export type FilesBrowserProps = {
     mountId: string,
     destinationPrefix: string,
   ) => Promise<void>;
+  /** Personal mount lost its token — start the provider reconnect flow. */
+  onReconnect?: (mount: FilesMount) => void;
 };
 
 export function FilesBrowser({
@@ -138,6 +141,7 @@ export function FilesBrowser({
   mount,
   mounts = [],
   onCopyTo,
+  onReconnect,
 }: FilesBrowserProps) {
   const searchId = useId();
   const rootLabel = mount?.name ?? 'Files';
@@ -147,7 +151,15 @@ export function FilesBrowser({
   );
   const capabilities = mount?.capabilities;
   const nativeTrash = capabilities?.nativeTrash === true;
-  const copyTargets = mounts.filter((m) => m.status === 'connected');
+  const personalSource = mount?.kind === 'personal';
+  // Personal files only leave the drive into org storage.
+  const copyTargets = mounts.filter(
+    (m) =>
+      m.status === 'connected' &&
+      (!personalSource || m.kind === 'org' || m.id === mount?.id),
+  );
+  const needsReconnect =
+    personalSource && mount !== undefined && mount.status !== 'connected';
   const canCopyAcross = Boolean(onCopyTo) && copyTargets.length > 1;
   const showLocation = mounts.length > 1;
   const [copyOpen, setCopyOpen] = useState(false);
@@ -349,9 +361,37 @@ export function FilesBrowser({
           </Button>
         </div>
 
+        {isDrive && needsReconnect ? (
+          <div
+            role="alert"
+            data-slot="files-reconnect"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
+          >
+            <WarningIcon
+              className="size-4 shrink-0 text-destructive"
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1">
+              {mount.statusMessage ??
+                `${mount.name} is disconnected. Reconnect to keep browsing.`}
+            </span>
+            {onReconnect ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => onReconnect(mount)}
+              >
+                Reconnect
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
         {selectedKeys.size > 0 ? (
           <FilesToolbar
             disabled={disabled}
+            copyLabel={personalSource ? 'Copy to org storage' : 'Copy to…'}
             section={section}
             selectedCount={selectedKeys.size}
             allSelected={allSelected}
@@ -519,11 +559,14 @@ export function FilesBrowser({
       <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
         <DialogContent data-slot="files-copy-dialog">
           <DialogHeader>
-            <DialogTitle>Copy to storage</DialogTitle>
+            <DialogTitle>
+              {personalSource ? 'Copy to org storage' : 'Copy to storage'}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
-            Copies {selectedItems.length} item(s) into another mount. Files are
-            streamed across storage backends; originals stay in place.
+            {personalSource
+              ? `Copies ${selectedItems.length} item(s) into org storage. Google Docs, Sheets, and Slides are exported (DOCX / XLSX / PPTX); the originals stay in your drive.`
+              : `Copies ${selectedItems.length} item(s) into another mount. Files are streamed across storage backends; originals stay in place.`}
           </p>
           <RadioGroup
             value={copyMountId}
@@ -799,6 +842,7 @@ function FilesBrowserBody({
 
 function FilesToolbar({
   disabled,
+  copyLabel,
   section,
   selectedCount,
   allSelected,
@@ -811,6 +855,7 @@ function FilesToolbar({
   onRestore,
 }: {
   disabled: boolean;
+  copyLabel: string;
   section: FilesSection;
   selectedCount: number;
   allSelected: boolean;
@@ -864,7 +909,7 @@ function FilesToolbar({
           data-slot="files-copy-to"
         >
           <CopyIcon className="size-4" aria-hidden />
-          Copy to…
+          {copyLabel}
         </Button>
       ) : null}
       {onRestore ? (

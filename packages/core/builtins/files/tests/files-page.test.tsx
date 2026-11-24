@@ -9,6 +9,7 @@ import FilesPage from '../ui/page';
 import { FilesBrowser } from '../ui/files-browser';
 import type { FilesMount } from '../ui/files-types';
 import { FilesSidebarNav } from '../ui/sidebar';
+import { ConnectedDrives } from '../ui/storage-backends';
 
 const CAPS = {
   serverSideCopy: true,
@@ -62,6 +63,7 @@ function createTestHost(
     },
     api: { fetch: fetchImpl },
     events: { publish: async () => {} },
+    navigation: { openExternal: async () => {} },
   };
 }
 
@@ -261,6 +263,143 @@ describe('FilesBrowser states', () => {
     );
     expect(html).toContain('Location');
     expect(html).toContain('Archive');
+  });
+});
+
+const DRIVE: FilesMount = {
+  id: 'p_drive',
+  kind: 'personal',
+  ownerUserId: 'u_a',
+  provider: 'google-drive',
+  name: 'Google Drive (a@example.com)',
+  isDefault: false,
+  status: 'connected',
+  config: { email: 'a@example.com' },
+  capabilities: { ...CAPS, nativeTrash: true, quota: true },
+  quota: { usedBytes: 1024 * 1024, limitBytes: 1024 * 1024 * 1024 },
+};
+
+describe('personal drives', () => {
+  const browserProps = {
+    section: 'files' as const,
+    prefix: '',
+    searchQuery: '',
+    viewMode: 'list' as const,
+    detailOpen: false,
+    upload: { progress: [], onUploadFiles: noopAsync },
+    onSearchQueryChange: () => {},
+    onSearchSubmit: () => {},
+    onClearSearch: () => {},
+    onViewModeChange: () => {},
+    onToggleDetail: () => {},
+    onPrefixChange: () => {},
+    onOpenItem: () => {},
+    onToggleSelect: () => {},
+    onSelectAll: () => {},
+    onClearSelection: () => {},
+    onDownloadSelected: () => {},
+    onRename: noopAsync,
+    onMove: noopAsync,
+    onDelete: noopAsync,
+    loading: false,
+    error: null,
+  };
+
+  test('personal files copy only to org storage', () => {
+    const item = {
+      key: 'My Drive/Plan',
+      name: 'Plan',
+      kind: 'file' as const,
+      relativeKey: 'My Drive/Plan',
+      ref: 'files://p_drive/My Drive/Plan',
+      mountId: 'p_drive',
+      exportFormats: ['docx', 'pdf'],
+    };
+    const html = renderToStaticMarkup(
+      createElement(FilesBrowser, {
+        ...browserProps,
+        items: [item],
+        selectedKeys: new Set([item.ref]),
+        mount: DRIVE,
+        mounts: [PLATFORM, DRIVE],
+        onCopyTo: noopAsync,
+      }),
+    );
+    expect(html).toContain('Copy to org storage');
+    expect(html).not.toContain('data-slot="files-reconnect"');
+  });
+
+  test('revoked drive shows a reconnect prompt', () => {
+    const html = renderToStaticMarkup(
+      createElement(FilesBrowser, {
+        ...browserProps,
+        items: [],
+        selectedKeys: new Set<string>(),
+        mount: {
+          ...DRIVE,
+          status: 'disconnected',
+          statusMessage: 'Google Drive access expired',
+        },
+        mounts: [PLATFORM, DRIVE],
+        onReconnect: () => {},
+      }),
+    );
+    expect(html).toContain('data-slot="files-reconnect"');
+    expect(html).toContain('Google Drive access expired');
+    expect(html).toContain('Reconnect');
+  });
+
+  test('sidebar marks personal drives and asks to reconnect', () => {
+    const html = renderToStaticMarkup(
+      createElement(FilesSidebarNav, {
+        mounts: [PLATFORM, { ...DRIVE, status: 'disconnected' }],
+        section: 'files',
+        mountId: 'platform',
+        onSelectMount: () => {},
+        onSelectView: () => {},
+      }),
+    );
+    expect(html).toContain('data-slot="files-mount-personal"');
+    expect(html).toContain('Reconnect');
+  });
+
+  test('My connected drives lists drives with quota and connect buttons', () => {
+    const render = (connectable: boolean) =>
+      renderToStaticMarkup(
+        createElement(HostProvider, {
+          host: createTestHost(async () => ({
+            ok: true,
+            status: 200,
+            body: '{}',
+          })),
+          children: createElement(ConnectedDrives, {
+            data: {
+              mounts: [PLATFORM, DRIVE],
+              defaultMountId: 'platform',
+              providers: [
+                {
+                  id: 'google-drive',
+                  label: 'Google Drive',
+                  orgAddable: false,
+                  personal: true,
+                  connectable,
+                },
+              ],
+              canManage: false,
+            },
+            loading: false,
+            reload: noopAsync,
+          }),
+        }),
+      );
+    const html = render(true);
+    expect(html).toContain('Google Drive (a@example.com)');
+    expect(html).toContain('1.0 MB of 1.0 GB used');
+    expect(html).toContain('Connect Google Drive');
+    expect(html).toMatch(
+      /data-connect-provider="google-drive"(?![^>]*\sdisabled="")/,
+    );
+    expect(render(false)).toContain('not configured on this deployment');
   });
 });
 

@@ -5,7 +5,9 @@ import {
 
 import type { FilesMountStore } from './mount-store';
 import type { FilesMount, MountRecord, MountViewer } from './mount-types';
+import type { PersonalTokenStore } from './personal-tokens';
 import type {
+  MountCredentials,
   StorageProviderContext,
   StorageProviderRegistry,
 } from './storage-providers';
@@ -29,14 +31,19 @@ export type MountResolver = {
   ) => Promise<StorageAdapter>;
   /** Raw persisted records (no visibility filter). */
   records: (orgId: string) => Promise<MountRecord[]>;
+  /** Drop cached adapters of a mount (disconnect / reconnect). */
+  invalidate: (orgId: string, mountId: string) => void;
   store?: FilesMountStore;
   providers?: StorageProviderRegistry;
+  tokens?: PersonalTokenStore;
 };
 
 export type CreateMountResolverOptions = {
   platform: StorageAdapter;
   store?: FilesMountStore;
   providers?: StorageProviderRegistry;
+  /** User-owned OAuth tokens of personal mounts. */
+  tokens?: PersonalTokenStore;
   runtimeEnv?: Record<string, string | undefined>;
 };
 
@@ -103,10 +110,42 @@ export function createMountResolver(
     return composeMounts(options.platform, await records(orgId));
   }
 
+  function invalidate(orgId: string, mountId: string): void {
+    for (const key of adapters.keys()) {
+      if (key.startsWith(`${orgId}:${mountId}:`)) adapters.delete(key);
+    }
+  }
+
+  function credentialsFor(
+    orgId: string,
+    mount: FilesMount,
+  ): MountCredentials | undefined {
+    const tokens = options.tokens;
+    const owner = mount.ownerUserId;
+    if (mount.kind !== 'personal' || !tokens || !owner) return undefined;
+    return {
+      load: () => tokens.get(orgId, owner, mount.id),
+      save: (next) => tokens.put(orgId, owner, mount.id, next),
+      async revoked(message) {
+        invalidate(orgId, mount.id);
+        const current = (await records(orgId)).find((r) => r.id === mount.id);
+        if (!current || !options.store) return;
+        await options.store.put(orgId, {
+          ...current,
+          status: 'disconnected',
+          statusMessage: message,
+          updatedAt: new Date().toISOString(),
+        });
+      },
+    };
+  }
+
   return {
     store: options.store,
     providers: options.providers,
+    tokens: options.tokens,
     records,
+    invalidate,
 
     async list(orgId, viewer) {
       return (await all(orgId)).filter((m) => isVisibleMount(m, viewer));
@@ -141,11 +180,11 @@ export function createMountResolver(
         runtimeEnv: options.runtimeEnv,
         secrets: { ...stored, ...draftSecrets },
       };
+      const credentials = credentialsFor(orgId, mount);
+      if (credentials) ctx.credentials = credentials;
       const adapter = await provider.create(mount, ctx);
       if (draftSecrets) return adapter;
-      for (const key of adapters.keys()) {
-        if (key.startsWith(`${orgId}:${mount.id}:`)) adapters.delete(key);
-      }
+      invalidate(orgId, mount.id);
       adapters.set(cacheKey, adapter);
       return adapter;
     },
