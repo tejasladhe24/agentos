@@ -1,6 +1,6 @@
 # 106 — Inbound email via Resend (platform + BYOK) and remove Mailgun
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

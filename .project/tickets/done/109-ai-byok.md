@@ -1,6 +1,6 @@
 # 109 — AI BYOK (per-org provider keys)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

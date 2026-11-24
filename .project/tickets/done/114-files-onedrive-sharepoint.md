@@ -1,6 +1,6 @@
 # 114 — Files: OneDrive and SharePoint personal mounts
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

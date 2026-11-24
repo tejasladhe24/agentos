@@ -1,6 +1,6 @@
 # 100 — Python store org context + invoice-bot tenancy fix
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

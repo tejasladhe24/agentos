@@ -1,6 +1,6 @@
 # 94 — Upgrade Node dependency to v24
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

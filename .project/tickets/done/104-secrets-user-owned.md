@@ -1,6 +1,6 @@
 # 104 — User-owned secrets in the vault
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # 111 — Files: S3-compatible org mounts (BYOK presets)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

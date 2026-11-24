@@ -1,6 +1,6 @@
 # 101 — Extension-registered Settings (sidebar, views, entry-level search)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

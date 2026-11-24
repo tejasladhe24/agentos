@@ -1,6 +1,6 @@
 # 103 — Tenant integrations foundation (BYOK)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

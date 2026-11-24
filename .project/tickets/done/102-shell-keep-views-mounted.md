@@ -1,6 +1,6 @@
 # 102 — Keep Shell views mounted after first open
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

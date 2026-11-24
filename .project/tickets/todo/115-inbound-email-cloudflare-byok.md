@@ -10,10 +10,11 @@ Let an org receive mail on **its own domain through its own Cloudflare account**
 
 - Ticket **107** (Cloudflare Email Worker, platform default)
 - Ticket **103** (integrations foundation)
+- Ticket **121** (tenancy presets — who may configure org integrations)
 
 ## Scope
 
-1. Org enters a Cloudflare API token (Workers Scripts edit, Email Routing edit, Zone DNS read/edit) + zone.
+1. Whoever the deployment's tenancy delegation allows (an operator, or an org admin when `orgAdminCan` includes `integrations` — ticket **121**) enters the org's Cloudflare API token (Workers Scripts edit, Email Routing edit, Zone DNS read/edit) + zone.
 2. AgentOS uploads the forwarding Email Worker script to the org's account, sets its signing secret, and creates the catch-all routing rule.
 3. Org-specific webhook route (opaque connection id) with the org's secret.
 4. Re-provision on rotation; tear down on removal.

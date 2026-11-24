@@ -13,6 +13,7 @@ Prove the experiment flows work together.
 - [ ] Disable invoice-bot → UI/tools gone; builtins remain
 - [ ] Chat/skill `/qualify-lead` and payout HITL approval work
 - [ ] Customer BFFs have no DATABASE_URL
+- [ ] Tenancy presets (ticket **121**): run the sign-in / org / settings flows once each under `saas`, `internal`, and `customer-facing`
 
 ## Notes
 

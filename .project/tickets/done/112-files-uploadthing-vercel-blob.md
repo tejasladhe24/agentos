@@ -1,6 +1,6 @@
 # 112 — Files: UploadThing and Vercel Blob org mounts
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

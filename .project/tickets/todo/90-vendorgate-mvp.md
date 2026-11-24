@@ -15,6 +15,10 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 - Ticket **85** (structured/multimodal AI) — preferred for PDF extraction
 - Ticket **89** (CloseDesk) — start order 3rd after Trust/Close
 
+## Delivery type
+
+Your own vertical product: demo as `tenancy.preset: 'saas'` (each property-management company is an org; vendors use signed upload links). Delivered to a single property manager, use `internal`. Depends on ticket **121** (tenancy presets) — preferred.
+
 ## Done when
 
 - [ ] `examples/vendorgate` + COI extension/service

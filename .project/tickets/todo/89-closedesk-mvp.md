@@ -15,6 +15,10 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 - Ticket **73** (email/SMS) — preferred; in-app reminder workaround OK
 - Ticket **88** (TrustDesk) — start order: TrustDesk first
 
+## Delivery type
+
+Your own vertical product: demo as `tenancy.preset: 'saas'` (each bookkeeping firm is an org; the firm's clients use public answer links, not accounts). Delivered to one large firm instead, use `customer-facing`: the firm's staff are operators and each client business is an org. Depends on ticket **121** (tenancy presets) — preferred.
+
 ## Done when
 
 - [ ] `examples/closedesk` scaffolded with core extension + ledger sync stub (env sandbox token OK)
