@@ -322,4 +322,59 @@ describe('builtin secrets server', () => {
     );
     expect(denied.status).toBe(403);
   });
+
+  test('integrations/ keys: peer writes allowed, session reveal/edit locked, list marks managed', async () => {
+    const db = memoryDb();
+    const runtimeEnv = { AGENT_OS_EXT_SECRETS_MASTER_KEY: MASTER_KEY_HEX };
+    const key = 'integrations/email.send/default/apiKey';
+    const path = `/secrets/${encodeURIComponent(key)}`;
+
+    const peerPut = await handleSecretsRequest(
+      { runtimeEnv, db },
+      orgRequest('PUT', path, 'org-a', { value: 're_secret' }),
+    );
+    expect(peerPut.status).toBe(201);
+    const peerGet = await handleSecretsRequest(
+      { runtimeEnv, db },
+      orgRequest('GET', path, 'org-a'),
+    );
+    expect(((await peerGet.json()) as { value: string }).value).toBe(
+      're_secret',
+    );
+
+    const sessionCtx = {
+      runtimeEnv,
+      db,
+      resolveOrg: async () => ({
+        ok: true as const,
+        orgId: 'org-a',
+        via: 'session' as const,
+      }),
+      checkPermission: async () => 'ok' as const,
+    };
+    const sessionReq = (method: string) =>
+      new Request(`http://127.0.0.1:6118${path}`, {
+        method,
+        headers: { 'content-type': 'application/json', cookie: 'session=x' },
+        body: method === 'PUT' ? JSON.stringify({ value: 'x' }) : undefined,
+      });
+    for (const method of ['GET', 'PUT', 'DELETE']) {
+      const res = await handleSecretsRequest(sessionCtx, sessionReq(method));
+      expect(res.status).toBe(403);
+      expect(await res.text()).not.toContain('re_secret');
+    }
+
+    const list = await handleSecretsRequest(
+      sessionCtx,
+      new Request('http://127.0.0.1:6118/secrets', {
+        headers: { cookie: 'session=x' },
+      }),
+    );
+    const body = (await list.json()) as {
+      keys: Array<{ key: string; managed?: boolean }>;
+    };
+    expect(body.keys).toEqual([
+      expect.objectContaining({ key, managed: true }),
+    ]);
+  });
 });

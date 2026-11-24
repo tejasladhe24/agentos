@@ -49,6 +49,9 @@ export const PERMISSION_EMAIL_READ = 'email.read';
 /** Compose/send email (notifications) + provision inbound addresses. */
 export const PERMISSION_EMAIL_SEND = 'email.send';
 
+/** Configure tenant BYOK integrations (email, SMS, storage, AI). Admin/owner. */
+export const PERMISSION_INTEGRATIONS_MANAGE = 'integrations.manage';
+
 /** Platform / org role catalog (TrustDesk-shaped; apps may add product permissions). */
 export const PLATFORM_ROLES = [
   'admin',

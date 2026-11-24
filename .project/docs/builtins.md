@@ -321,6 +321,66 @@ KMS (Cloudflare / AWS) can wrap the master key later; the vault API stays the sa
 
 Generate a local master key: `openssl rand -base64 32`.
 
+**Managed keys:** the `integrations/` prefix is reserved for the integrations kit (below). The list marks those rows `managed: true`; session callers get **403** on reveal / PUT / DELETE (the Secrets manager shows **Managed by Settings**). Only trusted peers (`X-AgentOS-Org-Id`) can read or write them.
+
+## Tenant integrations (BYOK, ticket 103)
+
+Each org can bring its own keys for tenant-scoped integrations. When an org has **no** integration record, the builtin **always** falls back to the platform env config (today's behavior). Providers are resolved **per request**.
+
+**Platform-wide — deployment env only, never in the tenant vault:**
+
+| Secret                                   | Builtin       | Why                                        |
+| ---------------------------------------- | ------------- | ------------------------------------------ |
+| `AGENT_OS_EXT_AUTH_SECRET`               | auth          | Signs sessions for every tenant            |
+| `AGENT_OS_EXT_SECRETS_MASTER_KEY`        | secrets       | Encrypts the vault itself                  |
+| `AGENT_OS_GLOBAL_PUBLIC_LINK_SECRET`     | core          | Signs public share tokens                  |
+| `AGENT_OS_GLOBAL_OAUTH_STATE_SECRET`     | core          | Signs OAuth `state`                        |
+| `AGENT_OS_EXT_DB_STORE_DATABASE_URL`     | db-store      | Shared DB, tenants split by `org_id`       |
+| `AGENT_OS_EXT_VECTOR_STORE_DATABASE_URL` | vector-store  | Shared pgvector DB                         |
+| `AGENT_OS_EXT_CACHE_STORE_REDIS_URL`     | cache-store   | Shared Redis                               |
+| Shared inbound webhook secrets           | inbound-email | Verify the platform-default webhook routes |
+
+**Tenant-scoped (BYOK with platform default):** email sending, SMS, email receiving (Resend), file storage mounts, AI provider (tickets 105–114).
+
+**Storage model**
+
+- Non-secret settings → org-scoped db-store collection **`integrations`**, doc id `<integration>:<instanceId>`:
+  `{ id, integration, instanceId, provider, settings, secretRefs: { field → vaultKey }, secretUpdatedAt, createdAt, updatedAt, updatedBy }`.
+- Secret values → **secrets vault** at `integrations/<integration>/<instanceId>/<field>`. Never in db-store docs, audit meta, events, logs, or responses.
+- `integration` is a namespaced id (`email.send`, `email.receive`, `sms`, `ai`, `files.mount`). Single-instance integrations use instance `default`; multi-instance ones (file mounts) pass their own id.
+
+**Kit** — `@agentos/core/api/integrations` (Python: `agentos.integrations`):
+
+| TS                                                                         | Python                                               | Role                                                       |
+| -------------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| `createIntegrationsKit(createHttpIntegrationsBackend({ dbStoreApiBase }))` | `create_integrations_kit(HttpIntegrationsBackend())` | One kit per process (shares the cache)                     |
+| `getIntegration(orgId, integration, instanceId?)`                          | `get_integration`                                    | Settings + decrypted secrets, or `null` → use platform env |
+| `describeIntegration` / `listIntegrations`                                 | `describe_integration` / `list_integrations`         | Display-safe: secrets as `{ set: true, updatedAt }`        |
+| `putIntegration(orgId, { integration, provider, settings, secrets })`      | `put_integration`                                    | Record + vault together; `null` secret removes a field     |
+| `deleteIntegration(orgId, integration, instanceId?)`                       | `delete_integration`                                 | Removes record and every referenced vault key              |
+| `resolveProvider(orgId, integration, buildFromConfig, buildFromEnv)`       | `resolve_provider`                                   | Per-request provider; `{ source: 'tenant' \| 'platform' }` |
+| `handleChangedEvent(payload)` / `watchIntegrationChanges(kit)`             | `handle_changed_event`                               | Drop cache on `integration.changed` from other replicas    |
+
+Omitted secret fields keep their stored value; switching **provider** drops secret fields that were not re-supplied.
+
+**Cache:** in-process, default TTL **30s**. Record lookups are keyed by `orgId + integration + instance`; built providers by `… + updatedAt`. `put` / `delete` invalidate locally and publish **`integration.changed`** `{ orgId, integration, instanceId, action, updatedAt }` via builtin `events` (best-effort; TTL bounds staleness).
+
+**Builtin routes:** builtins mount `handleIntegrationRoutes({ kit, definitions, resolveOrg, checkPermission }, request)` under their own API (`/api/ext/<builtin>/integrations/*`). `IntegrationDefinition` lists providers with their settings / secret fields, an optional `platformDefault()`, and an optional `test()` probe.
+
+| Method   | Path                                     | Role                                                                             |
+| -------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `GET`    | `/integrations`                          | Definitions + platform default + instances (display-safe) + `canManage`          |
+| `GET`    | `/integrations/:integration[/:instance]` | One integration                                                                  |
+| `PUT`    | `/integrations/:integration[/:instance]` | `{ provider, settings, secrets }` — validated against the definition             |
+| `DELETE` | `/integrations/:integration[/:instance]` | Remove record + secrets                                                          |
+| `POST`   | `/integrations/:integration[/…]/test`    | Test saved config, platform default, or a draft body; secret values are redacted |
+
+**RBAC:** writes and tests need **`integrations.manage`** (seeded on `admin` / `owner`). Other org members get a read-only view. Trusted peer header skips RBAC (same trust model as db-store / secrets).
+
+**Audit:** `integration.put` / `integration.delete` / `integration.test` with provider and **field names** only.
+
+**UI building blocks** (`@agentos/core/client/components/integration-card`): `IntegrationCard`, `IntegrationSourceBadge` (**Using your key** / **Platform default**), `IntegrationProviderPicker`, `IntegrationSecretField` (write-only, set / not set, Replace), `IntegrationTestButton`, `IntegrationRemoveButton`. `@agentos/core/client/components/integration-section` exports `IntegrationSection` — a self-loading card for one single-instance integration that a builtin drops into its `ui/settings.tsx`.
+
 ## Files (blob API + Drive UI)
 
 Builtin **`files`** is the platform object store. Activity Bar **secondary** (`Folder`) opens `ui/page.tsx` (+ `ui/sidebar.tsx`) — a Drive-style manager (browse, upload, download, preview, rename/move, delete, search). Tenants do **not** bring their own S3 credentials; the operator configures one shared backend via env. Isolation is **key prefix** `orgs/<orgId>/…`.
