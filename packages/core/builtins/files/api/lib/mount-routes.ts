@@ -226,6 +226,8 @@ export async function handleMountsRequest(
           icon: p.icon,
           orgAddable: p.orgAddable,
           personal: Boolean(p.personal),
+          ...(p.fields ? { fields: p.fields } : {}),
+          ...(p.presets ? { presets: p.presets } : {}),
         })),
         canManage,
       });
@@ -239,12 +241,14 @@ export async function handleMountsRequest(
     );
     if (denied) return denied;
 
-    if (path === '/mounts' && method === 'POST') {
+    const isDraftTest = path === '/mounts/test' && method === 'POST';
+    if ((path === '/mounts' && method === 'POST') || isDraftTest) {
       const body = await readJson<{
         provider?: unknown;
         name?: unknown;
         config?: unknown;
         secrets?: unknown;
+        isDefault?: unknown;
       }>(request);
       if (body instanceof Response) return body;
       const provider =
@@ -257,14 +261,19 @@ export async function handleMountsRequest(
           { status: 400 },
         );
       }
-      const name = typeof body.name === 'string' ? body.name.trim() : '';
+      const name =
+        typeof body.name === 'string'
+          ? body.name.trim()
+          : isDraftTest
+            ? 'draft'
+            : '';
       if (!name || name.length > MAX_NAME_LENGTH) {
         return json(
           { error: `name required (max ${MAX_NAME_LENGTH} characters)` },
           { status: 400 },
         );
       }
-      if (!ctx.mounts) {
+      if (!ctx.mounts && !isDraftTest) {
         return json({ error: 'mount storage unavailable' }, { status: 503 });
       }
       const { config, secrets } = splitSecrets(
@@ -285,23 +294,35 @@ export async function handleMountsRequest(
         createdAt: now,
         updatedAt: now,
       };
+      let failure: string | undefined;
       try {
         const scope = await scopeForMount(ctx, org, mount, draftOf(secrets));
         await (scope.adapter.test?.() ??
           scope.adapter.list({ prefix: scope.root, limit: 1, delimiter: '/' }));
       } catch (error) {
+        failure = error instanceof Error ? error.message : 'unknown error';
+      }
+      if (isDraftTest) {
+        return json(failure ? { ok: false, error: failure } : { ok: true });
+      }
+      if (failure) {
         return json(
-          {
-            error: `connection test failed: ${error instanceof Error ? error.message : 'unknown error'}`,
-          },
+          { error: `connection test failed: ${failure}` },
           { status: 400 },
         );
       }
-      const saved = await ctx.mounts.put(org.orgId, toRecord(mount), {
+      const saved = await ctx.mounts!.put(org.orgId, toRecord(mount), {
         secrets,
         actor: org.userId,
       });
-      return json({ ok: true, mount: { ...mount, ...saved } }, { status: 201 });
+      if (body.isDefault === true) {
+        await saveDefault(ctx, org, mount.id);
+      }
+      const created = await resolver.get(org.orgId, mount.id, viewer);
+      return json(
+        { ok: true, mount: created ?? { ...mount, ...saved } },
+        { status: 201 },
+      );
     }
 
     const target = parseMountPath(path);

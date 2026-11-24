@@ -4,7 +4,11 @@ import { Button } from '@agentos/ui/components/button';
 import { LoadingState } from '@agentos/ui/components/loading-state';
 import { cn } from '@agentos/ui/lib/utils';
 
-import type { FilesMount, FilesSection } from './files-types';
+import {
+  resolveSelectedMount,
+  type FilesMount,
+  type FilesSection,
+} from './files-types';
 import { MountIcon } from './mount-icon';
 import { useFilesMount } from './use-files-mount';
 import { useFilesMounts } from './use-files-mounts';
@@ -163,7 +167,7 @@ export default function FilesSidebar() {
       loading={loading}
       error={error}
       section={section}
-      mountId={mountId}
+      mountId={resolveSelectedMount(data.mounts, mountId)?.id ?? mountId}
       onSelectMount={(id) => {
         void setMountId(id);
         void setSection('files');

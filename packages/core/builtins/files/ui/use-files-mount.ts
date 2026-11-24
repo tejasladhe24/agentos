@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useHostStorage } from '@agentos/core/client';
 
-import {
-  FILES_MOUNT_CHANNEL,
-  FILES_MOUNT_STORAGE_KEY,
-  PLATFORM_MOUNT_ID,
-} from './files-types';
+import { FILES_MOUNT_CHANNEL, FILES_MOUNT_STORAGE_KEY } from './files-types';
 
+/** `''` = nothing chosen yet → callers fall back to the org default mount. */
 function parseMountId(value: unknown): string {
-  return typeof value === 'string' && value ? value : PLATFORM_MOUNT_ID;
+  return typeof value === 'string' ? value : '';
 }
 
 /**
@@ -17,7 +14,7 @@ function parseMountId(value: unknown): string {
  */
 export function useFilesMount(): [string, (mountId: string) => Promise<void>] {
   const storage = useHostStorage();
-  const [mountId, setMountId] = useState(PLATFORM_MOUNT_ID);
+  const [mountId, setMountId] = useState('');
 
   useEffect(() => {
     let cancelled = false;

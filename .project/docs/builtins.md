@@ -421,32 +421,52 @@ Files is a set of **mounted storages** per org. Each mount is `{ id, kind: 'org'
 | `exportFormats`  | Native docs export targets (drives)                                   |
 | `quota`          | Provider reports its own quota                                        |
 
-**Index mode:** `indexed` (AgentOS is the only writer; `files_objects` is the record — platform, buckets, upload services) or `live` (provider is the record; listings are fetched live with a 15 s cache invalidated on writes — drives). New providers register into `storageProviders` (`api/lib/storage-providers.ts`); filesystem / S3 are registered as platform-only (not org-addable).
+**Index mode:** `indexed` (AgentOS is the only writer; `files_objects` is the record — platform, buckets, upload services) or `live` (provider is the record; listings are fetched live with a 15 s cache invalidated on writes — drives). New providers register into `storageProviders` (`api/lib/storage-providers.ts`) and may declare `fields` / `presets` that the Settings **Add storage** dialog renders generically. `filesystem` is platform-only; `s3` is org-addable (below).
 
 **References.** Canonical form is **`files://<mountId>/<path>`** (path is mount-relative; for platform it is relative to `orgs/<orgId>/`). Helpers: `@agentos/core/api/files-ref` (`formatFileRef`, `parseFileRef`, `toFileRef`) and `agentos.files` (`format_file_ref`, `parse_file_ref`, `to_file_ref`). Legacy keys (`orgs/<orgId>/…` or relative paths with no `mount`) always resolve to the platform mount; index records missing `mountId` are backfilled to `"platform"` on read. Inbound-email attachments store `ref` (event payload adds `attachmentRefs` beside `attachmentKeys`); the `ai` builtin accepts `{ ref }` attachments.
 
 **Safety.** `DELETE /mounts/:id` returns **409** `{ references, files, records }` while the mount still holds objects (Bin items included) or other records reference it. Changing a mount's location config (bucket / endpoint / prefix) while it holds files is **409** — add a new mount instead; credential changes are allowed.
 
+### S3-compatible org mounts (ticket 111)
+
+Admins add their own buckets — any number per org — as `files.mount` / provider `s3`. Settings (non-secret): `preset`, `bucket`, `region`, `endpoint`, `accountId` (R2), `projectRef` (Supabase), optional `prefix` (mount a sub-path). Secrets (vault): `accessKeyId`, `secretAccessKey`, optional `sessionToken`.
+
+| Preset (`preset`) | Endpoint                                         | Region / notes                         |
+| ----------------- | ------------------------------------------------ | -------------------------------------- |
+| `aws`             | Optional (Bun default)                           | Required; virtual-hosted style         |
+| `r2`              | `https://<accountId>.r2.cloudflarestorage.com`   | `auto`                                 |
+| `gcs`             | `https://storage.googleapis.com`                 | `auto`; HMAC keys                      |
+| `b2`              | `https://s3.<region>.backblazeb2.com`            | Required (e.g. `us-west-004`)          |
+| `wasabi`          | `https://s3.<region>.wasabisys.com`              | Default `us-east-1`                    |
+| `do-spaces`       | `https://<region>.digitaloceanspaces.com`        | Required (e.g. `nyc3`); virtual-hosted |
+| `minio`           | Custom (required; `http` allowed only here)      | Default `us-east-1`; path-style        |
+| `supabase`        | `https://<projectRef>.supabase.co/storage/v1/s3` | Required (project region)              |
+
+**Test connection** (`POST /mounts/test` with a draft body, or `POST /mounts/:id/test`) lists the mount prefix, then writes and deletes a `.agentos-probe-<uuid>` object. Failures name the cause: unknown access key, wrong secret, missing bucket, wrong region, or the missing permission (`s3:ListBucket` / `s3:PutObject` / `s3:DeleteObject`). `POST /mounts` runs the same test and refuses to save a failing mount.
+
+Bucket mounts are `indexed`. Copy/move **within a mount** uses a SigV4-signed `CopyObject` (path-style; `api/lib/s3-sign.ts`, since `Bun.S3Client` has no copy) and falls back to download + upload when the provider answers `NotImplemented`. Location settings (`preset`, `bucket`, `endpoint`, `region`, `accountId`, `projectRef`, `prefix`) are frozen while the mount holds files; keys can be rotated via `PATCH /mounts/:id { secrets }`.
+
 ### Routes (`/api/ext/files`)
 
 Blob routes take `?mount=<id>` (or `mount=default`); a `files://` ref in the path overrides it. Without either, the platform mount is used.
 
-| Method   | Path                                      | Notes                                                                             |
-| -------- | ----------------------------------------- | --------------------------------------------------------------------------------- |
-| `GET`    | `/health`                                 | Backend label, provider, mounts count; no auth                                    |
-| `GET`    | `/blobs?prefix=&limit=&cursor=&q=&mount=` | List files + virtual folders; `view=bin\|storage` spans all visible mounts        |
-| `PUT`    | `/blobs/:key`                             | Create/replace; JSON `{ base64, contentType? }` or octet-stream; returns `ref`    |
-| `GET`    | `/blobs/:key`                             | Binary (stored content-type) or `?format=json` (includes `ref`, `mountId`)        |
-| `DELETE` | `/blobs/:key`                             | Soft-delete to Bin (native trash when the mount supports it)                      |
-| `DELETE` | `/blobs?prefix=`                          | Recursive folder-prefix delete                                                    |
-| `POST`   | `/blobs/move`                             | `{ from, to, mount?, fromMount?, toMount? }` — cross-mount streams                |
-| `POST`   | `/blobs/copy`                             | Same body as move; keeps the source                                               |
-| `POST`   | `/blobs/restore`                          | `{ key, mountId? }` restore from Bin                                              |
-| `GET`    | `/mounts?usage=1`                         | Visible mounts + capabilities, default id, providers, `canManage`                 |
-| `POST`   | `/mounts`                                 | `{ provider, name, config, secrets? }` — connection-tested; `files.mounts.manage` |
-| `POST`   | `/mounts/:id/test`                        | Re-test; updates `status`                                                         |
-| `PATCH`  | `/mounts/:id`                             | `{ name?, isDefault?, config?, secrets? }` (rotation ok)                          |
-| `DELETE` | `/mounts/:id`                             | Guarded by reference count (409)                                                  |
+| Method   | Path                                      | Notes                                                                                         |
+| -------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `GET`    | `/health`                                 | Backend label, provider, mounts count; no auth                                                |
+| `GET`    | `/blobs?prefix=&limit=&cursor=&q=&mount=` | List files + virtual folders; `view=bin\|storage` spans all visible mounts                    |
+| `PUT`    | `/blobs/:key`                             | Create/replace; JSON `{ base64, contentType? }` or octet-stream; returns `ref`                |
+| `GET`    | `/blobs/:key`                             | Binary (stored content-type) or `?format=json` (includes `ref`, `mountId`)                    |
+| `DELETE` | `/blobs/:key`                             | Soft-delete to Bin (native trash when the mount supports it)                                  |
+| `DELETE` | `/blobs?prefix=`                          | Recursive folder-prefix delete                                                                |
+| `POST`   | `/blobs/move`                             | `{ from, to, mount?, fromMount?, toMount? }` — cross-mount streams                            |
+| `POST`   | `/blobs/copy`                             | Same body as move; keeps the source                                                           |
+| `POST`   | `/blobs/restore`                          | `{ key, mountId? }` restore from Bin                                                          |
+| `GET`    | `/mounts?usage=1`                         | Visible mounts + capabilities, default id, providers, `canManage`                             |
+| `POST`   | `/mounts`                                 | `{ provider, name, config, secrets?, isDefault? }` — connection-tested; `files.mounts.manage` |
+| `POST`   | `/mounts/:id/test`                        | Re-test; updates `status`                                                                     |
+| `POST`   | `/mounts/test`                            | Draft test (same body as `POST /mounts`); `{ ok, error? }`, nothing saved                     |
+| `PATCH`  | `/mounts/:id`                             | `{ name?, isDefault?, config?, secrets? }` (rotation ok)                                      |
+| `DELETE` | `/mounts/:id`                             | Guarded by reference count (409)                                                              |
 
 Org context: session cookie `orgId` **or** peer header `X-AgentOS-Org-Id`. Session callers need RBAC `files.read` / `files.write` (seeded for admin/owner write; viewer/reviewer/sales read). Peer header path skips RBAC (trusted services) but may only write to org mounts. Max object size: **10 MiB** or the mount's `maxFileSize`, whichever is lower. Metadata (content-type, size, updatedAt, `mountId`) is indexed in db-store collection `files_objects`.
 
