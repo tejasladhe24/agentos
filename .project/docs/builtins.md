@@ -630,16 +630,16 @@ Builtin **`vector-store`** owns embedding **storage and similarity search** only
 
 Activity Bar secondary **Email** (builtin `inbound-email` UI) is the operator surface for:
 
-| Direction                       | Builtin         | Providers                                                     |
-| ------------------------------- | --------------- | ------------------------------------------------------------- |
-| **Receive** (Inbox / Addresses) | `inbound-email` | `fixture` (local) or `mailgun`                                |
-| **Send** (Compose / Deliveries) | `notifications` | `log` (local), `resend`, or `cloudflare` (Email Sending REST) |
+| Direction                       | Builtin         | Providers                                                       |
+| ------------------------------- | --------------- | --------------------------------------------------------------- |
+| **Receive** (Inbox / Addresses) | `inbound-email` | `fixture` (local) or `resend` (platform default + per-org BYOK) |
+| **Send** (Compose / Deliveries) | `notifications` | `log` (local), `resend`, or `cloudflare` (Email Sending REST)   |
 
 RBAC: `email.read` (inbox, addresses list, deliveries), `email.send` (compose + address provision). Admin/owner covered by `*`.
 
 HTML bodies render in a sandboxed iframe (`srcdoc`); plain text is the default view. Attachments download via files blob keys (no re-upload).
 
-**Local verify:** fixture webhook → Inbox; Compose with `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_PROVIDER=log` → delivery `sent`. Staging send: Cloudflare Email Sending env on notifications; staging receive: Mailgun DNS (below).
+**Local verify:** fixture webhook → Inbox; Compose with `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_PROVIDER=log` → delivery `sent`. Staging send: Cloudflare Email Sending env on notifications; staging receive: Resend receiving (below).
 
 ## Inbound email (per org)
 
@@ -647,37 +647,51 @@ Builtin **`inbound-email`** receives provider webhooks, maps the **To / recipien
 
 `meta.json` declares `public.openApiPrefixes: ["/webhooks/"]` so the gateway skips session/public-token gates; handlers verify the provider signature themselves (ticket 78). Secondary Activity Bar **Email** opens `ui/page.tsx` (ticket 99).
 
-| Method  | Path                                  | Role                                                          |
-| ------- | ------------------------------------- | ------------------------------------------------------------- |
-| `GET`   | `/api/ext/inbound-email/health`       | `{ ok, provider, backend }`                                   |
-| `GET`   | `/api/ext/inbound-email/addresses`    | List addresses for active org                                 |
-| `POST`  | `/api/ext/inbound-email/addresses`    | Provision `{ address, purpose? }` bound to active org         |
-| `GET`   | `/api/ext/inbound-email/messages`     | Org inbox (`limit`/`offset`/`from`/`to`/`q`)                  |
-| `GET`   | `/api/ext/inbound-email/messages/:id` | Message detail                                                |
-| `PATCH` | `/api/ext/inbound-email/messages/:id` | `{ read: true }` → sets `readAt`                              |
-| `POST`  | `/api/ext/inbound-email/webhooks/*`   | Provider webhook (`fixture`, `mailgun`, or generic `inbound`) |
+| Method  | Path                                                     | Role                                                        |
+| ------- | -------------------------------------------------------- | ----------------------------------------------------------- |
+| `GET`   | `/api/ext/inbound-email/health`                          | `{ ok, provider, backend }`                                 |
+| `GET`   | `/api/ext/inbound-email/addresses`                       | List addresses for active org                               |
+| `POST`  | `/api/ext/inbound-email/addresses`                       | Provision `{ address, purpose? }` bound to active org       |
+| `GET`   | `/api/ext/inbound-email/messages`                        | Org inbox (`limit`/`offset`/`from`/`to`/`q`)                |
+| `GET`   | `/api/ext/inbound-email/messages/:id`                    | Message detail                                              |
+| `PATCH` | `/api/ext/inbound-email/messages/:id`                    | `{ read: true }` → sets `readAt`                            |
+| `POST`  | `/api/ext/inbound-email/webhooks/inbound`                | Platform default provider (whatever `PROVIDER` is)          |
+| `POST`  | `/api/ext/inbound-email/webhooks/fixture`                | Fixture provider (HMAC JSON; local/tests)                   |
+| `POST`  | `/api/ext/inbound-email/webhooks/resend`                 | Platform Resend account; org from recipient address mapping |
+| `POST`  | `/api/ext/inbound-email/webhooks/resend/:connectionId`   | Org's own Resend account (BYOK); org from the connection id |
+| `*`     | `/api/ext/inbound-email/integrations/email.receive[...]` | Receiving integration (`integrations.manage`; ticket 103)   |
 
-**Address mapping:** prefer `POST /addresses`, or demo env `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP=coi@inbound.example.com=org_demo`. Directory rows live in platform collection `inbound_addresses`.
+**Address mapping:** prefer `POST /addresses`, or demo env `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP=coi@inbound.example.com=org_demo`. Directory rows live in platform collection `inbound_addresses`. BYOK deliveries skip the directory: everything a connected Resend account receives belongs to that org.
 
 **`email.received` payload (stable):** `{ orgId, messageId, deliveryId, provider, from, to, subject, attachmentKeys, attachments, receivedAt }`.
 
-| Variable                                         | Role                                         |
-| ------------------------------------------------ | -------------------------------------------- |
-| `AGENT_OS_EXT_INBOUND_EMAIL_PORT`                | Upstream port (default `6121`)               |
-| `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER`            | `fixture` (default) or `mailgun`             |
-| `AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET`      | HMAC secret for fixture webhooks             |
-| `AGENT_OS_EXT_INBOUND_EMAIL_MAILGUN_SIGNING_KEY` | Mailgun HTTP webhook signing key             |
-| `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP`         | Demo `address=orgId` pairs (comma-separated) |
+| Variable                                           | Role                                                 |
+| -------------------------------------------------- | ---------------------------------------------------- |
+| `AGENT_OS_EXT_INBOUND_EMAIL_PORT`                  | Upstream port (default `6121`)                       |
+| `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER`              | Platform default: `fixture` (default) or `resend`    |
+| `AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET`        | HMAC secret for fixture webhooks                     |
+| `AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY`        | Platform Resend key (fetches received email content) |
+| `AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET` | Platform Resend webhook signing secret (`whsec_…`)   |
+| `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP`           | Demo `address=orgId` pairs (comma-separated)         |
+| `AGENT_OS_GLOBAL_APP_ORIGIN`                       | Public origin used for auto-registered webhook URLs  |
 
-### Demo DNS / Mailgun setup
+### Resend receiving
 
-1. Create (or reuse) a subdomain for inbound, e.g. `inbound.example.com`.
-2. In Mailgun: add the domain, set the MX records Mailgun shows in DNS.
-3. Routes → **store and notify** / Inbound Parse → URL  
-   `https://<app>/api/ext/inbound-email/webhooks/mailgun`.
-4. Set `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER=mailgun` and the signing key env var.
-5. Provision per-org locals: `coi@inbound.example.com` → that tenant’s `orgId`  
-   (`POST /addresses` or `ADDRESS_MAP`).
-6. Send a test message with a PDF; confirm a blob under `orgs/<orgId>/inbound/…` and an `email.received` outbox row.
+Resend's `email.received` webhook carries metadata only. On each delivery the builtin verifies the Svix-style signature (`svix-id`, `svix-timestamp`, `svix-signature`; 5-minute skew), then fetches the body from `GET /emails/receiving/{id}` and attachments from `GET /emails/receiving/{id}/attachments` inline — attachment download URLs expire after an hour, and a Resend API failure returns **502** so Resend retries the delivery. Other event types are acknowledged and ignored. Deliveries are idempotent on the Resend email id.
 
-**Local without Mailgun:** keep `PROVIDER=fixture`, set `WEBHOOK_SECRET`, and POST a signed JSON body to `/webhooks/fixture` (see builtin tests).
+**Platform default**
+
+1. In Resend → Domains, add the inbound domain (e.g. `inbound.example.com`), enable receiving, and add the MX record Resend shows to DNS.
+2. Resend → Webhooks → add `https://<app>/api/ext/inbound-email/webhooks/resend` for `email.received`; copy the signing secret.
+3. Set `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER=resend`, `…_RESEND_API_KEY`, and `…_RESEND_SIGNING_SECRET`.
+4. Provision per-org locals (`POST /addresses` or `ADDRESS_MAP`), send a message with a PDF, and confirm a blob under `orgs/<orgId>/inbound/…` plus an `email.received` outbox row.
+
+**Per-org (BYOK)** — Settings → Integrations → **Email** → _Email receiving_ (integration `email.receive`, provider `resend`; secrets `apiKey`, `signingSecret`; settings `receivingDomain` plus server-managed `connectionId`, `webhookId`, `webhookStatus`, `webhookError`):
+
+- Saving a key assigns an opaque `connectionId` (platform collection `inbound_connections` → orgId) and calls Resend's Webhooks API with that key to create an `email.received` webhook at `<AGENT_OS_GLOBAL_APP_ORIGIN>/api/ext/inbound-email/webhooks/resend/<connectionId>`. The returned signing secret goes to the vault; status becomes **registered**.
+- Rotating the key updates the existing webhook (same account) or creates a new one and deletes the old one with the old key. Removing the integration deletes the webhook and the connection.
+- If the key cannot manage webhooks (401/403) or no public origin is configured, status is **manual**: the card shows the webhook URL and a signing-secret field to paste. Other errors show **failing** with the message; saving again retries.
+- When Email sending already uses a Resend key, the card offers **Use the same Resend key** (`useSendingKey: true` in the PUT body copies the `email.send` key server-side).
+- **Test connection** checks the registered webhook is enabled (or that a manual signing secret is set) and reminds you to send a message to the receiving domain.
+
+**Local:** keep `PROVIDER=fixture`, set `WEBHOOK_SECRET`, and POST a signed JSON body to `/webhooks/fixture` (see builtin tests).

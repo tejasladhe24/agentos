@@ -1,3 +1,5 @@
+import type { IntegrationsKit } from '@agentos/core/api/integrations';
+
 import type { AddressStore } from './address-store';
 import {
   checkEmailPermission,
@@ -8,10 +10,16 @@ import {
   PERMISSION_EMAIL_READ,
   PERMISSION_EMAIL_SEND,
 } from './constants';
+import { isValidConnectionId, type ConnectionStore } from './connection-store';
 import { IngestError, ingestInboundEmail, type IngestDeps } from './ingest';
 import { json, unavailable } from './http';
+import { EMAIL_RECEIVE_INTEGRATION } from './integrations';
 import type { MessageDb } from './message-store';
-import type { InboundEmailProvider } from './providers/types';
+import { createResendInboundProvider } from './providers/resend';
+import {
+  ProviderUpstreamError,
+  type InboundEmailProvider,
+} from './providers/types';
 import {
   resolveOrgForInboundEmailRequest,
   type ResolveOrgResult,
@@ -20,7 +28,12 @@ import {
 export type InboundEmailDeps = IngestDeps & {
   addresses: AddressStore;
   messages: MessageDb;
+  /** Platform-default provider (`AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER`). */
   provider: InboundEmailProvider;
+  /** BYOK webhook connection directory (`/webhooks/resend/:connectionId`). */
+  connections?: ConnectionStore;
+  integrations?: Pick<IntegrationsKit, 'getIntegration'>;
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
   runtimeEnv?: Record<string, string | undefined>;
   resolveOrg?: (
     request: Request,
@@ -250,26 +263,20 @@ export async function handlePatchMessage(
 export async function handleWebhook(
   deps: InboundEmailDeps,
   request: Request,
+  provider: InboundEmailProvider = deps.provider,
+  target: { orgId?: string } = {},
 ): Promise<Response> {
-  const contentType = request.headers.get('content-type') ?? '';
-  let rawBody: string | Uint8Array = '';
-  let form: FormData | undefined;
-
+  let rawBody: string;
   try {
-    if (contentType.includes('multipart/form-data')) {
-      form = await request.formData();
-      rawBody = '';
-    } else {
-      rawBody = await request.text();
-    }
+    rawBody = await request.text();
   } catch {
     return json({ error: 'invalid_body' }, { status: 400 });
   }
 
-  const verifyInput = { rawBody, headers: request.headers, form };
+  const verifyInput = { rawBody, headers: request.headers };
   let verified = false;
   try {
-    verified = await deps.provider.verify(verifyInput);
+    verified = await provider.verify(verifyInput);
   } catch (error) {
     return unavailable(error);
   }
@@ -279,14 +286,18 @@ export async function handleWebhook(
 
   let email;
   try {
-    email = await deps.provider.parse(verifyInput);
+    email = await provider.parse(verifyInput);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    if (error instanceof ProviderUpstreamError) {
+      return json({ error: 'provider_unavailable', detail }, { status: 502 });
+    }
     return json({ error: 'invalid_payload', detail }, { status: 400 });
   }
+  if (!email) return json({ ok: true, ignored: true });
 
   try {
-    const result = await ingestInboundEmail(deps, email);
+    const result = await ingestInboundEmail(deps, email, target);
     return json(result);
   } catch (error) {
     if (error instanceof IngestError) {
@@ -295,6 +306,63 @@ export async function handleWebhook(
     }
     return unavailable(error);
   }
+}
+
+/** Platform route bound to one provider name (`/webhooks/<name>`). */
+function handleNamedWebhook(name: string) {
+  return (deps: InboundEmailDeps, request: Request) =>
+    deps.provider.name === name
+      ? handleWebhook(deps, request)
+      : Promise.resolve(
+          json({ error: `provider ${name} not enabled` }, { status: 404 }),
+        );
+}
+
+/**
+ * BYOK Resend webhook: the opaque connection id selects the org and its
+ * `email.receive` record (signing secret + API key). Mail lands in that org
+ * regardless of the address directory.
+ */
+export async function handleResendConnectionWebhook(
+  deps: InboundEmailDeps,
+  request: Request,
+  connectionId: string,
+): Promise<Response> {
+  const notFound = () => json({ error: 'unknown_connection' }, { status: 404 });
+  if (!deps.connections || !deps.integrations) return notFound();
+  if (!isValidConnectionId(connectionId)) return notFound();
+  let config;
+  let orgId: string;
+  try {
+    const connection = await deps.connections.get(connectionId);
+    if (!connection) return notFound();
+    orgId = connection.orgId;
+    config = await deps.integrations.getIntegration(
+      orgId,
+      EMAIL_RECEIVE_INTEGRATION,
+      connection.instanceId || undefined,
+    );
+  } catch (error) {
+    return unavailable(error);
+  }
+  if (
+    !config ||
+    config.provider !== 'resend' ||
+    config.settings.connectionId !== connectionId
+  ) {
+    return notFound();
+  }
+  const provider = createResendInboundProvider({
+    signingSecret: config.secrets.signingSecret ?? '',
+    apiKey: config.secrets.apiKey ?? '',
+    fetchImpl: deps.fetchImpl,
+  });
+  return handleWebhook(deps, request, provider, { orgId });
+}
+
+export function parseResendConnectionId(path: string): string | null {
+  const match = path.match(/^\/webhooks\/resend\/([^/]+)$/);
+  return match?.[1] ?? null;
 }
 
 type ExactRoute = {
@@ -327,13 +395,13 @@ export const EXACT_ROUTES: ExactRoute[] = [
   },
   {
     method: 'POST',
-    path: '/webhooks/mailgun',
-    handle: (d, r) => handleWebhook(d, r),
+    path: '/webhooks/resend',
+    handle: handleNamedWebhook('resend'),
   },
   {
     method: 'POST',
     path: '/webhooks/fixture',
-    handle: (d, r) => handleWebhook(d, r),
+    handle: handleNamedWebhook('fixture'),
   },
 ];
 

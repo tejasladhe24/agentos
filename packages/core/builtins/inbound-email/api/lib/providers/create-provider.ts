@@ -1,19 +1,25 @@
 import { createFixtureProvider } from './fixture';
-import { createMailgunProvider } from './mailgun';
+import { createResendInboundProvider } from './resend';
 import type { InboundEmailProvider } from './types';
 
+export type InboundProviderName = 'fixture' | 'resend';
+
 export type CreateProviderInput = {
-  provider: 'fixture' | 'mailgun';
+  provider: InboundProviderName;
   webhookSecret?: string;
-  mailgunSigningKey?: string;
+  resendApiKey?: string;
+  resendSigningSecret?: string;
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
 };
 
 export function createInboundProvider(
   input: CreateProviderInput,
 ): InboundEmailProvider {
-  if (input.provider === 'mailgun') {
-    return createMailgunProvider({
-      signingKey: input.mailgunSigningKey ?? input.webhookSecret ?? '',
+  if (input.provider === 'resend') {
+    return createResendInboundProvider({
+      apiKey: input.resendApiKey ?? '',
+      signingSecret: input.resendSigningSecret ?? '',
+      fetchImpl: input.fetchImpl,
     });
   }
   return createFixtureProvider({

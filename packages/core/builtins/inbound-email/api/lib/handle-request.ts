@@ -1,11 +1,23 @@
+import {
+  handleIntegrationRoutes,
+  type IntegrationRoutesContext,
+} from '@agentos/core/api/integrations';
+
 import { json } from './http';
 import {
   EXACT_ROUTES,
   handleGetMessage,
   handlePatchMessage,
+  handleResendConnectionWebhook,
   parseMessageId,
+  parseResendConnectionId,
   type InboundEmailDeps,
 } from './routes';
+
+export type InboundEmailRequestOptions = {
+  /** Mount `/integrations/*` (email.receive BYOK) when provided. */
+  integrationRoutes?: IntegrationRoutesContext;
+};
 
 /**
  * Thin Bun request router for `/api/ext/inbound-email/*` upstream paths.
@@ -13,6 +25,7 @@ import {
 export async function handleInboundEmailRequest(
   deps: InboundEmailDeps,
   request: Request,
+  options: InboundEmailRequestOptions = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -22,6 +35,19 @@ export async function handleInboundEmailRequest(
     if (route.method === method && route.path === path) {
       return route.handle(deps, request);
     }
+  }
+
+  if (options.integrationRoutes) {
+    const handled = await handleIntegrationRoutes(
+      options.integrationRoutes,
+      request,
+    );
+    if (handled) return handled;
+  }
+
+  const connectionId = parseResendConnectionId(path);
+  if (connectionId && method === 'POST') {
+    return handleResendConnectionWebhook(deps, request, connectionId);
   }
 
   const messageId = parseMessageId(path);

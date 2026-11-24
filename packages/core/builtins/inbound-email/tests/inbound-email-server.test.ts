@@ -430,66 +430,6 @@ describe('builtin inbound-email server', () => {
     expect(events.published).toHaveLength(1);
   });
 
-  test('mailgun webhook verifies signature and ingests', async () => {
-    const signingKey = 'mailgun-key';
-    const files = mockFiles();
-    const events = mockEvents();
-    const messages = mockMessageDb();
-    const addresses = createAddressStore(
-      mockAddressDb(),
-      new Map([['coi@inbound.example.com', 'org_mg']]),
-    );
-    const deps: InboundEmailDeps = {
-      addresses,
-      messages,
-      files,
-      events,
-      provider: createInboundProvider({
-        provider: 'mailgun',
-        mailgunSigningKey: signingKey,
-      }),
-      idempotency: createMemoryIdempotencyStore(),
-    };
-
-    const timestamp = String(Math.floor(Date.now() / 1000));
-    const token = 'tok_abc';
-    const signature = await hmacSha256Hex(signingKey, `${timestamp}${token}`);
-
-    const form = new FormData();
-    form.set('timestamp', timestamp);
-    form.set('token', token);
-    form.set('signature', signature);
-    form.set('recipient', 'coi@inbound.example.com');
-    form.set('sender', 'vendor@example.com');
-    form.set('subject', 'Mailgun COI');
-    form.set('body-plain', 'attached');
-    form.set('Message-Id', '<mg-1@mailgun>');
-    form.set('attachment-count', '1');
-    form.set(
-      'attachment-1',
-      new File([Uint8Array.from([1, 2, 3, 4])], 'coi.pdf', {
-        type: 'application/pdf',
-      }),
-    );
-
-    const res = await handleInboundEmailRequest(
-      deps,
-      new Request('http://127.0.0.1:6121/webhooks/mailgun', {
-        method: 'POST',
-        body: form,
-      }),
-    );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      ok: boolean;
-      message: { orgId: string; attachments: unknown[] };
-    };
-    expect(body.ok).toBe(true);
-    expect(body.message.orgId).toBe('org_mg');
-    expect(body.message.attachments).toHaveLength(1);
-    expect(events.published[0]!.topic).toBe('email.received');
-  });
-
   test('attachments land in the files builtin with a files://platform ref', async () => {
     const root = await mkdtemp(join(tmpdir(), 'agentos-inbound-files-'));
     const filesCtx: FilesContext = {

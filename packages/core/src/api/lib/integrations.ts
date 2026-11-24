@@ -913,6 +913,7 @@ export {
   createSessionPermissionCheck,
   handleIntegrationRoutes,
   type IntegrationDefinition,
+  type IntegrationDraft,
   type IntegrationOrgResult,
   type IntegrationFieldDefinition,
   type IntegrationProviderDefinition,

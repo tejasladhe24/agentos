@@ -34,6 +34,13 @@ export type IntegrationProviderDefinition = {
 
 export type IntegrationTestResult = { ok: boolean; message?: string };
 
+/** Validated PUT body; `null` secrets remove a stored field. */
+export type IntegrationDraft = {
+  provider: string;
+  settings: Record<string, unknown>;
+  secrets: Record<string, string | null>;
+};
+
 export type IntegrationDefinition = {
   /** Namespaced id, e.g. `email.send`. */
   id: string;
@@ -54,6 +61,24 @@ export type IntegrationDefinition = {
     /** Session user (email when known) — e.g. recipient of a test message. */
     actor?: string;
   }) => Promise<IntegrationTestResult>;
+  /**
+   * Adjust a validated draft before it is stored — e.g. register a provider
+   * webhook and add its signing secret. `body` is the raw PUT body for
+   * integration-specific flags. Throw `IntegrationError` to reject the save.
+   */
+  beforeSave?: (input: {
+    orgId: string;
+    instanceId: string;
+    existing: ResolvedIntegration | null;
+    draft: IntegrationDraft;
+    body: Record<string, unknown>;
+  }) => Promise<IntegrationDraft>;
+  /** Clean up provider-side state after the record was deleted. */
+  afterDelete?: (input: {
+    orgId: string;
+    instanceId: string;
+    existing: ResolvedIntegration;
+  }) => Promise<void>;
 };
 
 export type IntegrationOrgResult =
@@ -325,8 +350,26 @@ export async function handleIntegrationRoutes(
         def.id,
         instanceId,
       );
-      const draft = validateDraft(def, body, existing, false);
-      if (!draft.ok) return json({ error: draft.error }, { status: 400 });
+      const validated = validateDraft(def, body, existing, false);
+      if (!validated.ok) {
+        return json({ error: validated.error }, { status: 400 });
+      }
+      let draft: IntegrationDraft = {
+        provider: validated.provider,
+        settings: validated.settings,
+        secrets: validated.secrets,
+      };
+      if (def.beforeSave) {
+        draft = await def.beforeSave({
+          orgId: org.orgId,
+          instanceId,
+          existing: existing
+            ? await ctx.kit.getIntegration(org.orgId, def.id, instanceId)
+            : null,
+          draft,
+          body,
+        });
+      }
       const view = await ctx.kit.putIntegration(org.orgId, {
         integration: def.id,
         instanceId,
@@ -339,6 +382,9 @@ export async function handleIntegrationRoutes(
     }
 
     if (method === 'DELETE') {
+      const existing = def.afterDelete
+        ? await ctx.kit.getIntegration(org.orgId, def.id, instanceId)
+        : null;
       const result = await ctx.kit.deleteIntegration(
         org.orgId,
         def.id,
@@ -346,6 +392,11 @@ export async function handleIntegrationRoutes(
         org.actor,
       );
       if (!result.deleted) return json({ error: 'not found' }, { status: 404 });
+      if (def.afterDelete && existing) {
+        await def
+          .afterDelete({ orgId: org.orgId, instanceId, existing })
+          .catch(() => undefined);
+      }
       return json(result);
     }
 

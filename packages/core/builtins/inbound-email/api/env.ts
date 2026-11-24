@@ -41,14 +41,16 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         .int()
         .positive()
         .default(6115),
-      /** `fixture` (default/local) or `mailgun` (Inbound Parse). */
+      /** Platform default: `fixture` (local/tests) or `resend`. */
       AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER: z
-        .enum(['fixture', 'mailgun'])
+        .enum(['fixture', 'resend'])
         .default('fixture'),
-      /** HMAC secret for fixture webhooks; also Mailgun fallback. */
+      /** HMAC secret for fixture webhooks. */
       AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET: z.string().min(1).optional(),
-      /** Mailgun HTTP webhook signing key. */
-      AGENT_OS_EXT_INBOUND_EMAIL_MAILGUN_SIGNING_KEY: z
+      /** Platform Resend API key (fetches received email content). */
+      AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY: z.string().min(1).optional(),
+      /** Platform Resend webhook signing secret (`whsec_…`). */
+      AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET: z
         .string()
         .min(1)
         .optional(),
@@ -80,8 +82,10 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER,
       AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET:
         runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET,
-      AGENT_OS_EXT_INBOUND_EMAIL_MAILGUN_SIGNING_KEY:
-        runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_MAILGUN_SIGNING_KEY,
+      AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY:
+        runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY,
+      AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET:
+        runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET,
       AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP:
         runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP,
     },

@@ -1,9 +1,12 @@
 import { useSettingsTarget } from '@agentos/core/client';
 import { IntegrationSection } from '@agentos/core/client/components/integration-section';
 
+import { ReceivingCard } from './receiving-card';
+
 /**
  * Email Settings — sending provider (BYOK) card served by builtin
- * `notifications`. Mounted by the Shell Settings host for section `email`.
+ * `notifications` and the receiving (Resend inbound) card served by this
+ * builtin. Mounted by the Shell Settings host for section `email`.
  */
 export default function EmailSettings() {
   useSettingsTarget();
@@ -17,6 +20,7 @@ export default function EmailSettings() {
         basePath="/api/ext/notifications/integrations"
         entryId="email-sending"
       />
+      <ReceivingCard entryId="email-receiving" />
     </div>
   );
 }

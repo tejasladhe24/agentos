@@ -30,8 +30,9 @@ function safeFilename(name: string): string {
 export async function ingestInboundEmail(
   deps: IngestDeps,
   email: NormalizedInboundEmail,
+  target: { orgId?: string } = {},
 ): Promise<IngestResult> {
-  const orgId = await deps.addresses.resolveOrgId(email.to);
+  const orgId = target.orgId ?? (await deps.addresses.resolveOrgId(email.to));
   if (!orgId) {
     throw new IngestError('unknown_recipient', 'no org mapped for recipient');
   }

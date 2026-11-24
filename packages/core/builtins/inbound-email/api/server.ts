@@ -1,8 +1,18 @@
+import {
+  createHttpIntegrationsBackend,
+  createIntegrationsKit,
+  createSessionOrgResolver,
+  createSessionPermissionCheck,
+  watchIntegrationChanges,
+} from '@agentos/core/api/integrations';
+
 import { keys } from './env';
 import { createAddressDb, createAddressStore } from './lib/address-store';
+import { createConnectionStore } from './lib/connection-store';
 import { INBOUND_EMAIL_PORT } from './lib/constants';
 import { handleInboundEmailRequest } from './lib/handle-request';
 import { parseAddressMap } from './lib/http';
+import { inboundIntegrationDefinitions } from './lib/integrations';
 import { createMessageDb } from './lib/message-store';
 import {
   createEventsClient,
@@ -32,8 +42,22 @@ const events = createEventsClient(`http://${eventsHost}:${eventsPort}`);
 const provider = createInboundProvider({
   provider: env.AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER,
   webhookSecret: env.AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET,
-  mailgunSigningKey: env.AGENT_OS_EXT_INBOUND_EMAIL_MAILGUN_SIGNING_KEY,
+  resendApiKey: env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY,
+  resendSigningSecret: env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET,
 });
+const platformConfigured =
+  env.AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER === 'resend'
+    ? Boolean(
+        env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY &&
+        env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET,
+      )
+    : Boolean(env.AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET);
+
+const integrations = createIntegrationsKit(
+  createHttpIntegrationsBackend({ dbStoreApiBase: dbBase }),
+);
+watchIntegrationChanges(integrations);
+const connections = createConnectionStore(dbBase);
 
 const deps = {
   addresses,
@@ -41,13 +65,29 @@ const deps = {
   files,
   events,
   provider,
+  connections,
+  integrations,
   idempotency: createMemoryIdempotencyStore(),
+};
+
+const options = {
+  integrationRoutes: {
+    kit: integrations,
+    definitions: inboundIntegrationDefinitions({
+      kit: integrations,
+      connections,
+      publicOrigin: Bun.env.AGENT_OS_GLOBAL_APP_ORIGIN,
+      platform: { provider: provider.name, configured: platformConfigured },
+    }),
+    resolveOrg: createSessionOrgResolver(),
+    checkPermission: createSessionPermissionCheck(),
+  },
 };
 
 const server = Bun.serve({
   port,
   async fetch(request) {
-    return handleInboundEmailRequest(deps, request);
+    return handleInboundEmailRequest(deps, request, options);
   },
 });
 
