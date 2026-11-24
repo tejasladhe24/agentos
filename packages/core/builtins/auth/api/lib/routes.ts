@@ -1,3 +1,5 @@
+import { purgeUserSecrets } from '@agentos/core/api/secrets';
+
 import { DEMO_VIEWER, PERMISSION_ROLES_MANAGE } from './constants';
 import type { AuthContext } from './create-auth';
 import {
@@ -13,6 +15,8 @@ import {
   isOrgMember,
   listOrgMembers,
   listOrgsForUser,
+  ORG_ROLE_OWNER,
+  removeOrgMember,
   resolveActiveOrgId,
   setActiveOrg,
   setOrgMemberRole,
@@ -529,6 +533,57 @@ export async function handleAssignOrgMemberRole(
   return json({ orgId: gate.orgId, members });
 }
 
+async function purgeRemovedMember(input: {
+  orgId: string;
+  userId: string;
+}): Promise<void> {
+  try {
+    await purgeUserSecrets(input.userId, input.orgId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[agentos auth] user-owned secrets purge failed for removed member (org ${input.orgId}): ${message}`,
+    );
+  }
+}
+
+export async function handleRemoveOrgMember(
+  ctx: AuthContext,
+  request: Request,
+): Promise<Response> {
+  const gate = await requireManageRoles(ctx, request);
+  if (!gate.ok) return gate.response;
+  const body = await readJsonBody(request);
+  const userId = typeof body?.userId === 'string' ? body.userId.trim() : '';
+  if (!userId) {
+    return json({ error: 'userId required' }, { status: 400 });
+  }
+  if (userId === gate.session.user.id) {
+    return json({ error: 'cannot remove yourself' }, { status: 400 });
+  }
+
+  const before = await listOrgMembers(ctx.db, gate.orgId);
+  const target = before.find((m) => m.userId === userId);
+  if (!target) {
+    return json({ error: 'member not found' }, { status: 404 });
+  }
+  if (
+    target.role === ORG_ROLE_OWNER &&
+    before.filter((m) => m.role === ORG_ROLE_OWNER).length <= 1
+  ) {
+    return json({ error: 'cannot remove the last owner' }, { status: 409 });
+  }
+
+  await removeOrgMember(ctx.db, gate.orgId, userId);
+  await (ctx.onMemberRemoved ?? purgeRemovedMember)({
+    orgId: gate.orgId,
+    userId,
+  });
+
+  const members = await listOrgMembers(ctx.db, gate.orgId);
+  return json({ orgId: gate.orgId, removed: userId, members });
+}
+
 export async function handleSetRolePermissions(
   ctx: AuthContext,
   request: Request,
@@ -703,6 +758,11 @@ export const AUTH_EXACT_ROUTES: ReadonlyArray<{
     method: 'POST',
     path: '/orgs/members/roles',
     handle: (c, r) => handleAssignOrgMemberRole(c, r),
+  },
+  {
+    method: 'POST',
+    path: '/orgs/members/remove',
+    handle: (c, r) => handleRemoveOrgMember(c, r),
   },
   {
     method: 'POST',

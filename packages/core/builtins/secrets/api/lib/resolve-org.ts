@@ -1,9 +1,15 @@
-import { ORG_ID_HEADER } from './constants';
+import { ORG_ID_HEADER, USER_ID_HEADER } from './constants';
 
 const DEFAULT_AUTH_BASE = 'http://127.0.0.1:6110';
 
 export type ResolveOrgResult =
-  | { ok: true; orgId: string; via: 'session' | 'header' }
+  | {
+      ok: true;
+      orgId: string;
+      via: 'session' | 'header';
+      /** Session user, or peer `X-AgentOS-User-Id` (acting-for user). */
+      userId?: string;
+    }
   | { ok: false; status: number; error: string };
 
 function resolveAuthApiBase(
@@ -22,10 +28,12 @@ function resolveAuthApiBase(
   return DEFAULT_AUTH_BASE;
 }
 
-async function orgIdFromSessionCookie(
+type SessionIdentity = { orgId: string; userId?: string };
+
+async function identityFromSessionCookie(
   request: Request,
   env: Record<string, string | undefined>,
-): Promise<string | null | undefined> {
+): Promise<SessionIdentity | null | undefined> {
   const cookie = request.headers.get('cookie');
   if (!cookie) return undefined;
 
@@ -37,9 +45,15 @@ async function orgIdFromSessionCookie(
     });
     if (res.status === 401) return null;
     if (!res.ok) return null;
-    const body = (await res.json()) as { orgId?: string | null };
+    const body = (await res.json()) as {
+      orgId?: string | null;
+      user?: { id?: string } | null;
+    };
     if (typeof body.orgId === 'string' && body.orgId.length > 0) {
-      return body.orgId;
+      const userId = body.user?.id;
+      return typeof userId === 'string' && userId
+        ? { orgId: body.orgId, userId }
+        : { orgId: body.orgId };
     }
     return null;
   } catch {
@@ -55,9 +69,9 @@ export async function resolveOrgForSecretsRequest(
   request: Request,
   env: Record<string, string | undefined> = Bun.env,
 ): Promise<ResolveOrgResult> {
-  const fromSession = await orgIdFromSessionCookie(request, env);
-  if (typeof fromSession === 'string') {
-    return { ok: true, orgId: fromSession, via: 'session' };
+  const fromSession = await identityFromSessionCookie(request, env);
+  if (fromSession) {
+    return { ok: true, ...fromSession, via: 'session' };
   }
   if (fromSession === null && request.headers.get('cookie')) {
     return { ok: false, status: 403, error: 'active org required' };
@@ -65,7 +79,10 @@ export async function resolveOrgForSecretsRequest(
 
   const header = request.headers.get(ORG_ID_HEADER)?.trim();
   if (header) {
-    return { ok: true, orgId: header, via: 'header' };
+    const userId = request.headers.get(USER_ID_HEADER)?.trim();
+    return userId
+      ? { ok: true, orgId: header, via: 'header', userId }
+      : { ok: true, orgId: header, via: 'header' };
   }
 
   return {

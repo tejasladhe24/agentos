@@ -7,6 +7,15 @@ export const SECRETS_COLLECTION = 'secrets_vault';
 /** Trusted peer / FDE header carrying the active org id (matches db-store). */
 export const ORG_ID_HEADER = 'x-agentos-org-id';
 
+/** Trusted peer header naming the user a service acts for (user-owned secrets). */
+export const USER_ID_HEADER = 'x-agentos-user-id';
+
+/** Storage-key prefix for user-owned rows; `~` never starts a valid public key. */
+export const USER_OWNED_KEY_PREFIX = '~u/';
+
+/** Event topic published after a removed member's user-owned secrets are purged. */
+export const SECRETS_USER_PURGED_TOPIC = 'secrets.user_purged';
+
 /** Permission to read vault secrets (admin/owner covered by `*`). */
 export const PERMISSION_SECRETS_READ = 'secrets.read';
 

@@ -12,6 +12,9 @@ export function resolveSecretsApiBase(env: EnvMap = Bun.env): string {
 /** Trusted peer / FDE header for active org (matches secrets + db-store). */
 export const SECRETS_ORG_ID_HEADER = 'x-agentos-org-id';
 
+/** Trusted peer header naming the user a service acts for (ticket 104). */
+export const SECRETS_USER_ID_HEADER = 'x-agentos-user-id';
+
 export type SecretValue = {
   key: string;
   value: string;
@@ -19,6 +22,7 @@ export type SecretValue = {
   expiresAt?: string;
   version?: number;
   source?: 'env' | 'vault';
+  ownerUserId?: string;
 };
 
 export type SecretMeta = {
@@ -26,6 +30,7 @@ export type SecretMeta = {
   rotatedAt: string;
   version: number;
   expiresAt?: string;
+  ownerUserId?: string;
 };
 
 /** Metadata row from `GET /secrets` — never includes plaintext. */
@@ -49,6 +54,12 @@ export type SecretsCallInit = {
   headers?: HeadersInit;
   /** Active org id sent as `X-AgentOS-Org-Id` (peer / service path). */
   orgId?: string;
+  /**
+   * Address a user-owned secret. Session callers must be this user; peer
+   * callers also send it as `X-AgentOS-User-Id`. Only forward the user of the
+   * current request — never from background jobs.
+   */
+  ownerUserId?: string;
 };
 
 function secretsHeaders(init?: SecretsCallInit): Headers {
@@ -56,10 +67,20 @@ function secretsHeaders(init?: SecretsCallInit): Headers {
   if (init?.orgId) {
     headers.set(SECRETS_ORG_ID_HEADER, init.orgId);
   }
+  if (init?.ownerUserId) {
+    headers.set(SECRETS_USER_ID_HEADER, init.ownerUserId);
+  }
   return headers;
 }
 
-/** List vault secret metadata for the active org (no plaintext values). */
+function secretUrl(base: string, key: string, init?: SecretsCallInit): string {
+  const url = `${base}/secrets/${encodeURIComponent(key)}`;
+  return init?.ownerUserId
+    ? `${url}?ownerUserId=${encodeURIComponent(init.ownerUserId)}`
+    : url;
+}
+
+/** List org-owned vault secret metadata (no plaintext; user-owned excluded). */
 export async function listSecrets(
   env?: EnvMap,
   init?: SecretsCallInit,
@@ -80,7 +101,7 @@ export async function getSecret(
 ): Promise<SecretValue> {
   const base = resolveSecretsApiBase(env ?? Bun.env);
   return jsonFetch<SecretValue>(
-    `${base}/secrets/${encodeURIComponent(key)}`,
+    secretUrl(base, key, init),
     { method: 'GET', headers: secretsHeaders(init) },
     'secrets getSecret',
   );
@@ -95,7 +116,7 @@ export async function putSecret(
 ): Promise<SecretMeta> {
   const base = resolveSecretsApiBase(env ?? Bun.env);
   return jsonFetch<SecretMeta>(
-    `${base}/secrets/${encodeURIComponent(key)}`,
+    secretUrl(base, key, init),
     {
       method: 'PUT',
       body: input,
@@ -113,11 +134,34 @@ export async function deleteSecret(
 ): Promise<{ key: string; deleted: boolean }> {
   const base = resolveSecretsApiBase(env ?? Bun.env);
   return jsonFetch<{ key: string; deleted: boolean }>(
-    `${base}/secrets/${encodeURIComponent(key)}`,
+    secretUrl(base, key, init),
     {
       method: 'DELETE',
       headers: secretsHeaders(init),
     },
     'secrets deleteSecret',
+  );
+}
+
+export type PurgeUserSecretsResult = {
+  orgId: string;
+  userId: string;
+  deleted: number;
+};
+
+/**
+ * Delete every user-owned secret of `userId` in `orgId` (member offboarding).
+ * Trusted peer only; publishes `secrets.user_purged`.
+ */
+export async function purgeUserSecrets(
+  userId: string,
+  orgId: string,
+  env?: EnvMap,
+): Promise<PurgeUserSecretsResult> {
+  const base = resolveSecretsApiBase(env ?? Bun.env);
+  return jsonFetch<PurgeUserSecretsResult>(
+    `${base}/users/${encodeURIComponent(userId)}/purge`,
+    { method: 'POST', headers: secretsHeaders({ orgId }) },
+    'secrets purgeUserSecrets',
   );
 }

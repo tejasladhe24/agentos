@@ -188,4 +188,45 @@ describe('oauth authorize + exchange', () => {
     });
     expect(meta).toMatchObject({ key: 'integrations/qbo', version: 1 });
   });
+
+  test('persistOAuthTokens scope user stores a user-owned secret', async () => {
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      expect(String(input)).toBe(
+        'http://secrets.test/secrets/files%2Fgoogle-drive?ownerUserId=user-1',
+      );
+      const headers = new Headers(init?.headers);
+      expect(headers.get('x-agentos-org-id')).toBe('org-1');
+      expect(headers.get('x-agentos-user-id')).toBe('user-1');
+      return Response.json({
+        key: 'files/google-drive',
+        rotatedAt: '2026-01-01T00:00:00.000Z',
+        version: 1,
+        ownerUserId: 'user-1',
+      });
+    }) as typeof fetch;
+
+    const env = { AGENT_OS_SECRETS_API_BASE: 'http://secrets.test' };
+    const meta = await persistOAuthTokens({
+      orgId: 'org-1',
+      key: 'files/google-drive',
+      tokens: { accessToken: 'access' },
+      scope: 'user',
+      userId: 'user-1',
+      env,
+    });
+    expect(meta.ownerUserId).toBe('user-1');
+
+    await expect(
+      persistOAuthTokens({
+        orgId: 'org-1',
+        key: 'files/google-drive',
+        tokens: { accessToken: 'access' },
+        scope: 'user',
+        env,
+      }),
+    ).rejects.toThrow(/userId required/);
+  });
 });

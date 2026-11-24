@@ -1,10 +1,12 @@
 import { appendEntry } from '@agentos/core/api/audit';
+import { publish } from '@agentos/core/api/events';
 
 import {
   MANAGED_KEY_PREFIX,
   PERMISSION_SECRETS_READ,
   PERMISSION_SECRETS_WRITE,
   SECRETS_ALG,
+  SECRETS_USER_PURGED_TOPIC,
 } from './constants';
 import {
   checkSecretsPermission,
@@ -25,6 +27,22 @@ function json(data: unknown, init: ResponseInit = {}): Response {
     headers.set('content-type', 'application/json; charset=utf-8');
   }
   return new Response(JSON.stringify(data), { ...init, headers });
+}
+
+function parsePurgeUserPath(path: string): string | null {
+  const match = path.match(/^\/users\/([^/]+)\/purge$/);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+/** `?ownerUserId=` selects a user-owned record; absent → org-owned. */
+function readOwnerUserId(url: URL): string | undefined {
+  const raw = url.searchParams.get('ownerUserId')?.trim();
+  return raw ? raw : undefined;
 }
 
 function parseSecretPath(path: string): string | null {
@@ -71,8 +89,13 @@ export type SecretsContext = {
     action: string;
     resource?: string;
     meta?: Record<string, unknown>;
+    orgId?: string;
   }) => Promise<void>;
+  /** Override event publish (tests); default best-effort HTTP to `events`. */
+  publishEvent?: (topic: string, payload: unknown) => Promise<void>;
 };
+
+type ResolvedOrg = Extract<ResolveOrgResult, { ok: true }>;
 
 function masterKeyFromEnv(
   runtimeEnv: Record<string, string | undefined>,
@@ -100,6 +123,28 @@ async function ensurePermission(
   return null;
 }
 
+/**
+ * User-owned rows: only the owner (session user, or a peer acting for them via
+ * `X-AgentOS-User-Id`). `secrets.read` / `secrets.write` never grant access.
+ */
+async function ensureAccess(
+  ctx: SecretsContext,
+  request: Request,
+  org: ResolvedOrg,
+  permission: string,
+  ownerUserId: string | undefined,
+): Promise<Response | null> {
+  if (!ownerUserId) return ensurePermission(ctx, request, org, permission);
+  if (org.userId === ownerUserId) return null;
+  if (org.via === 'header' && !org.userId) {
+    return json(
+      { error: 'X-AgentOS-User-Id required for user-owned secrets' },
+      { status: 403 },
+    );
+  }
+  return json({ error: 'forbidden' }, { status: 403 });
+}
+
 async function hasWritePermission(
   ctx: SecretsContext,
   request: Request,
@@ -121,21 +166,39 @@ function unavailable(error: unknown): Response {
 
 async function recordAudit(
   ctx: SecretsContext,
-  action: 'secrets.put' | 'secrets.delete',
-  key: string,
+  action: 'secrets.put' | 'secrets.delete' | 'secrets.user_purged',
+  orgId: string,
+  resource: string,
+  meta: Record<string, unknown>,
 ): Promise<void> {
   try {
     if (ctx.appendAudit) {
-      await ctx.appendAudit({
-        action,
-        resource: key,
-        meta: { key },
-      });
+      await ctx.appendAudit({ action, resource, meta, orgId });
       return;
     }
-    await appendEntry({ action, resource: key, meta: { key } }, ctx.runtimeEnv);
+    await appendEntry({ action, resource, meta }, ctx.runtimeEnv, { orgId });
   } catch {
     // Best-effort — never fail the secret op or log the value.
+  }
+}
+
+function auditMeta(key: string, ownerUserId?: string): Record<string, unknown> {
+  return ownerUserId ? { key, ownerUserId } : { key };
+}
+
+async function publishEvent(
+  ctx: SecretsContext,
+  topic: string,
+  payload: unknown,
+): Promise<void> {
+  try {
+    if (ctx.publishEvent) {
+      await ctx.publishEvent(topic, payload);
+      return;
+    }
+    await publish(topic, payload, ctx.runtimeEnv);
+  } catch {
+    // Best-effort — consumers can reconcile from the audit log.
   }
 }
 
@@ -163,6 +226,11 @@ export async function handleSecretsRequest(
     return handleList(ctx, request);
   }
 
+  const purgeUserId = parsePurgeUserPath(path);
+  if (purgeUserId && method === 'POST') {
+    return handlePurgeUser(ctx, request, purgeUserId);
+  }
+
   const key = parseSecretPath(path);
   if (!key) {
     return json({ error: 'not found' }, { status: 404 });
@@ -179,14 +247,15 @@ export async function handleSecretsRequest(
     }
   }
 
+  const ownerUserId = readOwnerUserId(url);
   if (method === 'GET') {
-    return handleGet(ctx, request, key);
+    return handleGet(ctx, request, key, ownerUserId);
   }
   if (method === 'PUT') {
-    return handlePut(ctx, request, key);
+    return handlePut(ctx, request, key, ownerUserId);
   }
   if (method === 'DELETE') {
-    return handleDelete(ctx, request, key);
+    return handleDelete(ctx, request, key, ownerUserId);
   }
 
   return json({ error: 'not found' }, { status: 404 });
@@ -215,7 +284,9 @@ async function handleList(
   if (denied) return denied;
 
   try {
-    const records = await ctx.db.list(org.orgId);
+    const records = (await ctx.db.list(org.orgId)).filter(
+      (record) => !record.ownerUserId,
+    );
     const canWrite = await hasWritePermission(ctx, request, org);
     const keys = records.map((record) => {
       const item: Record<string, unknown> = {
@@ -237,25 +308,35 @@ async function handleGet(
   ctx: SecretsContext,
   request: Request,
   key: string,
+  ownerUserId: string | undefined,
 ): Promise<Response> {
   const resolveOrg = ctx.resolveOrg ?? resolveOrgForSecretsRequest;
   const org = await resolveOrg(request, ctx.runtimeEnv);
 
+  if (ownerUserId) {
+    if (!org.ok) return json({ error: org.error }, { status: org.status });
+    if (!ctx.db) return json({ error: 'vault unavailable' }, { status: 503 });
+  }
+
   if (org.ok && ctx.db) {
-    const denied = await ensurePermission(
+    const denied = await ensureAccess(
       ctx,
       request,
       org,
       PERMISSION_SECRETS_READ,
+      ownerUserId,
     );
     if (denied) return denied;
 
     const masterKey = masterKeyFromEnv(ctx.runtimeEnv);
     if (masterKey) {
       try {
-        const record = await ctx.db.get(org.orgId, key);
+        const record = await ctx.db.get(org.orgId, key, ownerUserId);
         if (record) {
-          if (record.orgId && record.orgId !== org.orgId) {
+          if (
+            (record.orgId && record.orgId !== org.orgId) ||
+            record.ownerUserId !== ownerUserId
+          ) {
             return json({ error: 'not found' }, { status: 404 });
           }
           const value = await decryptSecret(
@@ -274,6 +355,7 @@ async function handleGet(
             source: 'vault',
           };
           if (record.expiresAt) body.expiresAt = record.expiresAt;
+          if (record.ownerUserId) body.ownerUserId = record.ownerUserId;
           return json(body);
         }
       } catch (error) {
@@ -281,6 +363,8 @@ async function handleGet(
       }
     }
   }
+
+  if (ownerUserId) return json({ error: 'not found' }, { status: 404 });
 
   // Env fallback (bootstrap / local demos) — no org required.
   const value = resolveSecret(key, ctx.runtimeEnv);
@@ -294,6 +378,7 @@ async function handlePut(
   ctx: SecretsContext,
   request: Request,
   key: string,
+  ownerUserId: string | undefined,
 ): Promise<Response> {
   const keyError = validateSecretKey(key);
   if (keyError) {
@@ -310,11 +395,12 @@ async function handlePut(
     return json({ error: org.error }, { status: org.status });
   }
 
-  const denied = await ensurePermission(
+  const denied = await ensureAccess(
     ctx,
     request,
     org,
     PERMISSION_SECRETS_WRITE,
+    ownerUserId,
   );
   if (denied) return denied;
 
@@ -337,7 +423,7 @@ async function handlePut(
       : undefined;
 
   try {
-    const existing = await ctx.db.get(org.orgId, key);
+    const existing = await ctx.db.get(org.orgId, key, ownerUserId);
     const encrypted = await encryptSecret(value, masterKey);
     const record: VaultRecord = {
       key,
@@ -348,9 +434,16 @@ async function handlePut(
       version: (existing?.version ?? 0) + 1,
     };
     if (expiresAt) record.expiresAt = expiresAt;
+    if (ownerUserId) record.ownerUserId = ownerUserId;
 
     await ctx.db.put(org.orgId, record);
-    await recordAudit(ctx, 'secrets.put', key);
+    await recordAudit(
+      ctx,
+      'secrets.put',
+      org.orgId,
+      key,
+      auditMeta(key, ownerUserId),
+    );
 
     const response: Record<string, unknown> = {
       key,
@@ -358,6 +451,7 @@ async function handlePut(
       version: record.version,
     };
     if (record.expiresAt) response.expiresAt = record.expiresAt;
+    if (ownerUserId) response.ownerUserId = ownerUserId;
     return json(response, { status: existing ? 200 : 201 });
   } catch (error) {
     return unavailable(error);
@@ -368,6 +462,7 @@ async function handleDelete(
   ctx: SecretsContext,
   request: Request,
   key: string,
+  ownerUserId: string | undefined,
 ): Promise<Response> {
   if (!ctx.db) {
     return json({ error: 'vault unavailable' }, { status: 503 });
@@ -379,21 +474,74 @@ async function handleDelete(
     return json({ error: org.error }, { status: org.status });
   }
 
-  const denied = await ensurePermission(
+  const denied = await ensureAccess(
     ctx,
     request,
     org,
     PERMISSION_SECRETS_WRITE,
+    ownerUserId,
   );
   if (denied) return denied;
 
   try {
-    const deleted = await ctx.db.delete(org.orgId, key);
+    const deleted = await ctx.db.delete(org.orgId, key, ownerUserId);
     if (!deleted) {
       return json({ error: 'not found' }, { status: 404 });
     }
-    await recordAudit(ctx, 'secrets.delete', key);
+    await recordAudit(
+      ctx,
+      'secrets.delete',
+      org.orgId,
+      key,
+      auditMeta(key, ownerUserId),
+    );
     return json({ key, deleted: true });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+/**
+ * Offboarding: delete every user-owned secret of `userId` in the peer org.
+ * Trusted peer only (builtin auth calls this after removing an org member).
+ */
+async function handlePurgeUser(
+  ctx: SecretsContext,
+  request: Request,
+  userId: string,
+): Promise<Response> {
+  if (!ctx.db) {
+    return json({ error: 'vault unavailable' }, { status: 503 });
+  }
+
+  const resolveOrg = ctx.resolveOrg ?? resolveOrgForSecretsRequest;
+  const org = await resolveOrg(request, ctx.runtimeEnv);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+  if (org.via !== 'header') {
+    return json({ error: 'forbidden' }, { status: 403 });
+  }
+
+  try {
+    const owned = await ctx.db.listOwnedBy(org.orgId, userId);
+    let deleted = 0;
+    for (const record of owned) {
+      if (record.ownerUserId !== userId) continue;
+      if (await ctx.db.delete(org.orgId, record.key, userId)) deleted += 1;
+    }
+    const purgedAt = new Date().toISOString();
+    await recordAudit(ctx, 'secrets.user_purged', org.orgId, userId, {
+      ownerUserId: userId,
+      count: deleted,
+    });
+    await publishEvent(ctx, SECRETS_USER_PURGED_TOPIC, {
+      orgId: org.orgId,
+      userId,
+      count: deleted,
+      purgedAt,
+    });
+    return json({ orgId: org.orgId, userId, deleted });
   } catch (error) {
     return unavailable(error);
   }

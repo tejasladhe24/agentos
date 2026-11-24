@@ -14,13 +14,17 @@ import base64
 import hashlib
 import json
 import secrets
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 from urllib.parse import quote, urlencode
 
 import httpx
 
 from agentos.http import EnvMap
-from agentos.secrets import SECRETS_ORG_ID_HEADER, resolve_secrets_api_base
+from agentos.secrets import (
+    SECRETS_ORG_ID_HEADER,
+    SECRETS_USER_ID_HEADER,
+    resolve_secrets_api_base,
+)
 
 
 def create_pkce_pair() -> tuple[str, str]:
@@ -114,19 +118,29 @@ async def persist_oauth_tokens(
     key: str,
     tokens: Mapping[str, Any],
     expires_at: str | None = None,
+    scope: Literal["org", "user"] = "org",
+    user_id: str | None = None,
     env: EnvMap | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
-    """PUT encrypted tokens to the per-org secrets vault (ticket 77)."""
+    """PUT encrypted tokens to the secrets vault (ticket 77).
+
+    `scope="user"` stores personal tokens readable only by `user_id` (ticket 104).
+    """
+    if scope == "user" and not user_id:
+        raise ValueError('persist_oauth_tokens: user_id required when scope is "user"')
     base = resolve_secrets_api_base(env)
     url = f"{base}/secrets/{quote(key, safe='')}"
-    payload: dict[str, Any] = {"value": json.dumps(dict(tokens))}
-    if expires_at:
-        payload["expiresAt"] = expires_at
     headers = {
         "content-type": "application/json",
         SECRETS_ORG_ID_HEADER: org_id,
     }
+    if scope == "user" and user_id:
+        url += f"?ownerUserId={quote(user_id, safe='')}"
+        headers[SECRETS_USER_ID_HEADER] = user_id
+    payload: dict[str, Any] = {"value": json.dumps(dict(tokens))}
+    if expires_at:
+        payload["expiresAt"] = expires_at
 
     async def _do(c: httpx.AsyncClient) -> httpx.Response:
         return await c.put(url, json=payload, headers=headers)

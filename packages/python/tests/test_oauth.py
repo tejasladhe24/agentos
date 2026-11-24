@@ -71,3 +71,42 @@ async def test_persist_oauth_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
     assert route.called
     req = route.calls.last.request
     assert req.headers["x-agentos-org-id"] == "org_1"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_persist_oauth_tokens_user_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_OS_SECRETS_API_BASE", "http://secrets.test")
+    route = respx.put(
+        "http://secrets.test/secrets/files%2Fgoogle-drive",
+        params={"ownerUserId": "user_1"},
+    ).mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "key": "files/google-drive",
+                "rotatedAt": "t",
+                "version": 1,
+                "ownerUserId": "user_1",
+            },
+        )
+    )
+    meta = await persist_oauth_tokens(
+        org_id="org_1",
+        key="files/google-drive",
+        tokens={"accessToken": "a"},
+        scope="user",
+        user_id="user_1",
+    )
+    assert meta["ownerUserId"] == "user_1"
+    req = route.calls.last.request
+    assert req.headers["x-agentos-org-id"] == "org_1"
+    assert req.headers["x-agentos-user-id"] == "user_1"
+
+    with pytest.raises(ValueError):
+        await persist_oauth_tokens(
+            org_id="org_1",
+            key="files/google-drive",
+            tokens={"accessToken": "a"},
+            scope="user",
+        )
