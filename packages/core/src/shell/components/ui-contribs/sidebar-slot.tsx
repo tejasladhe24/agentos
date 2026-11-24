@@ -16,6 +16,7 @@ import { ExtensionManagerPanel } from '../chrome/extension-manager-drawer';
 import { HitlInbox } from '../chrome/hitl-inbox';
 import { SettingsSidebar } from '../settings/settings-sidebar';
 import { ExtensionFrame } from './extension-frame';
+import { KeepAlive } from './keep-alive';
 
 export type SidebarSlotProps = {
   contributions?: UiContribution[];
@@ -62,57 +63,63 @@ export function SidebarSlot({
       aria-label="Sidebar"
       hidden={!sidebarOpen}
     >
-      {mode === 'extensions' ? (
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <ExtensionManagerPanel />
-        </div>
-      ) : null}
-      {mode === 'hitl' ? (
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <HitlInbox />
-        </div>
-      ) : null}
-      {contributionMode ? (
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {homeSidebarActive ? (
+      <KeepAlive
+        active={mode === 'extensions'}
+        className="min-h-0 flex-1 overflow-hidden"
+        data-slot="extension-manager-host"
+      >
+        <ExtensionManagerPanel />
+      </KeepAlive>
+      <KeepAlive
+        active={mode === 'hitl'}
+        className="min-h-0 flex-1 overflow-hidden"
+        data-slot="hitl-inbox-host"
+      >
+        <HitlInbox />
+      </KeepAlive>
+      <div
+        className={cn(
+          'min-h-0 flex-1 overflow-hidden',
+          !contributionMode && 'hidden',
+        )}
+        hidden={!contributionMode}
+      >
+        {DashboardSidebar != null ? (
+          <KeepAlive
+            active={homeSidebarActive}
+            className="h-full w-full overflow-auto"
+            data-slot="dashboard-sidebar"
+            data-sidebar-active={homeSidebarActive ? 'true' : 'false'}
+          >
+            <DashboardSidebar />
+          </KeepAlive>
+        ) : null}
+        <KeepAlive
+          active={settingsSidebarActive}
+          className="h-full w-full overflow-hidden"
+          data-slot="settings-sidebar-host"
+          data-sidebar-active={settingsSidebarActive ? 'true' : 'false'}
+        >
+          <SettingsSidebar />
+        </KeepAlive>
+        {sidebars.map((contribution) => {
+          const active =
+            contributionMode && contribution.extensionId === activeView;
+          return (
             <div
-              className="h-full w-full overflow-auto"
-              data-slot="dashboard-sidebar"
-              data-sidebar-active="true"
+              key={contributionKey(contribution.extensionId, contribution.view)}
+              className={cn('h-full w-full', !active && 'hidden')}
+              hidden={!active}
+              data-sidebar-active={active ? 'true' : 'false'}
             >
-              <DashboardSidebar />
+              <ExtensionFrame
+                contribution={contribution}
+                visible={sidebarOpen && active}
+              />
             </div>
-          ) : null}
-          {settingsSidebarActive ? (
-            <div
-              className="h-full w-full overflow-hidden"
-              data-slot="settings-sidebar-host"
-              data-sidebar-active="true"
-            >
-              <SettingsSidebar />
-            </div>
-          ) : null}
-          {sidebars.map((contribution) => {
-            const active = contribution.extensionId === activeView;
-            return (
-              <div
-                key={contributionKey(
-                  contribution.extensionId,
-                  contribution.view,
-                )}
-                className={cn('h-full w-full', !active && 'hidden')}
-                hidden={!active}
-                data-sidebar-active={active ? 'true' : 'false'}
-              >
-                <ExtensionFrame
-                  contribution={contribution}
-                  visible={sidebarOpen && active}
-                />
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+          );
+        })}
+      </div>
     </aside>
   );
 }

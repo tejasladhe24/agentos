@@ -48,6 +48,7 @@ export {
 } from './chrome/extension-manager-drawer';
 export { HiddenSlot } from './ui-contribs/hidden-slot';
 export { HitlInbox } from './chrome/hitl-inbox';
+export { KeepAlive, type KeepAliveProps } from './ui-contribs/keep-alive';
 export { HomeDashboard } from './home/home-dashboard';
 export { MainCanvas } from './chrome/main-canvas';
 export { ShellRoot, type ShellRootProps } from './chrome/shell-root';
