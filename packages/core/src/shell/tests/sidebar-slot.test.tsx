@@ -120,7 +120,7 @@ describe('SidebarSlot contextual + shell panels', () => {
     expect(html).toContain('data-sidebar-panel="extensions"');
     expect(html).toContain('data-slot="extension-manager"');
     expect(html).toContain('Extensions');
-    expect(html).not.toContain('data-view="sidebar"');
+    expect(html).not.toContain('data-sidebar-active="true"');
     expect(html).not.toContain('role="dialog"');
   });
 
@@ -138,7 +138,22 @@ describe('SidebarSlot contextual + shell panels', () => {
     expect(html).toContain('data-slot="hitl-inbox-loading"');
     expect(html).toContain('data-loading="true"');
     expect(html).not.toContain('No pending approvals.');
-    expect(html).not.toContain('data-view="sidebar"');
+    expect(html).not.toContain('data-sidebar-active="true"');
     expect(html).not.toContain('role="dialog"');
+  });
+
+  test('extension sidebars stay mounted (hidden) while a Shell panel is open', () => {
+    const html = renderToStaticMarkup(
+      <SidebarSlot
+        sidebarOpen
+        activeView="crm"
+        contributions={sidebars}
+        sidebarPanel="extensions"
+      />,
+    );
+    expect(html).toContain('data-slot="extension-manager-host"');
+    expect(html).toContain('data-extension-id="crm"');
+    expect(html).toContain('data-extension-id="demo"');
+    expect(html).not.toContain('data-slot="hitl-inbox-host"');
   });
 });

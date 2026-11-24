@@ -26,6 +26,7 @@ import { cn } from '@agentos/ui/lib/utils';
 import { HomeDashboard } from '../home/home-dashboard';
 import { SettingsView } from '../settings/settings-view';
 import { HiddenSlot } from '../ui-contribs/hidden-slot';
+import { KeepAlive } from '../ui-contribs/keep-alive';
 import { SidebarSlot } from '../ui-contribs/sidebar-slot';
 import { StatusBar } from '../ui-contribs/status-bar';
 import { TopBar } from '../ui-contribs/top-bar';
@@ -72,11 +73,9 @@ function MainWorkspace({
       >
         <HomeDashboard dashboard={dashboard} />
       </div>
-      {isSettings ? (
-        <div className="h-full w-full overflow-hidden" data-active="true">
-          <SettingsView />
-        </div>
-      ) : null}
+      <KeepAlive active={isSettings} className="h-full w-full overflow-hidden">
+        <SettingsView />
+      </KeepAlive>
       <div
         className="h-full w-full overflow-auto"
         data-active={isMainCanvas ? 'true' : 'false'}
@@ -104,23 +103,23 @@ export function ShellRoot({
     contributions: contributionsProp,
     view: 'sidebar',
   });
-  // Allocate the resizable column when there is content — do not tear it down
-  // on toggle, or MainCanvas / extension pages remount.
+  // The panel group is always rendered (collapsed when empty) so swapping the
+  // layout tree never remounts MainWorkspace / extension pages.
   const hasSidebarContent = sidebarColumnHasContent({
     sidebarPanel,
     activeView,
     sidebars,
     hasDashboardSidebar: dashboardSidebar != null,
   });
+  const sidebarExpanded = sidebarOpen && hasSidebarContent;
   const sidebarPanelRef = usePanelRef();
   /** Last expanded width so toggle-open restores a usable size (not min/collapsed). */
   const lastSidebarSizePxRef = useRef(SIDEBAR_DEFAULT_SIZE_PX);
 
   useEffect(() => {
-    if (!hasSidebarContent) return;
     const panel = sidebarPanelRef.current;
     if (!panel) return;
-    if (sidebarOpen) {
+    if (sidebarExpanded) {
       if (panel.isCollapsed()) {
         panel.expand();
       }
@@ -133,7 +132,7 @@ export function ShellRoot({
       }
       panel.collapse();
     }
-  }, [hasSidebarContent, sidebarOpen, sidebarPanelRef]);
+  }, [sidebarExpanded, sidebarPanelRef]);
 
   return (
     <ThemeProvider
@@ -151,51 +150,43 @@ export function ShellRoot({
           <TopBar />
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <ActivityBar />
-            {hasSidebarContent ? (
-              <ResizablePanelGroup
-                orientation="horizontal"
-                className="min-h-0 min-w-0 flex-1"
+            <ResizablePanelGroup
+              orientation="horizontal"
+              className="min-h-0 min-w-0 flex-1"
+              data-sidebar-expanded={sidebarExpanded ? 'true' : 'false'}
+            >
+              <ResizablePanel
+                id="shell-sidebar"
+                panelRef={sidebarPanelRef}
+                collapsible
+                collapsedSize={0}
+                defaultSize={sidebarExpanded ? SIDEBAR_DEFAULT_SIZE_PX : 0}
+                minSize={SIDEBAR_MIN_SIZE_PX}
+                maxSize={SIDEBAR_MAX_SIZE_PX}
+                className="min-h-0"
               >
-                <ResizablePanel
-                  id="shell-sidebar"
-                  panelRef={sidebarPanelRef}
-                  collapsible
-                  collapsedSize={0}
-                  defaultSize={sidebarOpen ? SIDEBAR_DEFAULT_SIZE_PX : 0}
-                  minSize={SIDEBAR_MIN_SIZE_PX}
-                  maxSize={SIDEBAR_MAX_SIZE_PX}
-                  className="min-h-0"
-                >
-                  <SidebarSlot
-                    dashboardSidebar={dashboardSidebar}
-                    activeView={activeViewProp}
-                    sidebarOpen={sidebarOpenProp}
-                    sidebarPanel={sidebarPanelProp}
-                    contributions={contributionsProp}
-                  />
-                </ResizablePanel>
-                <ResizableHandle
-                  withHandle
-                  disabled={!sidebarOpen}
-                  className={cn(!sidebarOpen && 'hidden')}
+                <SidebarSlot
+                  dashboardSidebar={dashboardSidebar}
+                  activeView={activeViewProp}
+                  sidebarOpen={sidebarOpenProp}
+                  sidebarPanel={sidebarPanelProp}
+                  contributions={contributionsProp}
                 />
-                <ResizablePanel
-                  id="shell-main"
-                  defaultSize="70%"
-                  minSize="40%"
-                  className="min-h-0 min-w-0"
-                >
-                  <MainWorkspace
-                    activeView={activeView}
-                    dashboard={dashboard}
-                  />
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            ) : (
-              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              </ResizablePanel>
+              <ResizableHandle
+                withHandle
+                disabled={!sidebarExpanded}
+                className={cn(!sidebarExpanded && 'hidden')}
+              />
+              <ResizablePanel
+                id="shell-main"
+                defaultSize="70%"
+                minSize="40%"
+                className="min-h-0 min-w-0"
+              >
                 <MainWorkspace activeView={activeView} dashboard={dashboard} />
-              </div>
-            )}
+              </ResizablePanel>
+            </ResizablePanelGroup>
           </div>
           <StatusBar />
           <ChatPanel />

@@ -4,7 +4,9 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  usePanelRef,
 } from '@agentos/ui/components/resizable';
+import { cn } from '@agentos/ui/lib/utils';
 
 import { FilesBrowser } from './files-browser';
 import { FilesDetail } from './files-detail';
@@ -70,6 +72,23 @@ export default function FilesPage() {
   const [viewMode, setViewMode] = useState<FilesViewMode>('list');
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [detailOpen, setDetailOpen] = useState(false);
+  const detailPanelRef = usePanelRef();
+  /** Last expanded width so reopening restores the user's size. */
+  const lastDetailSizePxRef = useRef(DETAIL_DEFAULT_SIZE_PX);
+
+  useEffect(() => {
+    const panel = detailPanelRef.current;
+    if (!panel) return;
+    if (detailOpen) {
+      if (panel.isCollapsed()) panel.expand();
+      panel.resize(lastDetailSizePxRef.current);
+    } else if (!panel.isCollapsed()) {
+      const { inPixels } = panel.getSize();
+      if (inPixels >= DETAIL_MIN_SIZE_PX)
+        lastDetailSizePxRef.current = inPixels;
+      panel.collapse();
+    }
+  }, [detailOpen, detailPanelRef]);
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgressItem[]>(
     [],
@@ -452,34 +471,37 @@ export default function FilesPage() {
           <span className="font-medium">/login</span> to access org files.
         </p>
       ) : null}
-      {detailOpen ? (
-        <ResizablePanelGroup
-          orientation="horizontal"
-          className="min-h-0 min-w-0 flex-1"
-          data-slot="files-layout"
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="min-h-0 min-w-0 flex-1"
+        data-slot="files-layout"
+      >
+        <ResizablePanel
+          id="files-browser"
+          defaultSize="70%"
+          minSize="40%"
+          className="min-h-0 min-w-0"
         >
-          <ResizablePanel
-            id="files-browser"
-            defaultSize="70%"
-            minSize="40%"
-            className="min-h-0 min-w-0"
-          >
-            {browser}
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel
-            id="files-detail"
-            defaultSize={DETAIL_DEFAULT_SIZE_PX}
-            minSize={DETAIL_MIN_SIZE_PX}
-            maxSize={DETAIL_MAX_SIZE}
-            className="min-h-0"
-          >
-            {detail}
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      ) : (
-        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{browser}</div>
-      )}
+          {browser}
+        </ResizablePanel>
+        <ResizableHandle
+          withHandle
+          disabled={!detailOpen}
+          className={cn(!detailOpen && 'hidden')}
+        />
+        <ResizablePanel
+          id="files-detail"
+          panelRef={detailPanelRef}
+          collapsible
+          collapsedSize={0}
+          defaultSize={detailOpen ? DETAIL_DEFAULT_SIZE_PX : 0}
+          minSize={DETAIL_MIN_SIZE_PX}
+          maxSize={DETAIL_MAX_SIZE}
+          className="min-h-0"
+        >
+          {detail}
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }

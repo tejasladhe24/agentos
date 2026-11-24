@@ -26,7 +26,7 @@ describe('mountShell / ShellRoot', () => {
     expect(html).toContain('Command Palette');
   });
 
-  test('home without dashboardSidebar hides empty sidebar column', () => {
+  test('home without dashboardSidebar collapses empty sidebar column', () => {
     const html = renderToStaticMarkup(
       <ShellRoot
         activeView="home"
@@ -35,7 +35,8 @@ describe('mountShell / ShellRoot', () => {
         contributions={[crmSidebar]}
       />,
     );
-    expect(html).not.toContain('data-slot="sidebar"');
+    expect(html).toContain('data-slot="resizable-panel-group"');
+    expect(html).toContain('data-sidebar-expanded="false"');
     expect(html).toContain('data-slot="dashboard"');
   });
 
@@ -53,7 +54,7 @@ describe('mountShell / ShellRoot', () => {
     expect(html).toContain('data-app-dashboard-sidebar');
   });
 
-  test('extension without sidebar hides column; CRM with sidebar shows it', () => {
+  test('extension without sidebar collapses column; CRM with sidebar expands it', () => {
     const demoHtml = renderToStaticMarkup(
       <ShellRoot
         activeView="demo"
@@ -62,7 +63,7 @@ describe('mountShell / ShellRoot', () => {
         contributions={[crmSidebar]}
       />,
     );
-    expect(demoHtml).not.toContain('data-slot="sidebar"');
+    expect(demoHtml).toContain('data-sidebar-expanded="false"');
 
     const crmHtml = renderToStaticMarkup(
       <ShellRoot
@@ -72,7 +73,7 @@ describe('mountShell / ShellRoot', () => {
         contributions={[crmSidebar]}
       />,
     );
-    expect(crmHtml).toContain('data-slot="sidebar"');
+    expect(crmHtml).toContain('data-sidebar-expanded="true"');
     expect(crmHtml).toContain('data-extension-id="crm"');
   });
 
