@@ -406,7 +406,7 @@ Files is a set of **mounted storages** per org. Each mount is `{ id, kind: 'org'
 
 - **Platform mount** (`id: "platform"`) — always present, backed by the env store below, cannot be removed (rename is allowed). It is the default unless an admin flags another org mount.
 - **Org mounts** — added by admins (RBAC `files.mounts.manage`; admin/owner via `*`), visible to everyone with `files.read`. Exactly one org mount is the **default** upload target (`mount=default`).
-- **Personal mounts** (ticket 113) — visible only to `ownerUserId`; never the org default. Background callers (peer header, no user) get **403** writing to personal mounts.
+- **Personal mounts** (ticket 113) — visible only to `ownerUserId` (below); never the org default, never visible to admins.
 - Records are **`files.mount` integration instances** (ticket 103 kit; doc id `files.mount:<mountId>`) behind the `FilesMountStore` interface (`api/lib/mount-store.ts`). Non-secret config (bucket, region, …) lives in the record's settings; fields a provider lists in `secretFields` go to the vault under `integrations/files.mount/<mountId>/<field>` and reach the adapter as `ctx.secrets`. The platform mount stores only a rename override.
 
 **Adapters.** Every backend implements `StorageAdapter` (`api/lib/types.ts`; `BlobStore` is a deprecated alias) with `provider`, `label`, `indexMode`, and `capabilities`:
@@ -455,6 +455,35 @@ Bucket mounts are `indexed`. Copy/move **within a mount** uses a SigV4-signed `C
 
 Both run as `indexed` mounts, cap uploads at the platform 10 MiB limit, and test the connection by uploading, listing, and deleting a probe file. Errors are mapped (`token was rejected`, `store does not exist`, `token belongs to app/store …`). Adapters may implement optional `move(from, to)` for same-mount renames, and `put` receives `{ contentType }`.
 
+### Personal mounts + Google Drive (ticket 113)
+
+Every member can connect **their own** drive in **Settings › Files › My connected drives**. The mount record (`kind: 'personal'`, `ownerUserId`, `config: { accountId, email }`) is a `files.mount` instance; its OAuth tokens are a **user-owned secret** (ticket 104, key `files/mounts/<mountId>/oauth`) that only the owner — or a peer acting for them — can read.
+
+- **Visibility.** Listed, browsed, and managed only by the owner's session (`/mounts/:id` test / rename / disconnect need no `files.mounts.manage`). Admins, other members, and background callers (peer header without a user) get **404**. A trusted peer that sends `X-AgentOS-User-Id: <owner>` (an AI run acting for that user) may **read** but every write is **403**. Inbound email and jobs never send a user.
+- **Member removal.** The files service follows `secrets.user_purged` over the events stream and deletes the removed user's personal mount records (their tokens were already purged).
+- **Copy to org storage.** The browser offers **Copy to org storage** on personal files (targets: org mounts). Bytes are copied — Google Docs are exported — so no org record ever points at a personal file (live mounts are not indexed).
+
+**Connect flow** — `POST /personal-mounts/google-drive/connect { mountId?, returnTo? }` (session only) returns `{ url }`; the UI opens it in the Shell tab via `navigation.openExternal(url, { sameTab: true })`. Google redirects to `GET /personal-mounts/google-drive/callback`, which verifies the signed state (bound to the org **and** the starting user; PKCE), exchanges the code, identifies the account, saves tokens, and creates or reconnects the mount, then redirects to `returnTo` (default `/`) with `?files_drive=connected|error&files_drive_message=…`. Reconnecting (`mountId`) must use the same Google account. Disconnect revokes the token at Google and deletes tokens + record.
+
+**Token lifecycle.** Access tokens refresh 60 s before expiry and on any 401; a refresh failure (`invalid_grant`: revoked, password reset, testing-mode 7-day expiry) marks the mount `disconnected` with a reconnect message, and Drive calls answer **409** `{ code: 'reconnect_required' }`. The sidebar shows **Reconnect** and the browser a reconnect banner.
+
+**Google Drive adapter** (`google-drive`, `live`):
+
+- Top-level folders **My Drive** and **Shared drives** (`Shared drives/<drive>/…`). Paths map to file ids with a 30 s cache.
+- **Duplicate names** in one folder (and names containing `/`) list as `name [<fileId>].ext` and are addressed by id; the bare name answers **409** when ambiguous.
+- **Google Docs / Sheets / Slides / Drawings** list with `contentType`, `webUrl` (**Open in Google**), and `exportFormats`. Download / copy exports DOCX / XLSX / PPTX / PDF by default (`GET /blobs/:key?export=pdf` picks another format); the exported name gains the extension. Google caps exports at 10 MB.
+- Uploads use resumable sessions (create, or a new **revision** of an existing file); folders are created on demand. Copy and move are server-side (`files.copy`, parent/name patch). Delete goes to **Drive trash**; Bin lists and restores it. Quota (`about.storageQuota`) shows in Settings; the cross-mount **Storage** view skips live drives instead of crawling them.
+- Rate limits (`429`, `403 rateLimitExceeded` / `userRateLimitExceeded`) and `5xx` back off exponentially (honoring `Retry-After`, up to 4 retries).
+
+**Platform Google OAuth app** (one per deployment; env, not vault):
+
+1. Google Cloud console → enable the **Google Drive API**.
+2. OAuth consent screen: app name, support email, authorized domain of `AGENT_OS_GLOBAL_APP_ORIGIN`; add scope `https://www.googleapis.com/auth/drive`.
+3. Credentials → **OAuth client ID** (Web application) with redirect URI `<AGENT_OS_GLOBAL_APP_ORIGIN>/api/ext/files/personal-mounts/google-drive/callback`.
+4. Set `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID` and `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET` (Worker secret). Without them the Connect button is disabled ("not configured on this deployment").
+
+**Scope trade-off.** AgentOS requests full `drive` because users browse files they created elsewhere; `drive.file` only exposes files the app created or a Google Picker opened, which cannot back a browse-anything mount. `drive` is a **restricted** scope: until Google verifies the app (OAuth verification plus an annual third-party security assessment), the consent screen warns users, only listed test users (≤100) can connect, and testing-mode refresh tokens expire after 7 days (users see Reconnect). Apps marked **Internal** in a Google Workspace org skip verification for that org's users. Per-org OAuth apps are ticket 118.
+
 ### Routes (`/api/ext/files`)
 
 Blob routes take `?mount=<id>` (or `mount=default`); a `files://` ref in the path overrides it. Without either, the platform mount is used.
@@ -464,7 +493,7 @@ Blob routes take `?mount=<id>` (or `mount=default`); a `files://` ref in the pat
 | `GET`    | `/health`                                 | Backend label, provider, mounts count; no auth                                                |
 | `GET`    | `/blobs?prefix=&limit=&cursor=&q=&mount=` | List files + virtual folders; `view=bin\|storage` spans all visible mounts                    |
 | `PUT`    | `/blobs/:key`                             | Create/replace; JSON `{ base64, contentType? }` or octet-stream; returns `ref`                |
-| `GET`    | `/blobs/:key`                             | Binary (stored content-type) or `?format=json` (includes `ref`, `mountId`)                    |
+| `GET`    | `/blobs/:key`                             | Binary (stored content-type) or `?format=json` (includes `ref`, `mountId`, `name`); `export=` |
 | `DELETE` | `/blobs/:key`                             | Soft-delete to Bin (native trash when the mount supports it)                                  |
 | `DELETE` | `/blobs?prefix=`                          | Recursive folder-prefix delete                                                                |
 | `POST`   | `/blobs/move`                             | `{ from, to, mount?, fromMount?, toMount? }` — cross-mount streams                            |
@@ -475,13 +504,15 @@ Blob routes take `?mount=<id>` (or `mount=default`); a `files://` ref in the pat
 | `POST`   | `/mounts/:id/test`                        | Re-test; updates `status`                                                                     |
 | `POST`   | `/mounts/test`                            | Draft test (same body as `POST /mounts`); `{ ok, error? }`, nothing saved                     |
 | `PATCH`  | `/mounts/:id`                             | `{ name?, isDefault?, config?, secrets? }` (rotation ok)                                      |
-| `DELETE` | `/mounts/:id`                             | Guarded by reference count (409)                                                              |
+| `DELETE` | `/mounts/:id`                             | Guarded by reference count (409); personal mounts: owner disconnect                           |
+| `POST`   | `/personal-mounts/:provider/connect`      | `{ mountId?, returnTo? }` → `{ url }` (session user only)                                     |
+| `GET`    | `/personal-mounts/:provider/callback`     | OAuth redirect target; 302 back with `files_drive=connected\|error`                           |
 
 Org context: session cookie `orgId` **or** peer header `X-AgentOS-Org-Id`. Session callers need RBAC `files.read` / `files.write` (seeded for admin/owner write; viewer/reviewer/sales read). Peer header path skips RBAC (trusted services) but may only write to org mounts. Max object size: **10 MiB** or the mount's `maxFileSize`, whichever is lower. Metadata (content-type, size, updatedAt, `mountId`) is indexed in db-store collection `files_objects`.
 
 Clients: `@agentos/core/api/files` (`putBlob` / `getBlob` / `listBlobs` / `moveBlob` / `copyBlob` / `listMounts` / …, all accepting `mountId`) and `agentos.files` (`mount_id=` kwargs, `copy_blob`, `list_mounts`) — pass `orgId` for peer calls.
 
-**UI.** Sidebar lists **Mounted storage** (provider icon, name, Error/Disconnected badge), then **Bin** and **Storage** views across mounts. The breadcrumb root is the selected mount (persisted in host storage as `files:mount`). **Settings › Files** shows **Storage backends** (status, default badge, usage; test / set default / rename / disconnect), a **My connected drives** placeholder (ticket 113), and Bin retention.
+**UI.** Sidebar lists **Mounted storage** (provider icon, name, Error/Disconnected badge), then **Bin** and **Storage** views across mounts. The breadcrumb root is the selected mount (persisted in host storage as `files:mount`). **Settings › Files** shows **Storage backends** (status, default badge, usage; test / set default / rename / disconnect), **My connected drives** (connect / reconnect / test / disconnect, quota; personal drives carry a lock marker in the sidebar), and Bin retention.
 
 **Drive UI vs raw blob API:** the Activity Bar UI is for operators browsing org files. Extensions/services should keep using the raw blob client for attachments and ingest, storing the returned `ref`.
 
@@ -499,6 +530,8 @@ Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default
 | `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY`  | Secret key (required when bucket is set)                       |
 | `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`      | Optional session token                                         |
 | `AGENT_OS_EXT_FILES_DB_STORE_HOST`/`_PORT` | Peer db-store for metadata index (defaults `127.0.0.1:6111`)   |
+| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID`      | Platform Google OAuth app for personal Drive mounts (optional) |
+| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET`  | Its client secret                                              |
 
 ### Example env values
 

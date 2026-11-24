@@ -28,6 +28,43 @@ function resetStore() {
   });
 }
 
+describe('createShellHostApi navigation', () => {
+  test('openExternal opens http(s) URLs only', async () => {
+    const api = createShellHostApi('files');
+    const opened: unknown[][] = [];
+    const assigned: string[] = [];
+    const g = globalThis as { window?: unknown };
+    const original = g.window;
+    g.window = {
+      open: (...args: unknown[]) => {
+        opened.push(args);
+        return null;
+      },
+      location: { assign: (url: string) => assigned.push(url) },
+    };
+    try {
+      await api.navigation.openExternal('https://drive.google.com/x');
+      expect(opened[0]).toEqual([
+        'https://drive.google.com/x',
+        '_blank',
+        'noopener,noreferrer',
+      ]);
+      await api.navigation.openExternal('https://accounts.google.com/o', {
+        sameTab: true,
+      });
+      expect(assigned).toEqual(['https://accounts.google.com/o']);
+      await expect(
+        api.navigation.openExternal('javascript:alert(1)'),
+      ).rejects.toThrow('http(s)');
+      await expect(api.navigation.openExternal('/relative')).rejects.toThrow(
+        'absolute',
+      );
+    } finally {
+      g.window = original;
+    }
+  });
+});
+
 describe('createShellHostApi notifications', () => {
   beforeEach(() => {
     resetStore();

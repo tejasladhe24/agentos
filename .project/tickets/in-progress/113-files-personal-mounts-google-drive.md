@@ -1,6 +1,6 @@
 # 113 — Files: personal mounts + Google Drive
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -38,13 +38,13 @@ Let each user connect **their own Google Drive** as a **personal mount**, visibl
 
 ## Done when
 
-- [ ] User connects Google Drive; mount appears only for that user
-- [ ] Browse, upload, download, delete (trash), export Docs formats
-- [ ] Copy to org mount works; no org record points at personal files
-- [ ] Token refresh + revoked-token reconnect flow
-- [ ] Tests with mocked Drive API: path/id mapping, duplicates, export, isolation from other users
-- [ ] Docs: Google OAuth app setup (platform), scopes, verification notes
-- [ ] `bun run ci` green
+- [x] User connects Google Drive; mount appears only for that user
+- [x] Browse, upload, download, delete (trash), export Docs formats
+- [x] Copy to org mount works; no org record points at personal files
+- [x] Token refresh + revoked-token reconnect flow
+- [x] Tests with mocked Drive API: path/id mapping, duplicates, export, isolation from other users
+- [x] Docs: Google OAuth app setup (platform), scopes, verification notes
+- [x] `bun run ci` green
 
 ## Verify
 

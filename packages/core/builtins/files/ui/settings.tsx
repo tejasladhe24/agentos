@@ -124,7 +124,11 @@ export default function FilesSettings() {
           error={mounts.error}
           reload={mounts.reload}
         />
-        <ConnectedDrives mounts={mounts.data.mounts} />
+        <ConnectedDrives
+          data={mounts.data}
+          loading={mounts.loading}
+          reload={mounts.reload}
+        />
         <FieldSet data-setting-entry="bin-retention">
           <FieldLegend>Bin auto-delete</FieldLegend>
           <FieldDescription>

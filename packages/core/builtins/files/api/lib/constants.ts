@@ -4,6 +4,9 @@ export const FILES_PORT = 6116;
 /** Trusted peer / FDE header carrying the active org id (matches db-store / secrets). */
 export const ORG_ID_HEADER = 'x-agentos-org-id';
 
+/** Trusted peer header naming the user a service acts for (AI runs only). */
+export const USER_ID_HEADER = 'x-agentos-user-id';
+
 /** Org-scoped db-store collection for blob metadata (content-type, size, mtime). */
 export const FILES_OBJECTS_COLLECTION = 'files_objects';
 
@@ -27,6 +30,11 @@ export const PERMISSION_FILES_WRITE = 'files.write';
 
 /** Max single object size (aligned with AI attachment limit). */
 export const MAX_OBJECT_BYTES = 10 * 1024 * 1024;
+
+/** Platform-wide Google OAuth app for personal Drive mounts (env, not vault). */
+export const GOOGLE_CLIENT_ID_ENV = 'AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID';
+export const GOOGLE_CLIENT_SECRET_ENV =
+  'AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET';
 
 /** Default page size for list / browse. */
 export const LIST_PAGE_SIZE = 100;

@@ -18,6 +18,7 @@ import {
 } from './context';
 import { errorResponse, json, readJson } from './http';
 import { handleMountsRequest } from './mount-routes';
+import { handlePersonalMountsRequest } from './personal-mount-routes';
 import type { MountScope } from './mount-scope';
 import { DEFAULT_ORG_SETTINGS } from './org-settings';
 import {
@@ -32,6 +33,7 @@ import {
   maxUploadBytes,
   mountIdOfRecord,
   permanentDelete,
+  readObject,
   relativeFromIndexKey,
   restoreObject,
   softDeleteObject,
@@ -170,8 +172,14 @@ async function handleTransfer(
     const refs: string[] = [];
     for (const obj of all) {
       if (obj.key.endsWith('/') || from.isTrash(obj.key)) continue;
-      const dest = `${toPrefix}${obj.key.slice(fromPrefix.length)}`;
-      await transferObject(ctx, from, obj.key, to, dest, { move });
+      const dest = await transferObject(
+        ctx,
+        from,
+        obj.key,
+        to,
+        `${toPrefix}${obj.key.slice(fromPrefix.length)}`,
+        { move },
+      );
       keys.push(dest);
       refs.push(to.ref(dest));
     }
@@ -188,8 +196,14 @@ async function handleTransfer(
   }
 
   const fromKey = from.resolveKey(fromTarget.key);
-  const toKey = to.resolveKey(toTarget.key);
-  await transferObject(ctx, from, fromKey, to, toKey, { move });
+  const toKey = await transferObject(
+    ctx,
+    from,
+    fromKey,
+    to,
+    to.resolveKey(toTarget.key),
+    { move },
+  );
   return json({
     ok: true,
     from: fromKey,
@@ -268,6 +282,14 @@ export async function handleFilesRequest(
       mounts: Boolean(ctx.mounts),
     });
   }
+
+  const personalResponse = await handlePersonalMountsRequest(
+    ctx,
+    request,
+    path,
+    method,
+  );
+  if (personalResponse) return personalResponse;
 
   const mountsResponse = await handleMountsRequest(ctx, request, path, method);
   if (mountsResponse) return mountsResponse;
@@ -393,6 +415,8 @@ export async function handleFilesRequest(
             items.push(...(await listTrashItems(ctx, scope)));
             continue;
           }
+          // Live drives are browsed in place; crawling them is unbounded.
+          if (scope.adapter.indexMode === 'live') continue;
           const all = await listAllObjects(ctx, scope, scope.root);
           for (const obj of all) {
             if (obj.key.endsWith('/') || scope.isTrash(obj.key)) continue;
@@ -484,7 +508,7 @@ export async function handleFilesRequest(
         if (obj.key === absPrefix || obj.key.endsWith('/')) continue;
         if (scope.isTrash(obj.key)) continue;
         items.push(
-          await enrichFile(ctx, scope, obj.key, obj.bytes, obj.updatedAt),
+          await enrichFile(ctx, scope, obj.key, obj.bytes, obj.updatedAt, obj),
         );
       }
 
@@ -650,12 +674,17 @@ export async function handleFilesRequest(
       );
       if (denied) return denied;
 
-      const bytes = await store.get(absKey);
-      if (!bytes) {
+      const read = await readObject(
+        ctx,
+        scope,
+        absKey,
+        url.searchParams.get('export') ?? undefined,
+      );
+      if (!read) {
         return json({ error: 'not found' }, { status: 404 });
       }
+      const { bytes, contentType } = read;
       const meta = await indexGet(ctx, scope, absKey);
-      const contentType = meta?.contentType || 'application/octet-stream';
       if (url.searchParams.get('format') === 'json') {
         let binary = '';
         for (const b of bytes) binary += String.fromCharCode(b);
@@ -666,15 +695,19 @@ export async function handleFilesRequest(
           base64: btoa(binary),
           bytes: bytes.byteLength,
           contentType,
+          name: read.name,
           updatedAt: meta?.updatedAt,
         });
       }
-      return new Response(bytes, {
-        headers: {
-          'content-type': contentType,
-          'content-length': String(bytes.byteLength),
-        },
-      });
+      const headers: Record<string, string> = {
+        'content-type': contentType,
+        'content-length': String(bytes.byteLength),
+      };
+      if (read.extension) {
+        headers['content-disposition'] =
+          `attachment; filename*=UTF-8''${encodeURIComponent(read.name)}`;
+      }
+      return new Response(bytes, { headers });
     }
 
     if (method === 'DELETE') {
@@ -693,7 +726,9 @@ export async function handleFilesRequest(
         return json({ ok: true, key: absKey, purged: true });
       }
 
-      const exists = await store.get(absKey);
+      const exists = store.stat
+        ? await store.stat(absKey)
+        : await store.get(absKey);
       if (!exists) {
         // Idempotent soft-delete of missing key
         return json({ ok: true, key: absKey, trashed: false, missing: true });

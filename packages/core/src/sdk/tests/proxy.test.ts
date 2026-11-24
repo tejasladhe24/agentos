@@ -36,6 +36,9 @@ function stubHostApi(calls: string[]): HostAPI {
     events: {
       publish: async () => {},
     },
+    navigation: {
+      openExternal: async () => {},
+    },
   };
 }
 

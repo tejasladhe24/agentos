@@ -105,6 +105,20 @@ async function requestHitlApproval(
   throw new Error(`HITL approval timed out for ${id}`);
 }
 
+/** Only absolute http(s) URLs leave the sandbox (no `javascript:` / `data:`). */
+export function externalUrl(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('navigation.openExternal requires an absolute URL');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('navigation.openExternal only opens http(s) URLs');
+  }
+  return url.toString();
+}
+
 /**
  * HostAPI for shell iframe hosting. Notifications toast locally and fan out to
  * the notifications builtin; HITL / events hit supporting builtins.
@@ -191,6 +205,16 @@ export function createShellHostApi(extensionId: string): HostAPI {
           const detail = await res.text();
           throw new Error(detail || `events.publish failed (${res.status})`);
         }
+      },
+    },
+    navigation: {
+      openExternal: async (url, options) => {
+        const target = externalUrl(url);
+        if (options?.sameTab) {
+          window.location.assign(target);
+          return;
+        }
+        window.open(target, '_blank', 'noopener,noreferrer');
       },
     },
   };

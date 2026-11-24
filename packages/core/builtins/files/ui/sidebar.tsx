@@ -1,4 +1,9 @@
-import { HardDrivesIcon, TrashIcon, WarningIcon } from '@phosphor-icons/react';
+import {
+  HardDrivesIcon,
+  LockSimpleIcon,
+  TrashIcon,
+  WarningIcon,
+} from '@phosphor-icons/react';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import { LoadingState } from '@agentos/ui/components/loading-state';
@@ -101,6 +106,14 @@ export function FilesSidebarNav({
                     <span className="min-w-0 flex-1 truncate text-left">
                       {mount.name}
                     </span>
+                    {mount.kind === 'personal' ? (
+                      <LockSimpleIcon
+                        className="size-3 shrink-0 text-muted-foreground"
+                        data-slot="files-mount-personal"
+                        role="img"
+                        aria-label="Personal — only you can see this drive"
+                      />
+                    ) : null}
                     {disconnected ? (
                       <Badge
                         variant="destructive"
@@ -109,7 +122,12 @@ export function FilesSidebarNav({
                         data-slot="files-mount-warning"
                       >
                         <WarningIcon className="size-3" aria-hidden />
-                        {mount.status === 'error' ? 'Error' : 'Disconnected'}
+                        {mount.kind === 'personal' &&
+                        mount.status === 'disconnected'
+                          ? 'Reconnect'
+                          : mount.status === 'error'
+                            ? 'Error'
+                            : 'Disconnected'}
                       </Badge>
                     ) : null}
                   </Button>

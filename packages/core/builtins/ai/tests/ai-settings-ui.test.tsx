@@ -23,6 +23,7 @@ function testHost(): HostAPIClient {
       fetch: async () => ({ ok: true, status: 200, body: '{}' }),
     },
     events: { publish: async () => {} },
+    navigation: { openExternal: async () => {} },
   };
 }
 

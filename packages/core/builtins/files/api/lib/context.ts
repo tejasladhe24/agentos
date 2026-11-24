@@ -11,6 +11,7 @@ import { createMountScope, type MountScope } from './mount-scope';
 import { createMountResolver, type MountResolver } from './mounts';
 import type { FilesObjectIndex } from './object-index';
 import type { FilesOrgSettingsStore } from './org-settings';
+import type { PersonalTokenStore } from './personal-tokens';
 import {
   resolveOrgForFilesRequest,
   type ResolveOrgResult,
@@ -31,6 +32,10 @@ export type FilesContext = {
   mounts?: FilesMountStore;
   /** Provider adapters for non-platform mounts. */
   providers?: StorageProviderRegistry;
+  /** User-owned OAuth tokens of personal mounts (ticket 113). */
+  tokens?: PersonalTokenStore;
+  /** Override `fetch` for OAuth token exchange (tests). */
+  oauthFetch?: typeof fetch;
   runtimeEnv?: Record<string, string | undefined>;
   /** Optional metadata index (db-store). */
   index?: FilesObjectIndex;
@@ -67,6 +72,7 @@ function stateFor(ctx: FilesContext): ContextState {
         platform: ctx.store,
         store: ctx.mounts,
         providers: ctx.providers,
+        tokens: ctx.tokens,
         runtimeEnv: ctx.runtimeEnv,
       }),
       liveCache: new Map(),

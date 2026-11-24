@@ -45,5 +45,8 @@ export function createStandaloneHost(): HostAPIClient {
     events: {
       publish: async (_topic: string, _payload: EventPayload) => {},
     },
+    navigation: {
+      openExternal: async () => {},
+    },
   };
 }

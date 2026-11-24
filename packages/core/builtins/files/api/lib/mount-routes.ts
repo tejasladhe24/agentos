@@ -16,13 +16,19 @@ import {
 } from './context';
 import { errorResponse, json, readJson } from './http';
 import type { FilesMount, MountRecord } from './mount-types';
+import { disconnectPersonalMount } from './personal-mount-routes';
 import { countMountObjects, mountUsage } from './scope-ops';
-import type { StorageCapabilities, StorageIndexMode } from './types';
+import type {
+  StorageCapabilities,
+  StorageIndexMode,
+  StorageQuota,
+} from './types';
 
 export type MountView = FilesMount & {
   capabilities?: StorageCapabilities;
   indexMode?: StorageIndexMode;
   usage?: { files: number; bytes: number };
+  quota?: StorageQuota;
 };
 
 const MAX_NAME_LENGTH = 80;
@@ -55,7 +61,11 @@ async function describeMount(
       capabilities: scope.adapter.capabilities,
       indexMode: scope.adapter.indexMode,
     };
-    if (withUsage) view.usage = await mountUsage(ctx, scope);
+    if (withUsage && scope.adapter.indexMode === 'live') {
+      if (scope.adapter.quota) view.quota = await scope.adapter.quota();
+    } else if (withUsage) {
+      view.usage = await mountUsage(ctx, scope);
+    }
     return view;
   } catch (error) {
     return {
@@ -180,6 +190,103 @@ function locationChanged(
   );
 }
 
+async function testAndRecord(
+  ctx: FilesContext,
+  org: ResolvedOrg,
+  mount: FilesMount,
+): Promise<Response> {
+  let ok = true;
+  let message: string | undefined;
+  try {
+    const scope = await scopeForMount(ctx, org, mount);
+    await (scope.adapter.test?.() ??
+      scope.adapter.list({ prefix: scope.root, limit: 1, delimiter: '/' }));
+  } catch (error) {
+    ok = false;
+    message = error instanceof Error ? error.message : 'unknown error';
+  }
+  const latest = await mountResolver(ctx).get(
+    org.orgId,
+    mount.id,
+    viewerOf(org),
+  );
+  const status = ok
+    ? 'connected'
+    : latest?.status === 'disconnected'
+      ? 'disconnected'
+      : 'error';
+  if (!mount.builtin && ctx.mounts && latest && latest.status !== status) {
+    const record: MountRecord = {
+      ...toRecord(latest),
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+    if (message) record.statusMessage = message;
+    else delete record.statusMessage;
+    await ctx.mounts.put(org.orgId, record, { actor: org.userId });
+  }
+  return json(message ? { ok, status, error: message } : { ok, status });
+}
+
+/**
+ * Personal mounts are managed by their owner only (signed-in session), never
+ * through `files.mounts.manage`: test, rename, disconnect.
+ */
+async function handlePersonalMount(
+  ctx: FilesContext,
+  request: Request,
+  org: ResolvedOrg,
+  mount: FilesMount,
+  action: string | undefined,
+  method: string,
+): Promise<Response> {
+  if (org.via !== 'session' || org.userId !== mount.ownerUserId) {
+    return json({ error: 'forbidden' }, { status: 403 });
+  }
+  if (action === 'test' && method === 'POST') {
+    return testAndRecord(ctx, org, mount);
+  }
+  if (action) return json({ error: 'not found' }, { status: 404 });
+  if (method === 'PATCH') {
+    const body = await readJson<{ name?: unknown; isDefault?: unknown }>(
+      request,
+    );
+    if (body instanceof Response) return body;
+    if (body.isDefault === true) {
+      return json(
+        { error: 'personal mounts cannot be the org default' },
+        { status: 400 },
+      );
+    }
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name || name.length > MAX_NAME_LENGTH) {
+      return json(
+        { error: `name required (max ${MAX_NAME_LENGTH} characters)` },
+        { status: 400 },
+      );
+    }
+    if (!ctx.mounts) {
+      return json({ error: 'mount storage unavailable' }, { status: 503 });
+    }
+    await ctx.mounts.put(
+      org.orgId,
+      { ...toRecord(mount), name, updatedAt: new Date().toISOString() },
+      { actor: org.userId },
+    );
+    const updated = await mountResolver(ctx).get(
+      org.orgId,
+      mount.id,
+      viewerOf(org),
+    );
+    return json({ ok: true, mount: updated });
+  }
+  if (method === 'DELETE') {
+    await disconnectPersonalMount(ctx, org.orgId, mount);
+    return json({ ok: true, id: mount.id });
+  }
+  return json({ error: 'method not allowed' }, { status: 405 });
+}
+
 /** `/mounts` routes — list, add, rename / set default, test, remove. */
 export async function handleMountsRequest(
   ctx: FilesContext,
@@ -226,11 +333,35 @@ export async function handleMountsRequest(
           icon: p.icon,
           orgAddable: p.orgAddable,
           personal: Boolean(p.personal),
+          ...(p.personal && p.oauth
+            ? {
+                connectable: Boolean(
+                  p.oauth.client(ctx.runtimeEnv ?? Bun.env) && ctx.tokens,
+                ),
+              }
+            : {}),
           ...(p.fields ? { fields: p.fields } : {}),
           ...(p.presets ? { presets: p.presets } : {}),
         })),
         canManage,
       });
+    }
+
+    const isDraftTest = path === '/mounts/test' && method === 'POST';
+    const personalTarget =
+      path !== '/mounts' && !isDraftTest ? parseMountPath(path) : null;
+    if (personalTarget) {
+      const mount = await resolver.get(org.orgId, personalTarget.id, viewer);
+      if (mount?.kind === 'personal') {
+        return await handlePersonalMount(
+          ctx,
+          request,
+          org,
+          mount,
+          personalTarget.action,
+          method,
+        );
+      }
     }
 
     const denied = await ensurePermission(
@@ -241,7 +372,6 @@ export async function handleMountsRequest(
     );
     if (denied) return denied;
 
-    const isDraftTest = path === '/mounts/test' && method === 'POST';
     if ((path === '/mounts' && method === 'POST') || isDraftTest) {
       const body = await readJson<{
         provider?: unknown;
@@ -333,28 +463,7 @@ export async function handleMountsRequest(
     }
 
     if (target.action === 'test' && method === 'POST') {
-      let ok = true;
-      let message: string | undefined;
-      try {
-        const scope = await scopeForMount(ctx, org, mount);
-        await (scope.adapter.test?.() ??
-          scope.adapter.list({ prefix: scope.root, limit: 1, delimiter: '/' }));
-      } catch (error) {
-        ok = false;
-        message = error instanceof Error ? error.message : 'unknown error';
-      }
-      const status = ok ? 'connected' : 'error';
-      if (!mount.builtin && ctx.mounts && mount.status !== status) {
-        const record: MountRecord = {
-          ...toRecord(mount),
-          status,
-          updatedAt: new Date().toISOString(),
-        };
-        if (message) record.statusMessage = message;
-        else delete record.statusMessage;
-        await ctx.mounts.put(org.orgId, record, { actor: org.userId });
-      }
-      return json(message ? { ok, status, error: message } : { ok, status });
+      return await testAndRecord(ctx, org, mount);
     }
 
     if (target.action) return json({ error: 'not found' }, { status: 404 });

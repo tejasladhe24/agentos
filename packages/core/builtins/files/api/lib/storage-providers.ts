@@ -1,11 +1,45 @@
+import type { OAuthStoredTokens } from '@agentos/core/api/oauth';
+
 import type { FilesMount } from './mount-types';
 import type { StorageAdapter } from './types';
+
+/** OAuth tokens of a personal mount, bound to its owner (user-owned vault). */
+export type MountCredentials = {
+  load: () => Promise<OAuthStoredTokens | undefined>;
+  save: (tokens: OAuthStoredTokens) => Promise<void>;
+  /** Refresh failed for good — flag the mount so the owner reconnects. */
+  revoked: (message: string) => Promise<void>;
+};
 
 export type StorageProviderContext = {
   orgId: string;
   runtimeEnv?: Record<string, string | undefined>;
   /** Decrypted secret config fields from the vault (credentials, tokens). */
   secrets: Record<string, string>;
+  /** Personal OAuth mounts only. */
+  credentials?: MountCredentials;
+};
+
+export type OAuthAccount = {
+  /** Stable provider account id — reconnects must keep the same account. */
+  accountId: string;
+  email?: string;
+  name?: string;
+};
+
+/** Platform OAuth app used to connect personal mounts of a provider. */
+export type StorageOAuthConnector = {
+  authorizeUrl: string;
+  tokenUrl: string;
+  scopes: readonly string[];
+  authorizeParams?: Record<string, string>;
+  /** Client id / secret from the platform env; absent → connect disabled. */
+  client: (
+    env: Record<string, string | undefined>,
+  ) => { clientId: string; clientSecret: string } | undefined;
+  identify: (accessToken: string) => Promise<OAuthAccount>;
+  /** Best-effort token revocation on disconnect. */
+  revoke?: (tokens: OAuthStoredTokens) => Promise<void>;
 };
 
 /** Form field the Settings UI renders when adding a mount. */
@@ -42,6 +76,8 @@ export type StorageProviderDefinition = {
   orgAddable: boolean;
   /** Users may connect personal mounts of this provider (ticket 113). */
   personal?: boolean;
+  /** OAuth flow for personal mounts. */
+  oauth?: StorageOAuthConnector;
   /**
    * Config fields that identify where bytes live (bucket, endpoint, …).
    * Changing them is blocked while the mount holds files.

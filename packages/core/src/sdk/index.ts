@@ -40,6 +40,7 @@ export {
   type HitlApprovalRequest,
   type HitlApprovalResult,
   type NotificationType,
+  type OpenExternalOptions,
 } from './lib/types';
 
 export { withRpcTimeout } from './lib/timeout';

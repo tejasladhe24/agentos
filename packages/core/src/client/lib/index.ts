@@ -22,6 +22,7 @@ export { useHostAI } from './use-host-ai';
 export { useHostHITL } from './use-host-hitl';
 export { useHostNotifications } from './use-host-notifications';
 export { useHostApi } from './use-host-api';
+export { useHostNavigation } from './use-host-navigation';
 export {
   parseSettingsTarget,
   useSettingsTarget,
@@ -38,5 +39,6 @@ export type {
   HitlApprovalRequest,
   HitlApprovalResult,
   NotificationType,
+  OpenExternalOptions,
   StorageValue,
 } from '@agentos/core/sdk';

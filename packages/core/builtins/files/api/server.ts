@@ -7,16 +7,20 @@ import {
 import { keys } from './env';
 import { createBlobStore, PLATFORM_STORAGE_PROVIDERS } from './lib/blob-store';
 import { FILES_PORT } from './lib/constants';
+import { createGoogleDriveProvider } from './lib/google-drive-provider';
 import { handleFilesRequest } from './lib/handle-request';
 import { createIntegrationsMountStore } from './lib/mount-store';
 import { createFilesObjectIndex } from './lib/object-index';
 import { createFilesOrgSettingsStore } from './lib/org-settings';
+import { purgeUserMounts } from './lib/personal-mount-routes';
+import { createVaultPersonalTokenStore } from './lib/personal-tokens';
 import { createS3MountProvider } from './lib/s3-mount-provider';
 import { storageProviders } from './lib/storage-providers';
 import {
   createUploadThingProvider,
   createVercelBlobProvider,
 } from './lib/upload-service-providers';
+import { watchTopic } from './lib/watch-topic';
 
 const env = keys();
 
@@ -41,6 +45,7 @@ for (const provider of [
   createS3MountProvider(),
   createUploadThingProvider(),
   createVercelBlobProvider(),
+  createGoogleDriveProvider(),
 ]) {
   if (!storageProviders.get(provider.id)) storageProviders.register(provider);
 }
@@ -67,7 +72,18 @@ const ctx = {
   settings,
   mounts,
   providers: storageProviders,
+  tokens: createVaultPersonalTokenStore(Bun.env),
 };
+
+watchTopic('secrets.user_purged', async (payload) => {
+  const { orgId, userId } = (payload ?? {}) as {
+    orgId?: unknown;
+    userId?: unknown;
+  };
+  if (typeof orgId === 'string' && typeof userId === 'string') {
+    await purgeUserMounts(ctx, orgId, userId);
+  }
+});
 
 const server = Bun.serve({
   port,

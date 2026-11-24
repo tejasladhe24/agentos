@@ -7,7 +7,12 @@ import type { MountScope } from './mount-scope';
 import type { ObjectMetaRecord } from './object-index';
 import { keyBasename, relativeOrgKey } from './org-key';
 import { computePurgeAt, type BinRetentionDays } from './trash';
-import type { BlobListOptions, BlobListResult } from './types';
+import type {
+  BlobListObject,
+  BlobListOptions,
+  BlobListResult,
+  StorageReadResult,
+} from './types';
 
 export type ListedItem = {
   key: string;
@@ -22,6 +27,8 @@ export type ListedItem = {
   trashedAt?: string;
   purgeAt?: string | null;
   originalKey?: string;
+  webUrl?: string;
+  exportFormats?: string[];
 };
 
 function nativeTrash(scope: MountScope): boolean {
@@ -192,6 +199,7 @@ export async function enrichFile(
   key: string,
   bytes?: number,
   updatedAt?: string,
+  live?: Pick<BlobListObject, 'contentType' | 'webUrl' | 'exportFormats'>,
 ): Promise<ListedItem> {
   const meta = await indexGet(ctx, scope, key);
   const item: ListedItem = {
@@ -199,7 +207,7 @@ export async function enrichFile(
     name: keyBasename(key),
     kind: 'file',
     bytes: meta?.bytes ?? bytes,
-    contentType: meta?.contentType,
+    contentType: meta?.contentType ?? live?.contentType,
     updatedAt: meta?.updatedAt ?? updatedAt,
     relativeKey: scope.relative(key),
     mountId: scope.mount.id,
@@ -208,7 +216,43 @@ export async function enrichFile(
   if (meta?.trashedAt) item.trashedAt = meta.trashedAt;
   if (meta && meta.purgeAt !== undefined) item.purgeAt = meta.purgeAt;
   if (meta?.originalKey) item.originalKey = scope.relative(meta.originalKey);
+  if (live?.webUrl) item.webUrl = live.webUrl;
+  if (live?.exportFormats?.length) item.exportFormats = live.exportFormats;
   return item;
+}
+
+export type ReadObjectResult = StorageReadResult & {
+  /** Download / copy name — exports carry their format extension. */
+  name: string;
+};
+
+export function withExtension(key: string, extension?: string): string {
+  if (!extension) return key;
+  const suffix = `.${extension}`;
+  return key.toLowerCase().endsWith(suffix) ? key : `${key}${suffix}`;
+}
+
+/** Object bytes with the best known MIME type (provider, else index). */
+export async function readObject(
+  ctx: FilesContext,
+  scope: MountScope,
+  absKey: string,
+  format?: string,
+): Promise<ReadObjectResult | null> {
+  const name = keyBasename(absKey);
+  if (scope.adapter.read) {
+    const read = await scope.adapter.read(absKey, format ? { format } : {});
+    if (!read) return null;
+    return { ...read, name: withExtension(name, read.extension) };
+  }
+  const bytes = await scope.adapter.get(absKey);
+  if (!bytes) return null;
+  const meta = await indexGet(ctx, scope, absKey);
+  return {
+    bytes,
+    contentType: meta?.contentType || 'application/octet-stream',
+    name,
+  };
 }
 
 /** Usage across live (non-trash) objects in a mount. */
@@ -406,7 +450,7 @@ export async function transferObject(
   to: MountScope,
   toKey: string,
   options: { move: boolean },
-): Promise<void> {
+): Promise<string> {
   if (to.isTrash(toKey)) {
     throw new BlobStoreError(
       'cannot write directly into bin; restore instead',
@@ -415,11 +459,11 @@ export async function transferObject(
   }
   const meta = await indexGet(ctx, from, fromKey);
   let bytes = meta?.bytes;
-  const contentType = meta?.contentType;
+  let contentType = meta?.contentType;
   let moved = false;
 
   if (from.mount.id === to.mount.id) {
-    if (fromKey === toKey) return;
+    if (fromKey === toKey) return toKey;
     if (options.move && from.adapter.move) {
       await from.adapter.move(fromKey, toKey);
       moved = true;
@@ -427,21 +471,19 @@ export async function transferObject(
       await from.adapter.copy(fromKey, toKey);
     }
   } else {
-    const data = await from.adapter.get(fromKey);
-    if (!data) throw new BlobStoreError('not found', 404);
+    const read = await readObject(ctx, from, fromKey);
+    if (!read) throw new BlobStoreError('not found', 404);
     const limit = maxUploadBytes(to);
-    if (data.byteLength > limit) {
+    if (read.bytes.byteLength > limit) {
       throw new BlobStoreError(
         `object exceeds destination max size of ${limit} bytes`,
         413,
       );
     }
-    await to.adapter.put(
-      toKey,
-      data,
-      contentType ? { contentType } : undefined,
-    );
-    bytes = data.byteLength;
+    toKey = withExtension(toKey, read.extension);
+    contentType = read.contentType;
+    await to.adapter.put(toKey, read.bytes, { contentType });
+    bytes = read.bytes.byteLength;
   }
 
   if (options.move) {
@@ -449,12 +491,15 @@ export async function transferObject(
     await indexDelete(ctx, from, fromKey);
     invalidateLive(ctx, from);
   }
-  await indexPutLive(
-    ctx,
-    to,
-    toKey,
-    bytes ?? (await to.adapter.get(toKey))?.byteLength ?? 0,
-    meta?.contentType ?? 'application/octet-stream',
-  );
+  if (usesIndex(ctx, to)) {
+    await indexPutLive(
+      ctx,
+      to,
+      toKey,
+      bytes ?? (await to.adapter.get(toKey))?.byteLength ?? 0,
+      contentType ?? 'application/octet-stream',
+    );
+  }
   invalidateLive(ctx, to);
+  return toKey;
 }

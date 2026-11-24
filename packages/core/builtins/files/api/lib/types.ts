@@ -4,6 +4,12 @@ export type BlobListObject = {
   key: string;
   bytes?: number;
   updatedAt?: string;
+  /** Live providers report the MIME type with the listing. */
+  contentType?: string;
+  /** Open the item in the provider's own app. */
+  webUrl?: string;
+  /** Provider-native document without bytes; reads export to these. */
+  exportFormats?: string[];
 };
 
 export type BlobListResult = {
@@ -58,6 +64,22 @@ export type StoragePutOptions = {
   contentType?: string;
 };
 
+export type StorageReadOptions = {
+  /** Export format (`pdf`, `docx`, …) for provider-native documents. */
+  format?: string;
+};
+
+export type StorageReadResult = {
+  bytes: Uint8Array;
+  contentType: string;
+  /** Set when the bytes are an export; appended to the name on download / copy. */
+  extension?: string;
+};
+
+export type StorageStat = Omit<BlobListObject, 'key'>;
+
+export type StorageQuota = { usedBytes: number; limitBytes?: number };
+
 export type StorageAdapter = {
   /** Provider id from the adapter registry (`filesystem`, `s3`, …). */
   provider: string;
@@ -80,6 +102,15 @@ export type StorageAdapter = {
   copy: (fromKey: string, toKey: string) => Promise<void>;
   /** Same-mount rename without copying bytes (e.g. flat upload services). */
   move?: (fromKey: string, toKey: string) => Promise<void>;
+  /** Bytes plus provider MIME type; exports provider-native documents. */
+  read?: (
+    key: string,
+    options?: StorageReadOptions,
+  ) => Promise<StorageReadResult | null>;
+  /** Metadata without downloading bytes (`null` when missing). */
+  stat?: (key: string) => Promise<StorageStat | null>;
+  /** Provider-reported quota (`capabilities.quota`). */
+  quota?: () => Promise<StorageQuota>;
   /** Optional connectivity probe for Settings › Test. */
   test?: () => Promise<void>;
   /** Native trash (`capabilities.nativeTrash`). Returns the provider trash key. */

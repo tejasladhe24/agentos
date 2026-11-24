@@ -1,4 +1,4 @@
-import { ORG_ID_HEADER } from './constants';
+import { ORG_ID_HEADER, USER_ID_HEADER } from './constants';
 
 const DEFAULT_AUTH_BASE = 'http://127.0.0.1:6110';
 
@@ -7,7 +7,10 @@ export type ResolveOrgResult =
       ok: true;
       orgId: string;
       via: 'session' | 'header';
-      /** Session user (personal mount visibility); absent for peer callers. */
+      /**
+       * Session user, or the user a trusted peer acts for (AI runs) — drives
+       * personal mount visibility. Absent for background callers.
+       */
       userId?: string;
     }
   | { ok: false; status: number; error: string };
@@ -76,7 +79,10 @@ export async function resolveOrgForFilesRequest(
 
   const header = request.headers.get(ORG_ID_HEADER)?.trim();
   if (header) {
-    return { ok: true, orgId: header, via: 'header' };
+    const userId = request.headers.get(USER_ID_HEADER)?.trim();
+    return userId
+      ? { ok: true, orgId: header, userId, via: 'header' }
+      : { ok: true, orgId: header, via: 'header' };
   }
 
   return {
