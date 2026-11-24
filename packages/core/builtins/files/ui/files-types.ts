@@ -8,10 +8,86 @@ export type FilesListItem = {
   contentType?: string;
   updatedAt?: string;
   relativeKey: string;
+  /** Owning mount (absent on responses from older servers → platform). */
+  mountId?: string;
+  /** Canonical `files://<mountId>/<path>` reference. */
+  ref?: string;
+  /** Mount display name on cross-mount views (Bin / Storage). */
+  mountName?: string;
   trashedAt?: string;
   purgeAt?: string | null;
   originalKey?: string;
 };
+
+export type StorageCapabilities = {
+  serverSideCopy: boolean;
+  nativeFolders: boolean;
+  nativeTrash: boolean;
+  versions: boolean;
+  maxFileSize: number;
+  exportFormats: string[];
+  quota: boolean;
+};
+
+export type FilesMount = {
+  id: string;
+  kind: 'org' | 'personal';
+  provider: string;
+  name: string;
+  isDefault: boolean;
+  status: 'connected' | 'disconnected' | 'error';
+  statusMessage?: string;
+  builtin?: boolean;
+  capabilities?: StorageCapabilities;
+  indexMode?: 'indexed' | 'live';
+  usage?: { files: number; bytes: number };
+};
+
+export type StorageProviderInfo = {
+  id: string;
+  label: string;
+  icon?: string;
+  orgAddable: boolean;
+  personal: boolean;
+};
+
+export type FilesMountsResponse = {
+  mounts: FilesMount[];
+  defaultMountId: string;
+  providers: StorageProviderInfo[];
+  canManage: boolean;
+};
+
+export const PLATFORM_MOUNT_ID = 'platform';
+
+export const FILES_MOUNT_STORAGE_KEY = 'files:mount';
+export const FILES_MOUNT_CHANNEL = 'agentos-files-mount';
+/** Broadcast after mounts change (Settings) so the sidebar reloads. */
+export const FILES_MOUNTS_CHANGED_CHANNEL = 'agentos-files-mounts-changed';
+
+export function parseMountsResponse(body: string): FilesMountsResponse {
+  const data = JSON.parse(body) as Partial<FilesMountsResponse>;
+  return {
+    mounts: Array.isArray(data.mounts) ? data.mounts : [],
+    defaultMountId:
+      typeof data.defaultMountId === 'string'
+        ? data.defaultMountId
+        : PLATFORM_MOUNT_ID,
+    providers: Array.isArray(data.providers) ? data.providers : [],
+    canManage: data.canManage === true,
+  };
+}
+
+/** Stable selection id across mounts (refs are unique; keys may collide). */
+export function itemId(item: Pick<FilesListItem, 'key' | 'ref'>): string {
+  return item.ref ?? item.key;
+}
+
+/** `?mount=` query fragment for blob routes (omitted for platform). */
+export function mountQuery(mountId: string, leading: '?' | '&' = '?'): string {
+  if (!mountId || mountId === PLATFORM_MOUNT_ID) return '';
+  return `${leading}mount=${encodeURIComponent(mountId)}`;
+}
 
 export type FilesListResponse = {
   items: FilesListItem[];
@@ -118,10 +194,11 @@ export function formatDate(iso?: string): string {
 
 export function breadcrumbSegments(
   prefix: string,
+  rootLabel = 'Files',
 ): { label: string; prefix: string }[] {
   const trimmed = prefix.replace(/^\/+/, '').replace(/\/+$/, '');
   const segments: { label: string; prefix: string }[] = [
-    { label: 'My files', prefix: '' },
+    { label: rootLabel, prefix: '' },
   ];
   if (!trimmed) return segments;
   const parts = trimmed.split('/').filter(Boolean);

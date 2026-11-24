@@ -7,6 +7,39 @@ import type { HostAPIClient } from '@agentos/core/sdk';
 
 import FilesPage from '../ui/page';
 import { FilesBrowser } from '../ui/files-browser';
+import type { FilesMount } from '../ui/files-types';
+import { FilesSidebarNav } from '../ui/sidebar';
+
+const CAPS = {
+  serverSideCopy: true,
+  nativeFolders: true,
+  nativeTrash: false,
+  versions: false,
+  maxFileSize: 1024,
+  exportFormats: [],
+  quota: false,
+};
+
+const PLATFORM: FilesMount = {
+  id: 'platform',
+  kind: 'org',
+  provider: 'filesystem',
+  name: 'Platform storage',
+  isDefault: true,
+  status: 'connected',
+  builtin: true,
+  capabilities: CAPS,
+};
+
+const ARCHIVE: FilesMount = {
+  id: 'm_archive',
+  kind: 'org',
+  provider: 's3',
+  name: 'Archive',
+  isDefault: false,
+  status: 'connected',
+  capabilities: { ...CAPS, nativeTrash: true },
+};
 
 function createTestHost(
   fetchImpl: HostAPIClient['api']['fetch'],
@@ -53,7 +86,7 @@ describe('FilesPage', () => {
     expect(html).not.toContain('data-slot="files-detail"');
     expect(html).toContain('data-slot="files-info-button"');
     expect(html).toContain('data-slot="files-upload-zone"');
-    expect(html).toContain('My files');
+    expect(html).toContain('>Files</button>');
   });
 });
 
@@ -158,5 +191,98 @@ describe('FilesBrowser states', () => {
     expect(html).toContain('data-slot="files-storage"');
     expect(html).toContain('big.bin');
     expect(html).toContain('2.0 KB');
+  });
+
+  test('root crumb is the selected mount; empty state shows its max file size', () => {
+    const html = renderToStaticMarkup(
+      createElement(FilesBrowser, {
+        ...baseProps,
+        items: [],
+        loading: false,
+        error: null,
+        mount: ARCHIVE,
+        mounts: [PLATFORM, ARCHIVE],
+      }),
+    );
+    expect(html).toContain('Archive');
+    expect(html).toContain('data-files-mount="m_archive"');
+    expect(html).toContain('max 1.0 KB each');
+  });
+
+  test('Copy to… appears only with more than one connected mount', () => {
+    const item = {
+      key: 'orgs/o1/a.txt',
+      name: 'a.txt',
+      kind: 'file' as const,
+      bytes: 1,
+      relativeKey: 'a.txt',
+      ref: 'files://platform/a.txt',
+      mountId: 'platform',
+    };
+    const props = {
+      ...baseProps,
+      items: [item],
+      selectedKeys: new Set([item.ref]),
+      loading: false,
+      error: null,
+      mount: PLATFORM,
+      onCopyTo: noopAsync,
+    };
+    const single = renderToStaticMarkup(
+      createElement(FilesBrowser, { ...props, mounts: [PLATFORM] }),
+    );
+    expect(single).not.toContain('data-slot="files-copy-to"');
+    const multi = renderToStaticMarkup(
+      createElement(FilesBrowser, { ...props, mounts: [PLATFORM, ARCHIVE] }),
+    );
+    expect(multi).toContain('data-slot="files-copy-to"');
+  });
+
+  test('storage view adds a Location column across mounts', () => {
+    const html = renderToStaticMarkup(
+      createElement(FilesBrowser, {
+        ...baseProps,
+        section: 'storage',
+        items: [
+          {
+            key: 'files://m_archive/big.bin',
+            name: 'big.bin',
+            kind: 'file',
+            bytes: 2048,
+            relativeKey: 'big.bin',
+            mountId: 'm_archive',
+            mountName: 'Archive',
+          },
+        ],
+        loading: false,
+        error: null,
+        mounts: [PLATFORM, ARCHIVE],
+      }),
+    );
+    expect(html).toContain('Location');
+    expect(html).toContain('Archive');
+  });
+});
+
+describe('FilesSidebarNav', () => {
+  test('lists mounted storage and flags disconnected mounts', () => {
+    const html = renderToStaticMarkup(
+      createElement(FilesSidebarNav, {
+        mounts: [
+          PLATFORM,
+          { ...ARCHIVE, status: 'disconnected', statusMessage: 'bad creds' },
+        ],
+        section: 'files',
+        mountId: 'platform',
+        onSelectMount: () => {},
+        onSelectView: () => {},
+      }),
+    );
+    expect(html).toContain('Mounted storage');
+    expect(html).toContain('Platform storage');
+    expect(html).toContain('Archive');
+    expect(html).toContain('data-slot="files-mount-warning"');
+    expect(html).toContain('Disconnected');
+    expect(html).toContain('Bin');
   });
 });

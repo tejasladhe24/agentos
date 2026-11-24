@@ -10,11 +10,19 @@ import {
   PencilSimpleIcon,
   ArrowsLeftRightIcon,
   ArrowCounterClockwiseIcon,
+  CopyIcon,
 } from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
 import { Input } from '@agentos/ui/components/input';
 import { Checkbox } from '@agentos/ui/components/checkbox';
 import { Badge } from '@agentos/ui/components/badge';
+import {
+  Field,
+  FieldContent,
+  FieldLabel,
+  FieldTitle,
+} from '@agentos/ui/components/field';
+import { RadioGroup, RadioGroupItem } from '@agentos/ui/components/radio-group';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
 import {
   ToggleGroup,
@@ -50,10 +58,13 @@ import {
   breadcrumbSegments,
   formatBytes,
   formatDate,
+  itemId,
   type FilesListItem,
+  type FilesMount,
   type FilesSection,
   type FilesViewMode,
 } from './files-types';
+import { MountIcon } from './mount-icon';
 import {
   FilesUploadZone,
   type FilesUploadZoneProps,
@@ -86,6 +97,15 @@ export type FilesBrowserProps = {
   onMove: (items: FilesListItem[], destinationPrefix: string) => Promise<void>;
   onDelete: (items: FilesListItem[]) => Promise<void>;
   onRestore?: (items: FilesListItem[]) => Promise<void>;
+  /** Selected mount (browse root + capabilities). */
+  mount?: FilesMount;
+  /** All visible mounts (cross-mount copy targets, location column). */
+  mounts?: FilesMount[];
+  onCopyTo?: (
+    items: FilesListItem[],
+    mountId: string,
+    destinationPrefix: string,
+  ) => Promise<void>;
 };
 
 export function FilesBrowser({
@@ -115,12 +135,27 @@ export function FilesBrowser({
   onMove,
   onDelete,
   onRestore,
+  mount,
+  mounts = [],
+  onCopyTo,
 }: FilesBrowserProps) {
   const searchId = useId();
-  const crumbs = useMemo(() => breadcrumbSegments(prefix), [prefix]);
+  const rootLabel = mount?.name ?? 'Files';
+  const crumbs = useMemo(
+    () => breadcrumbSegments(prefix, rootLabel),
+    [prefix, rootLabel],
+  );
+  const capabilities = mount?.capabilities;
+  const nativeTrash = capabilities?.nativeTrash === true;
+  const copyTargets = mounts.filter((m) => m.status === 'connected');
+  const canCopyAcross = Boolean(onCopyTo) && copyTargets.length > 1;
+  const showLocation = mounts.length > 1;
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyMountId, setCopyMountId] = useState('');
+  const [copyDest, setCopyDest] = useState('');
   const allSelected =
-    items.length > 0 && items.every((i) => selectedKeys.has(i.key));
-  const selectedItems = items.filter((i) => selectedKeys.has(i.key));
+    items.length > 0 && items.every((i) => selectedKeys.has(itemId(i)));
+  const selectedItems = items.filter((i) => selectedKeys.has(itemId(i)));
 
   const [renameTarget, setRenameTarget] = useState<FilesListItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -158,6 +193,18 @@ export function FilesBrowser({
     }
   }
 
+  async function submitCopy() {
+    if (!onCopyTo || !selectedItems.length || !copyMountId) return;
+    setDialogBusy(true);
+    try {
+      await onCopyTo(selectedItems, copyMountId, copyDest);
+      setCopyOpen(false);
+      setCopyDest('');
+    } finally {
+      setDialogBusy(false);
+    }
+  }
+
   function queueDelete(targets: FilesListItem[]) {
     setDeleteTargets(targets);
     setDeleteOpen(true);
@@ -188,7 +235,10 @@ export function FilesBrowser({
       data-files-section={section}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      <header className="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2 sm:px-4">
+      <header
+        className="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2 sm:px-4"
+        data-files-mount={isDrive ? mount?.id : undefined}
+      >
         <div className="flex flex-wrap items-center gap-2">
           {isDrive ? (
             <nav
@@ -215,6 +265,12 @@ export function FilesBrowser({
                     )}
                     onClick={() => onPrefixChange(crumb.prefix)}
                   >
+                    {i === 0 && mount ? (
+                      <MountIcon
+                        provider={mount.provider}
+                        className="size-4 shrink-0"
+                      />
+                    ) : null}
                     {crumb.label}
                   </Button>
                 </span>
@@ -310,6 +366,16 @@ export function FilesBrowser({
                   }
                 : undefined
             }
+            onCopyTo={
+              isDrive && canCopyAcross
+                ? () => {
+                    const first = copyTargets.find((m) => m.id !== mount?.id);
+                    setCopyMountId(first?.id ?? '');
+                    setCopyDest('');
+                    setCopyOpen(true);
+                  }
+                : undefined
+            }
             onDelete={() => queueDelete(selectedItems)}
             onRestore={
               isBin && onRestore
@@ -354,6 +420,8 @@ export function FilesBrowser({
             onRename={openRename}
             onDelete={queueDelete}
             onRestore={onRestore}
+            showLocation={showLocation}
+            maxFileSize={capabilities?.maxFileSize}
           />
         </FilesUploadZone>
       ) : (
@@ -374,6 +442,7 @@ export function FilesBrowser({
             onRename={openRename}
             onDelete={queueDelete}
             onRestore={onRestore}
+            showLocation={showLocation}
           />
         </div>
       )}
@@ -447,6 +516,66 @@ export function FilesBrowser({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
+        <DialogContent data-slot="files-copy-dialog">
+          <DialogHeader>
+            <DialogTitle>Copy to storage</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Copies {selectedItems.length} item(s) into another mount. Files are
+            streamed across storage backends; originals stay in place.
+          </p>
+          <RadioGroup
+            value={copyMountId}
+            onValueChange={(v) => setCopyMountId(String(v))}
+            aria-label="Destination storage"
+          >
+            {copyTargets.map((target) => (
+              <FieldLabel key={target.id} htmlFor={`files-copy-${target.id}`}>
+                <Field orientation="horizontal">
+                  <MountIcon
+                    provider={target.provider}
+                    className="size-4 shrink-0"
+                  />
+                  <FieldContent>
+                    <FieldTitle>
+                      {target.name}
+                      {target.id === mount?.id ? ' (current)' : ''}
+                    </FieldTitle>
+                  </FieldContent>
+                  <RadioGroupItem
+                    value={target.id}
+                    id={`files-copy-${target.id}`}
+                  />
+                </Field>
+              </FieldLabel>
+            ))}
+          </RadioGroup>
+          <Input
+            value={copyDest}
+            onChange={(e) => setCopyDest(e.target.value)}
+            aria-label="Destination folder"
+            placeholder="folder/subfolder/ (empty = root)"
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setCopyOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={dialogBusy || !copyMountId || !selectedItems.length}
+              onClick={() => void submitCopy()}
+            >
+              Copy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -456,7 +585,9 @@ export function FilesBrowser({
             <AlertDialogDescription>
               {isBin
                 ? `Permanently deletes ${deleteTargets.length} item(s) from Bin.`
-                : `Moves ${deleteTargets.length} item(s) to Bin. They can be restored until auto-delete runs.`}
+                : nativeTrash
+                  ? `Moves ${deleteTargets.length} item(s) to the ${mount?.name ?? 'provider'} trash. Restore them from Bin or the provider.`
+                  : `Moves ${deleteTargets.length} item(s) to Bin. They can be restored until auto-delete runs.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -491,6 +622,8 @@ function FilesBrowserBody({
   onRename,
   onDelete,
   onRestore,
+  showLocation = false,
+  maxFileSize,
 }: {
   section: FilesSection;
   items: FilesListItem[];
@@ -507,6 +640,8 @@ function FilesBrowserBody({
   onRename: (item: FilesListItem) => void;
   onDelete: (items: FilesListItem[]) => void;
   onRestore?: (items: FilesListItem[]) => Promise<void>;
+  showLocation?: boolean;
+  maxFileSize?: number;
 }) {
   if (loading) {
     return (
@@ -517,7 +652,13 @@ function FilesBrowserBody({
   }
 
   if (items.length === 0) {
-    return <FilesEmpty section={section} searchActive={Boolean(searchQuery)} />;
+    return (
+      <FilesEmpty
+        section={section}
+        searchActive={Boolean(searchQuery)}
+        maxFileSize={maxFileSize}
+      />
+    );
   }
 
   if (section === 'storage') {
@@ -529,6 +670,11 @@ function FilesBrowserBody({
               <th className="px-4 py-2 font-medium" scope="col">
                 Name
               </th>
+              {showLocation ? (
+                <th className="px-4 py-2 font-medium" scope="col">
+                  Location
+                </th>
+              ) : null}
               <th className="px-4 py-2 text-right font-medium" scope="col">
                 Size
               </th>
@@ -537,7 +683,7 @@ function FilesBrowserBody({
           <tbody>
             {items.map((item) => (
               <tr
-                key={item.key}
+                key={itemId(item)}
                 className="border-b border-border/60 hover:bg-muted/40"
               >
                 <td className="px-4 py-2">
@@ -555,6 +701,11 @@ function FilesBrowserBody({
                     <span className="truncate">{item.name}</span>
                   </Button>
                 </td>
+                {showLocation ? (
+                  <td className="px-4 py-2 text-muted-foreground">
+                    {item.mountName ?? item.mountId ?? '—'}
+                  </td>
+                ) : null}
                 <td className="px-4 py-2 text-right text-muted-foreground tabular-nums">
                   {formatBytes(item.bytes)}
                 </td>
@@ -572,10 +723,10 @@ function FilesBrowserBody({
         <ul className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {items.map((item) => (
             <FilesGridCard
-              key={item.key}
+              key={itemId(item)}
               item={item}
               section={section}
-              selected={selectedKeys.has(item.key)}
+              selected={selectedKeys.has(itemId(item))}
               disabled={disabled}
               onOpen={() => onOpenItem(item)}
               onToggle={() => onToggleSelect(item)}
@@ -627,10 +778,11 @@ function FilesBrowserBody({
         <tbody>
           {items.map((item) => (
             <FilesListRow
-              key={item.key}
+              key={itemId(item)}
               item={item}
               section={section}
-              selected={selectedKeys.has(item.key)}
+              showLocation={showLocation}
+              selected={selectedKeys.has(itemId(item))}
               disabled={disabled}
               onOpen={() => onOpenItem(item)}
               onToggle={() => onToggleSelect(item)}
@@ -654,6 +806,7 @@ function FilesToolbar({
   onClearSelection,
   onDownloadSelected,
   onMove,
+  onCopyTo,
   onDelete,
   onRestore,
 }: {
@@ -665,6 +818,7 @@ function FilesToolbar({
   onClearSelection: () => void;
   onDownloadSelected: () => void;
   onMove?: () => void;
+  onCopyTo?: () => void;
   onDelete: () => void;
   onRestore?: () => void;
 }) {
@@ -697,6 +851,20 @@ function FilesToolbar({
         >
           <ArrowsLeftRightIcon className="size-4" aria-hidden />
           Move
+        </Button>
+      ) : null}
+      {onCopyTo ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8"
+          disabled={disabled || selectedCount === 0}
+          onClick={onCopyTo}
+          data-slot="files-copy-to"
+        >
+          <CopyIcon className="size-4" aria-hidden />
+          Copy to…
         </Button>
       ) : null}
       {onRestore ? (
@@ -751,9 +919,11 @@ function FilesToolbar({
 function FilesEmpty({
   section,
   searchActive,
+  maxFileSize,
 }: {
   section: FilesSection;
   searchActive: boolean;
+  maxFileSize?: number;
 }) {
   const copy =
     section === 'bin'
@@ -764,13 +934,15 @@ function FilesEmpty({
       : section === 'storage'
         ? {
             title: 'No files yet',
-            hint: 'Upload files in My Files to see storage usage.',
+            hint: 'Upload files to any mounted storage to see usage.',
           }
         : {
             title: searchActive
               ? 'No files match your search.'
               : 'This folder is empty.',
-            hint: 'Drop files here or use Upload.',
+            hint: maxFileSize
+              ? `Drop files here or use Upload (max ${formatBytes(maxFileSize)} each).`
+              : 'Drop files here or use Upload.',
           };
 
   return (
@@ -856,6 +1028,7 @@ function FilesGridCard({
 function FilesListRow({
   item,
   section,
+  showLocation = false,
   selected,
   disabled,
   onOpen,
@@ -866,6 +1039,7 @@ function FilesListRow({
 }: {
   item: FilesListItem;
   section: FilesSection;
+  showLocation?: boolean;
   selected: boolean;
   disabled: boolean;
   onOpen: () => void;
@@ -909,6 +1083,11 @@ function FilesListRow({
             aria-hidden
           />
           <span className="truncate">{item.name}</span>
+          {showLocation && section === 'bin' && item.mountName ? (
+            <Badge variant="outline" className="shrink-0 text-[10px]">
+              {item.mountName}
+            </Badge>
+          ) : null}
         </Button>
       </td>
       <td className="hidden px-2 py-1.5 text-muted-foreground sm:table-cell">

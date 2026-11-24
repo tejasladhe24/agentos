@@ -3,7 +3,13 @@ import { ORG_ID_HEADER } from './constants';
 const DEFAULT_AUTH_BASE = 'http://127.0.0.1:6110';
 
 export type ResolveOrgResult =
-  | { ok: true; orgId: string; via: 'session' | 'header' }
+  | {
+      ok: true;
+      orgId: string;
+      via: 'session' | 'header';
+      /** Session user (personal mount visibility); absent for peer callers. */
+      userId?: string;
+    }
   | { ok: false; status: number; error: string };
 
 function resolveAuthApiBase(
@@ -22,10 +28,10 @@ function resolveAuthApiBase(
   return DEFAULT_AUTH_BASE;
 }
 
-async function orgIdFromSessionCookie(
+async function orgFromSessionCookie(
   request: Request,
   env: Record<string, string | undefined>,
-): Promise<string | null | undefined> {
+): Promise<{ orgId: string; userId?: string } | null | undefined> {
   const cookie = request.headers.get('cookie');
   if (!cookie) return undefined;
 
@@ -37,9 +43,14 @@ async function orgIdFromSessionCookie(
     });
     if (res.status === 401) return null;
     if (!res.ok) return null;
-    const body = (await res.json()) as { orgId?: string | null };
+    const body = (await res.json()) as {
+      orgId?: string | null;
+      user?: { id?: string } | null;
+    };
     if (typeof body.orgId === 'string' && body.orgId.length > 0) {
-      return body.orgId;
+      const userId =
+        typeof body.user?.id === 'string' ? body.user.id : undefined;
+      return userId ? { orgId: body.orgId, userId } : { orgId: body.orgId };
     }
     return null;
   } catch {
@@ -55,9 +66,9 @@ export async function resolveOrgForFilesRequest(
   request: Request,
   env: Record<string, string | undefined> = Bun.env,
 ): Promise<ResolveOrgResult> {
-  const fromSession = await orgIdFromSessionCookie(request, env);
-  if (typeof fromSession === 'string') {
-    return { ok: true, orgId: fromSession, via: 'session' };
+  const fromSession = await orgFromSessionCookie(request, env);
+  if (fromSession) {
+    return { ok: true, ...fromSession, via: 'session' };
   }
   if (fromSession === null && request.headers.get('cookie')) {
     return { ok: false, status: 403, error: 'active org required' };

@@ -22,13 +22,17 @@ import {
   subscribeUrl,
 } from '@agentos/core/api/events';
 import {
+  copyBlob,
   getBlob,
   getBlobBase64,
   deleteBlob,
   listBlobs,
+  listMounts,
   moveBlob,
+  parseFileRef,
   putBlob,
   resolveFilesApiBase,
+  toFileRef,
 } from '@agentos/core/api/files';
 import {
   createApproval,
@@ -430,6 +434,73 @@ describe('files client', () => {
       from: 'a',
       to: 'b',
     });
+  });
+
+  test('refs, mount param, copyBlob across mounts, listMounts', async () => {
+    mockFetch(({ url, method, body }) => {
+      if (method === 'PUT') {
+        expect(url).toBe(
+          'http://files.test/blobs/inbound%2Fa.pdf?mount=default',
+        );
+        return Response.json({
+          ok: true,
+          key: 'orgs/o/inbound/a.pdf',
+          ref: 'files://platform/inbound/a.pdf',
+          mountId: 'platform',
+          bytes: 1,
+        });
+      }
+      if (method === 'GET' && url.includes('/blobs/files')) {
+        expect(url).toBe(
+          'http://files.test/blobs/files%3A%2F%2Fplatform%2Finbound%2Fa.pdf?format=json',
+        );
+        return Response.json({
+          key: 'orgs/o/inbound/a.pdf',
+          base64: 'YQ==',
+          bytes: 1,
+        });
+      }
+      if (method === 'POST' && url.endsWith('/blobs/copy')) {
+        expect(body).toEqual({
+          from: 'files://p_drive/a.pdf',
+          to: 'shared/a.pdf',
+          toMount: 'platform',
+        });
+        return Response.json({
+          ok: true,
+          toRef: 'files://platform/shared/a.pdf',
+        });
+      }
+      if (method === 'GET' && url.endsWith('/mounts')) {
+        return Response.json({
+          mounts: [{ id: 'platform', isDefault: true }],
+          defaultMountId: 'platform',
+          providers: [],
+          canManage: false,
+        });
+      }
+      return new Response('nope', { status: 404 });
+    });
+
+    const env = { AGENT_OS_FILES_API_BASE: 'http://files.test' };
+    const put = await putBlob('inbound/a.pdf', new Uint8Array([97]), env, {
+      mountId: 'default',
+    });
+    expect(put.ref).toBe('files://platform/inbound/a.pdf');
+    expect(toFileRef('orgs/o/inbound/a.pdf', 'o')).toBe(put.ref!);
+    expect(parseFileRef(put.ref!)).toEqual({
+      mountId: 'platform',
+      path: 'inbound/a.pdf',
+    });
+    expect((await getBlobBase64(put.ref!, env)).bytes).toBe(1);
+    expect(
+      (
+        await copyBlob('files://p_drive/a.pdf', 'shared/a.pdf', env, {
+          toMount: 'platform',
+        })
+      ).toRef,
+    ).toBe('files://platform/shared/a.pdf');
+    expect((await listMounts(env)).defaultMountId).toBe('platform');
   });
 });
 

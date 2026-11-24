@@ -1,10 +1,13 @@
+import { DEFAULT_MOUNT_ALIAS, toFileRef } from '@agentos/core/api/files-ref';
+
 import type { EventsClient, FilesClient } from './types';
 
 export function createFilesClient(baseUrl: string): FilesClient {
   const root = baseUrl.replace(/\/+$/, '');
   return {
-    async putBlob(key, data, orgId) {
-      const res = await fetch(`${root}/blobs/${encodeURIComponent(key)}`, {
+    async putBlob(path, data, orgId) {
+      const url = `${root}/blobs/${encodeURIComponent(path)}?mount=${DEFAULT_MOUNT_ALIAS}`;
+      const res = await fetch(url, {
         method: 'PUT',
         headers: {
           'content-type': 'application/octet-stream',
@@ -18,10 +21,18 @@ export function createFilesClient(baseUrl: string): FilesClient {
           `files putBlob failed (${res.status}): ${detail || res.statusText}`,
         );
       }
-      const body = (await res.json()) as { key?: string; bytes?: number };
+      const body = (await res.json()) as {
+        key?: string;
+        bytes?: number;
+        ref?: string;
+        mountId?: string;
+      };
+      const key = typeof body.key === 'string' ? body.key : path;
       return {
-        key: typeof body.key === 'string' ? body.key : key,
+        key,
         bytes: typeof body.bytes === 'number' ? body.bytes : data.byteLength,
+        ref: typeof body.ref === 'string' ? body.ref : toFileRef(key, orgId),
+        ...(typeof body.mountId === 'string' ? { mountId: body.mountId } : {}),
       };
     },
   };

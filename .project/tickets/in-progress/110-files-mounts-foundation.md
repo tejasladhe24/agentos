@@ -1,6 +1,6 @@
 # 110 — Files: storage mounts foundation
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -66,14 +66,14 @@ Turn the `files` builtin from **one storage backend per deployment** into **mult
 
 ## Done when
 
-- [ ] Mount model with built-in platform mount; existing files keep working
-- [ ] `StorageAdapter` interface with capabilities + index mode; filesystem and S3 ported
-- [ ] `files://<mountId>/<path>` references across files, inbound-email, ai, TS + Python kits
-- [ ] Cross-mount copy/move; removal guarded by reference count
-- [ ] Sidebar lists mounts; Settings › Files shows Storage backends
-- [ ] Tests: legacy key compatibility, capability-driven UI, removal guard, background writes only to org mounts
-- [ ] Docs: `builtins.md` files section (mounts, references, capabilities)
-- [ ] `bun run ci` green
+- [x] Mount model with built-in platform mount; existing files keep working
+- [x] `StorageAdapter` interface with capabilities + index mode; filesystem and S3 ported
+- [x] `files://<mountId>/<path>` references across files, inbound-email, ai, TS + Python kits
+- [x] Cross-mount copy/move; removal guarded by reference count
+- [x] Sidebar lists mounts; Settings › Files shows Storage backends
+- [x] Tests: legacy key compatibility, capability-driven UI, removal guard, background writes only to org mounts
+- [x] Docs: `builtins.md` files section (mounts, references, capabilities)
+- [x] `bun run ci` green
 
 ## Verify
 

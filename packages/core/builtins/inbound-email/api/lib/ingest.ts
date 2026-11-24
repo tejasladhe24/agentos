@@ -1,3 +1,4 @@
+import { toFileRef } from '@agentos/core/api/files-ref';
 import { withIdempotency } from '@agentos/core/api/webhook';
 
 import type { AddressStore } from './address-store';
@@ -49,14 +50,17 @@ export async function ingestInboundEmail(
     const attachments: StoredAttachment[] = [];
     for (let i = 0; i < email.attachments.length; i++) {
       const att = email.attachments[i]!;
-      const key = `orgs/${orgId}/inbound/${messageId}/${i}-${safeFilename(att.filename)}`;
-      const put = await deps.files.putBlob(key, att.bytes, orgId);
-      attachments.push({
+      const path = `inbound/${messageId}/${i}-${safeFilename(att.filename)}`;
+      const put = await deps.files.putBlob(path, att.bytes, orgId);
+      const stored: StoredAttachment = {
         filename: att.filename,
         contentType: att.contentType,
         key: put.key,
+        ref: put.ref ?? toFileRef(put.key, orgId),
         bytes: put.bytes,
-      });
+      };
+      if (put.mountId) stored.mountId = put.mountId;
+      attachments.push(stored);
     }
 
     const message: InboundMessage = {
@@ -84,6 +88,7 @@ export async function ingestInboundEmail(
       to: message.to,
       subject: message.subject,
       attachmentKeys: attachments.map((a) => a.key),
+      attachmentRefs: attachments.map((a) => a.ref),
       attachments,
       receivedAt: message.receivedAt,
     });

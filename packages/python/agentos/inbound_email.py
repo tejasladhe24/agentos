@@ -25,6 +25,9 @@ class StoredAttachment(BaseModel):
     filename: str
     contentType: str
     key: str
+    ref: str | None = None
+    """Canonical `files://<mountId>/<path>` reference (ticket 110)."""
+    mountId: str | None = None
     bytes: int
 
 

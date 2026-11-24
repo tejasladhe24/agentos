@@ -82,6 +82,95 @@ async def test_files_client(monkeypatch: pytest.MonkeyPatch) -> None:
     assert moved.to == "b"
 
 
+def test_file_refs() -> None:
+    assert files.format_file_ref("platform", "a/b.txt") == "files://platform/a/b.txt"
+    parsed = files.parse_file_ref("files://m_1/x/y.pdf")
+    assert parsed is not None
+    assert (parsed.mountId, parsed.path) == ("m_1", "x/y.pdf")
+    assert files.parse_file_ref("orgs/o/a.txt") is None
+    assert files.parse_file_ref("files://bad id/x") is None
+    assert files.to_file_ref("orgs/o1/docs/a.txt", "o1") == "files://platform/docs/a.txt"
+    assert files.to_file_ref("orgs/o1/docs/a.txt") == "files://platform/docs/a.txt"
+    assert files.to_file_ref("docs/a.txt") == "files://platform/docs/a.txt"
+    assert files.org_id_from_legacy_key("orgs/o1/a.txt") == "o1"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_files_mounts_and_refs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_OS_FILES_API_BASE", "http://files.test")
+
+    put_route = respx.put("http://files.test/blobs/inbound%2Fa.pdf").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "key": "orgs/o/inbound/a.pdf",
+                "ref": "files://platform/inbound/a.pdf",
+                "mountId": "platform",
+                "bytes": 1,
+            },
+        ),
+    )
+    put = await files.put_blob("inbound/a.pdf", b"a", org_id="o", mount_id="default")
+    assert put_route.calls.last.request.url.params.get("mount") == "default"
+    assert put.ref == "files://platform/inbound/a.pdf"
+
+    get_route = respx.get(
+        url__regex=r"http://files\.test/blobs/files%3A%2F%2Fplatform%2Finbound%2Fa\.pdf.*",
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={"key": "orgs/o/inbound/a.pdf", "base64": "YQ==", "bytes": 1},
+        ),
+    )
+    fetched = await files.get_blob_base64(put.ref or "", org_id="o")
+    assert fetched.bytes == 1
+    assert get_route.called
+
+    copy_route = respx.post("http://files.test/blobs/copy").mock(
+        return_value=httpx.Response(
+            200,
+            json={"ok": True, "toRef": "files://platform/shared/a.pdf"},
+        ),
+    )
+    copied = await files.copy_blob(
+        "files://p_drive/a.pdf",
+        "shared/a.pdf",
+        org_id="o",
+        to_mount="platform",
+    )
+    assert copied.toRef == "files://platform/shared/a.pdf"
+    assert b'"toMount":"platform"' in copy_route.calls.last.request.content.replace(
+        b" ", b""
+    )
+
+    respx.get("http://files.test/mounts").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "mounts": [
+                    {
+                        "id": "platform",
+                        "kind": "org",
+                        "provider": "filesystem",
+                        "name": "Platform storage",
+                        "isDefault": True,
+                        "status": "connected",
+                        "builtin": True,
+                    },
+                ],
+                "defaultMountId": "platform",
+                "providers": [],
+                "canManage": False,
+            },
+        ),
+    )
+    mounts = await files.list_mounts(org_id="o")
+    assert mounts.defaultMountId == "platform"
+    assert mounts.mounts[0].builtin is True
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_events_client(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -127,6 +127,50 @@ describe('builtin ai server', () => {
     expect(body.object.summary).toContain('parse');
   });
 
+  test('generate-text resolves files:// refs with the caller org', async () => {
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const seen: Array<{ url: string; org: string | null }> = [];
+    const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      seen.push({
+        url,
+        org: new Headers(init?.headers).get('x-agentos-org-id'),
+      });
+      return new Response(JSON.stringify({ base64: pngBase64, bytes: 68 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const res = await handleAiRequest(
+      { models, gatewayUrl, fetchImpl },
+      new Request('http://127.0.0.1:6113/generate-text', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-agentos-org-id': 'org_ai',
+        },
+        body: JSON.stringify({
+          prompt: 'describe',
+          files: [
+            {
+              ref: 'files://platform/inbound/m1/0-coi.png',
+              mediaType: 'image/png',
+            },
+            { key: 'orgs/org_legacy/a.png', mediaType: 'image/png' },
+          ],
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(seen[0]!.url).toContain(
+      `/api/ext/files/blobs/${encodeURIComponent('files://platform/inbound/m1/0-coi.png')}`,
+    );
+    expect(seen[0]!.org).toBe('org_ai');
+    expect(seen[1]!.org).toBe('org_legacy');
+  });
+
   test('generate-text rejects oversized / invalid files', async () => {
     const res = await handleAiRequest(
       { models, gatewayUrl },
