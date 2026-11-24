@@ -46,6 +46,7 @@ import {
   deleteSecret,
   getSecret,
   listSecrets,
+  purgeUserSecrets,
   putSecret,
   resolveSecretsApiBase,
 } from '@agentos/core/api/secrets';
@@ -583,6 +584,50 @@ describe('secrets client', () => {
       key: 'qbo',
       deleted: true,
     });
+  });
+
+  test('ownerUserId adds query + user header; purgeUserSecrets', async () => {
+    const env = { AGENT_OS_SECRETS_API_BASE: 'http://secrets.test' };
+    const init = { orgId: 'org_1', ownerUserId: 'user_1' };
+    const seen: string[] = [];
+    mockFetch(({ url, method, headers }) => {
+      seen.push(`${method} ${url}`);
+      expect(headers.get('x-agentos-org-id')).toBe('org_1');
+      if (url.includes('/users/')) {
+        expect(headers.get('x-agentos-user-id')).toBeNull();
+        return Response.json({ orgId: 'org_1', userId: 'user_1', deleted: 1 });
+      }
+      expect(headers.get('x-agentos-user-id')).toBe('user_1');
+      if (method === 'DELETE') {
+        return Response.json({ key: 'files/drive', deleted: true });
+      }
+      return Response.json({
+        key: 'files/drive',
+        value: 'tok',
+        rotatedAt: 't',
+        version: 1,
+        ownerUserId: 'user_1',
+      });
+    });
+
+    await putSecret('files/drive', { value: 'tok' }, env, init);
+    expect((await getSecret('files/drive', env, init)).ownerUserId).toBe(
+      'user_1',
+    );
+    await deleteSecret('files/drive', env, init);
+    expect(await purgeUserSecrets('user_1', 'org_1', env)).toEqual({
+      orgId: 'org_1',
+      userId: 'user_1',
+      deleted: 1,
+    });
+    const owned =
+      'http://secrets.test/secrets/files%2Fdrive?ownerUserId=user_1';
+    expect(seen).toEqual([
+      `PUT ${owned}`,
+      `GET ${owned}`,
+      `DELETE ${owned}`,
+      'POST http://secrets.test/users/user_1/purge',
+    ]);
   });
 });
 

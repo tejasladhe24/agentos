@@ -256,6 +256,60 @@ async def test_secrets_client(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_secrets_user_owned(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_OS_SECRETS_API_BASE", "http://secrets.test")
+    url = "http://secrets.test/secrets/files%2Fdrive"
+    owner = {"ownerUserId": "user_1"}
+    get_route = respx.get(url, params=owner).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "key": "files/drive",
+                "value": "tok",
+                "source": "vault",
+                "ownerUserId": "user_1",
+            },
+        )
+    )
+    put_route = respx.put(url, params=owner).mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "key": "files/drive",
+                "rotatedAt": "t",
+                "version": 1,
+                "ownerUserId": "user_1",
+            },
+        )
+    )
+    del_route = respx.delete(url, params=owner).mock(
+        return_value=httpx.Response(200, json={"key": "files/drive", "deleted": True})
+    )
+    purge_route = respx.post("http://secrets.test/users/user_1/purge").mock(
+        return_value=httpx.Response(
+            200, json={"orgId": "org_1", "userId": "user_1", "deleted": 2}
+        )
+    )
+
+    meta = await secrets.put_secret(
+        "files/drive", {"value": "tok"}, org_id="org_1", owner_user_id="user_1"
+    )
+    assert meta.ownerUserId == "user_1"
+    value = await secrets.get_secret("files/drive", org_id="org_1", owner_user_id="user_1")
+    assert value.ownerUserId == "user_1"
+    await secrets.delete_secret("files/drive", org_id="org_1", owner_user_id="user_1")
+    for route in (get_route, put_route, del_route):
+        headers = route.calls.last.request.headers
+        assert headers["x-agentos-org-id"] == "org_1"
+        assert headers["x-agentos-user-id"] == "user_1"
+
+    purged = await secrets.purge_user_secrets("user_1", org_id="org_1")
+    assert purged.deleted == 2
+    assert purge_route.calls.last.request.headers["x-agentos-org-id"] == "org_1"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_notifications_client(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "AGENT_OS_NOTIFICATIONS_API_BASE",

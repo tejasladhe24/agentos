@@ -3,6 +3,7 @@ import {
   SECRETS_ALG,
   SECRETS_COLLECTION,
   SECRETS_LIST_LIMIT,
+  USER_OWNED_KEY_PREFIX,
 } from './constants';
 
 export type VaultRecord = {
@@ -14,20 +15,57 @@ export type VaultRecord = {
   version: number;
   expiresAt?: string;
   orgId?: string;
+  /** Set → readable only by this user (or a service acting for them). */
+  ownerUserId?: string;
 };
 
 export type SecretsDbStoreClient = {
-  get: (orgId: string, key: string) => Promise<VaultRecord | undefined>;
+  /** `ownerUserId` omitted → org-owned row only. */
+  get: (
+    orgId: string,
+    key: string,
+    ownerUserId?: string,
+  ) => Promise<VaultRecord | undefined>;
+  /** All rows for the org, including user-owned (callers filter). */
   list: (orgId: string) => Promise<VaultRecord[]>;
+  listOwnedBy: (orgId: string, ownerUserId: string) => Promise<VaultRecord[]>;
   put: (orgId: string, record: VaultRecord) => Promise<VaultRecord>;
-  delete: (orgId: string, key: string) => Promise<boolean>;
+  delete: (
+    orgId: string,
+    key: string,
+    ownerUserId?: string,
+  ) => Promise<boolean>;
 };
+
+/**
+ * db-store row id / `data.key` for a vault record. User-owned rows are
+ * namespaced so org-scoped `where: { key }` lookups can never match them.
+ */
+export function vaultStorageKey(key: string, ownerUserId?: string): string {
+  if (!ownerUserId) return key;
+  return `${USER_OWNED_KEY_PREFIX}${encodeURIComponent(ownerUserId)}/${key}`;
+}
+
+function logicalKey(storageKey: string, ownerUserId?: string): string {
+  if (!ownerUserId) return storageKey;
+  const prefix = vaultStorageKey('', ownerUserId);
+  return storageKey.startsWith(prefix)
+    ? storageKey.slice(prefix.length)
+    : storageKey;
+}
 
 function parseRecord(
   id: string,
   data: Record<string, unknown>,
 ): VaultRecord | null {
-  const key = typeof data.key === 'string' ? data.key : id;
+  const ownerUserId =
+    typeof data.ownerUserId === 'string' && data.ownerUserId
+      ? data.ownerUserId
+      : undefined;
+  const key = logicalKey(
+    typeof data.key === 'string' ? data.key : id,
+    ownerUserId,
+  );
   const ciphertext = typeof data.ciphertext === 'string' ? data.ciphertext : '';
   const iv = typeof data.iv === 'string' ? data.iv : '';
   const alg = data.alg;
@@ -49,6 +87,7 @@ function parseRecord(
   };
   if (typeof data.expiresAt === 'string') record.expiresAt = data.expiresAt;
   if (typeof data.orgId === 'string') record.orgId = data.orgId;
+  if (ownerUserId) record.ownerUserId = ownerUserId;
   return record;
 }
 
@@ -69,11 +108,14 @@ export function createSecretsDbStoreClient(
   const collection = encodeURIComponent(SECRETS_COLLECTION);
 
   return {
-    async get(orgId, key) {
+    async get(orgId, key, ownerUserId) {
       const res = await fetch(`${root}/collections/${collection}/query`, {
         method: 'POST',
         headers: orgHeaders(orgId),
-        body: JSON.stringify({ where: { key }, limit: 1 }),
+        body: JSON.stringify({
+          where: { key: vaultStorageKey(key, ownerUserId) },
+          limit: 1,
+        }),
       });
       if (!res.ok) {
         const detail = await res.text();
@@ -86,36 +128,27 @@ export function createSecretsDbStoreClient(
       };
       const doc = payload.items?.[0];
       if (!doc) return undefined;
-      return parseRecord(doc.id, doc.data ?? {}) ?? undefined;
+      const record = parseRecord(doc.id, doc.data ?? {});
+      if (!record || record.ownerUserId !== ownerUserId) return undefined;
+      return record;
     },
 
     async list(orgId) {
-      const res = await fetch(`${root}/collections/${collection}/query`, {
-        method: 'POST',
-        headers: orgHeaders(orgId),
-        body: JSON.stringify({ limit: SECRETS_LIST_LIMIT }),
+      return queryRecords(orgId, { limit: SECRETS_LIST_LIMIT });
+    },
+
+    async listOwnedBy(orgId, ownerUserId) {
+      return queryRecords(orgId, {
+        where: { ownerUserId },
+        limit: SECRETS_LIST_LIMIT,
       });
-      if (!res.ok) {
-        const detail = await res.text();
-        throw new Error(
-          `db-store query failed (${res.status}): ${detail || res.statusText}`,
-        );
-      }
-      const payload = (await res.json()) as {
-        items?: Array<{ id: string; data: Record<string, unknown> }>;
-      };
-      const records: VaultRecord[] = [];
-      for (const doc of payload.items ?? []) {
-        const record = parseRecord(doc.id, doc.data ?? {});
-        if (record) records.push(record);
-      }
-      return records;
     },
 
     async put(orgId, record) {
-      const existing = await this.get(orgId, record.key);
+      const existing = await this.get(orgId, record.key, record.ownerUserId);
+      const storageKey = vaultStorageKey(record.key, record.ownerUserId);
       const data: Record<string, unknown> = {
-        key: record.key,
+        key: storageKey,
         ciphertext: record.ciphertext,
         iv: record.iv,
         alg: record.alg,
@@ -123,13 +156,14 @@ export function createSecretsDbStoreClient(
         version: record.version,
       };
       if (record.expiresAt) data.expiresAt = record.expiresAt;
+      if (record.ownerUserId) data.ownerUserId = record.ownerUserId;
 
       if (existing) {
         const res = await fetch(`${root}/collections/${collection}/update`, {
           method: 'POST',
           headers: orgHeaders(orgId),
           body: JSON.stringify({
-            id: record.key,
+            id: storageKey,
             data,
             merge: false,
           }),
@@ -146,7 +180,7 @@ export function createSecretsDbStoreClient(
       const res = await fetch(`${root}/collections/${collection}/insert`, {
         method: 'POST',
         headers: orgHeaders(orgId),
-        body: JSON.stringify({ id: record.key, data }),
+        body: JSON.stringify({ id: storageKey, data }),
       });
       if (!res.ok) {
         const detail = await res.text();
@@ -157,11 +191,11 @@ export function createSecretsDbStoreClient(
       return record;
     },
 
-    async delete(orgId, key) {
+    async delete(orgId, key, ownerUserId) {
       const res = await fetch(`${root}/collections/${collection}/delete`, {
         method: 'POST',
         headers: orgHeaders(orgId),
-        body: JSON.stringify({ id: key }),
+        body: JSON.stringify({ id: vaultStorageKey(key, ownerUserId) }),
       });
       if (!res.ok) {
         const detail = await res.text();
@@ -173,4 +207,30 @@ export function createSecretsDbStoreClient(
       return (body.deleted ?? 0) > 0;
     },
   };
+
+  async function queryRecords(
+    orgId: string,
+    query: Record<string, unknown>,
+  ): Promise<VaultRecord[]> {
+    const res = await fetch(`${root}/collections/${collection}/query`, {
+      method: 'POST',
+      headers: orgHeaders(orgId),
+      body: JSON.stringify(query),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(
+        `db-store query failed (${res.status}): ${detail || res.statusText}`,
+      );
+    }
+    const payload = (await res.json()) as {
+      items?: Array<{ id: string; data: Record<string, unknown> }>;
+    };
+    const records: VaultRecord[] = [];
+    for (const doc of payload.items ?? []) {
+      const record = parseRecord(doc.id, doc.data ?? {});
+      if (record) records.push(record);
+    }
+    return records;
+  }
 }

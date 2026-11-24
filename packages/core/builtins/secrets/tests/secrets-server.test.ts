@@ -1,42 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
 import { ORG_ID_HEADER } from '@agentos/core/builtins/secrets/api/lib/constants';
-import type {
-  SecretsDbStoreClient,
-  VaultRecord,
-} from '@agentos/core/builtins/secrets/api/lib/db-store-client';
 import { handleSecretsRequest } from '@agentos/core/builtins/secrets/api/lib/handle-request';
 
-const MASTER_KEY_HEX = 'c'.repeat(64);
+import { memoryDb } from './memory-db';
 
-function memoryDb(): SecretsDbStoreClient & {
-  rows: Map<string, VaultRecord>;
-} {
-  const rows = new Map<string, VaultRecord>();
-  const id = (orgId: string, key: string) => `${orgId}::${key}`;
-  return {
-    rows,
-    async get(orgId, key) {
-      return rows.get(id(orgId, key));
-    },
-    async list(orgId) {
-      const prefix = `${orgId}::`;
-      const out: VaultRecord[] = [];
-      for (const [rowId, record] of rows) {
-        if (rowId.startsWith(prefix)) out.push(record);
-      }
-      return out;
-    },
-    async put(orgId, record) {
-      const stored = { ...record, orgId };
-      rows.set(id(orgId, record.key), stored);
-      return stored;
-    },
-    async delete(orgId, key) {
-      return rows.delete(id(orgId, key));
-    },
-  };
-}
+const MASTER_KEY_HEX = 'c'.repeat(64);
 
 function orgRequest(
   method: string,

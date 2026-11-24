@@ -10,6 +10,7 @@ import {
 } from '@agentos/core/builtins/auth/api/lib/constants';
 import { createAuth } from '@agentos/core/builtins/auth/api/lib/create-auth';
 import { handleAuthRequest } from '@agentos/core/builtins/auth/api/lib/handle-request';
+import { ensureDemoOrgMembership } from '@agentos/core/builtins/auth/api/lib/org-store';
 
 function cookieHeaderFrom(response: Response): string {
   const cookies =
@@ -555,6 +556,91 @@ describe('builtin auth server', () => {
 
     await resetCtx.close();
     rmSync(resetDir, { recursive: true, force: true });
+  });
+
+  test('remove member: admin only, purges via hook, membership gone', async () => {
+    const email = `leaver-${Date.now()}@example.com`;
+    const signUp = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-up', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password: 'password123',
+          name: 'Leaver',
+        }),
+      }),
+    );
+    expect(signUp.status).toBe(200);
+    const leaver = (await signUp.json()) as { user: { id: string } };
+    const leaverCookie = cookieHeaderFrom(signUp);
+    const demoOrgId = await ensureDemoOrgMembership(
+      ctx.db,
+      leaver.user.id,
+      undefined,
+      'viewer',
+    );
+
+    const removed: Array<{ orgId: string; userId: string }> = [];
+    ctx.onMemberRemoved = async (input) => {
+      removed.push(input);
+    };
+
+    const remove = (cookie: string, userId: string) =>
+      handleAuthRequest(
+        ctx,
+        new Request('http://127.0.0.1:6110/orgs/members/remove', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie },
+          body: JSON.stringify({ userId }),
+        }),
+      );
+
+    expect((await remove(leaverCookie, leaver.user.id)).status).toBe(403);
+
+    const adminSignIn = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-in', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: DEMO_ADMIN.email,
+          password: DEMO_ADMIN.password,
+        }),
+      }),
+    );
+    const adminCookie = cookieHeaderFrom(adminSignIn);
+    const admin = (await adminSignIn.json()) as {
+      user: { id: string };
+      orgId: string;
+    };
+    expect(admin.orgId).toBe(demoOrgId);
+
+    expect((await remove(adminCookie, admin.user.id)).status).toBe(400);
+    expect((await remove(adminCookie, 'nobody')).status).toBe(404);
+
+    const ok = await remove(adminCookie, leaver.user.id);
+    expect(ok.status).toBe(200);
+    const okBody = (await ok.json()) as {
+      removed: string;
+      members: Array<{ userId: string }>;
+    };
+    expect(okBody.removed).toBe(leaver.user.id);
+    expect(okBody.members.some((m) => m.userId === leaver.user.id)).toBe(false);
+    expect(removed).toEqual([{ orgId: admin.orgId, userId: leaver.user.id }]);
+
+    const session = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/session', {
+        headers: { cookie: leaverCookie },
+      }),
+    );
+    const sessionBody = (await session.json()) as {
+      orgs: Array<{ id: string }>;
+    };
+    expect(sessionBody.orgs.some((o) => o.id === admin.orgId)).toBe(false);
+    ctx.onMemberRemoved = undefined;
   });
 
   afterAll(async () => {

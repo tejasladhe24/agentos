@@ -80,6 +80,11 @@ export type AuthContext = {
   permissionCache?: PermissionCacheConfig;
   /** True when a defaultSSO OIDC provider was configured from env/options. */
   ssoConfigured: boolean;
+  /**
+   * Offboarding hook after `POST /orgs/members/remove` (tests override).
+   * Default purges the user's user-owned secrets in that org (ticket 104).
+   */
+  onMemberRemoved?: (input: { orgId: string; userId: string }) => Promise<void>;
 };
 
 /** True when the value is a Postgres connection URL. */

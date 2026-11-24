@@ -1,6 +1,6 @@
 # 104 — User-owned secrets in the vault
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -29,13 +29,13 @@ Allow vault secrets **owned by a single user** inside an org, readable only by t
 
 ## Done when
 
-- [ ] Vault supports `ownerUserId`; org-owned behavior unchanged
-- [ ] Other users and admins cannot read or list another user's secret (tests)
-- [ ] Peer access requires the user header
-- [ ] OAuth kit supports user-scoped token storage
-- [ ] Member removal purges user-owned secrets + emits event
-- [ ] Docs: threat model row for user-owned secrets
-- [ ] `bun run ci` green
+- [x] Vault supports `ownerUserId`; org-owned behavior unchanged
+- [x] Other users and admins cannot read or list another user's secret (tests)
+- [x] Peer access requires the user header
+- [x] OAuth kit supports user-scoped token storage
+- [x] Member removal purges user-owned secrets + emits event
+- [x] Docs: threat model row for user-owned secrets
+- [x] `bun run ci` green
 
 ## Verify
 

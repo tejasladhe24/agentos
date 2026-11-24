@@ -93,8 +93,15 @@ export type PersistOAuthTokensInput = {
   /** Vault key, e.g. `integrations/qbo`. */
   key: string;
   tokens: OAuthStoredTokens;
+  /**
+   * `org` (default): shared org connection. `user`: personal tokens readable
+   * only by `userId` (ticket 104) — e.g. a personal Google Drive mount.
+   */
+  scope?: 'org' | 'user';
+  /** Required when `scope` is `user`: the user completing the OAuth flow. */
+  userId?: string;
   env?: EnvMap;
-  init?: Omit<SecretsCallInit, 'orgId'>;
+  init?: Omit<SecretsCallInit, 'orgId' | 'ownerUserId'>;
 };
 
 function resolveOAuthStateSecret(override?: string): string {
@@ -305,12 +312,15 @@ export function toStoredTokens(
 }
 
 /**
- * Persist OAuth tokens in the per-org secrets vault (ticket 77).
+ * Persist OAuth tokens in the secrets vault (ticket 77); `scope: 'user'` → user-owned (104).
  * Value is JSON (`OAuthStoredTokens`); never log it.
  */
 export async function persistOAuthTokens(
   input: PersistOAuthTokensInput,
 ): Promise<SecretMeta> {
+  if (input.scope === 'user' && !input.userId) {
+    throw new Error('persistOAuthTokens: userId required when scope is "user"');
+  }
   const value = JSON.stringify(input.tokens);
   return putSecret(
     input.key,
@@ -319,6 +329,10 @@ export async function persistOAuthTokens(
       expiresAt: input.tokens.expiresAt,
     },
     input.env,
-    { ...input.init, orgId: input.orgId },
+    {
+      ...input.init,
+      orgId: input.orgId,
+      ...(input.scope === 'user' ? { ownerUserId: input.userId } : {}),
+    },
   );
 }

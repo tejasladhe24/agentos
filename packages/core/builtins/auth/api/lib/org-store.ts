@@ -206,6 +206,36 @@ export async function setOrgMemberRole(
   return (result.rowCount ?? 0) > 0;
 }
 
+/**
+ * Remove a member from an org and clear their active-org pointer when it
+ * referenced this org. Returns false when the user was not a member.
+ */
+export async function removeOrgMember(
+  db: AuthDb,
+  orgId: string,
+  userId: string,
+): Promise<boolean> {
+  if (db.dialect === 'sqlite') {
+    const result = db.client
+      .prepare(`DELETE FROM org_members WHERE org_id = ? AND user_id = ?`)
+      .run(orgId, userId);
+    db.client
+      .prepare(`DELETE FROM user_active_org WHERE user_id = ? AND org_id = ?`)
+      .run(userId, orgId);
+    return result.changes > 0;
+  }
+
+  const result = await db.client.query(
+    `DELETE FROM org_members WHERE org_id = $1 AND user_id = $2`,
+    [orgId, userId],
+  );
+  await db.client.query(
+    `DELETE FROM user_active_org WHERE user_id = $1 AND org_id = $2`,
+    [userId, orgId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function isOrgMember(
   db: AuthDb,
   userId: string,

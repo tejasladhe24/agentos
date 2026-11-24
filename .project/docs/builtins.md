@@ -140,12 +140,13 @@ When `AGENT_OS_GLOBAL_APP_ORIGIN` or `AGENT_OS_EXT_AUTH_BASE_URL` is `https:`, a
 
 **Role admin APIs** (require permission `auth.roles.manage` — seeded on `admin` / `owner`):
 
-| Method | Path                                    | Role                                                    |
-| ------ | --------------------------------------- | ------------------------------------------------------- |
-| `GET`  | `/api/ext/auth/roles`                   | Role catalog + `role_permissions` rows                  |
-| `GET`  | `/api/ext/auth/orgs/members`            | Members of the active org with roles                    |
-| `POST` | `/api/ext/auth/orgs/members/roles`      | `{ userId, role }` — set org membership role            |
-| `PUT`  | `/api/ext/auth/roles/:role/permissions` | `{ permissions: string[] }` — replace grants for a role |
+| Method | Path                                    | Role                                                          |
+| ------ | --------------------------------------- | ------------------------------------------------------------- |
+| `GET`  | `/api/ext/auth/roles`                   | Role catalog + `role_permissions` rows                        |
+| `GET`  | `/api/ext/auth/orgs/members`            | Members of the active org with roles                          |
+| `POST` | `/api/ext/auth/orgs/members/roles`      | `{ userId, role }` — set org membership role                  |
+| `POST` | `/api/ext/auth/orgs/members/remove`     | `{ userId }` — remove member; purges their user-owned secrets |
+| `PUT`  | `/api/ext/auth/roles/:role/permissions` | `{ permissions: string[] }` — replace grants for a role       |
 
 Permission checks resolve **active org membership role** plus global `user_roles`. Seeded roles: `admin`, `owner`, `reviewer`, `sales`, `viewer`, `external_viewer`. Product permissions (e.g. `trustdesk.*`) are added by apps via the permissions PUT.
 
@@ -285,13 +286,14 @@ Builtin **`secrets`** stores OAuth refresh tokens and API keys **per org** in db
 
 **Resolve order (GET by key):** vault decrypt for the active org → env fallback (`AGENT_OS_EXT_SECRETS_MAP` or `AGENT_OS_EXT_SECRETS_<KEY>`).
 
-| Method   | Path                      | Role                                                                                                              |
-| -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/ext/secrets`        | List vault **metadata only** (`key`, `updatedAt`, `expiresAt`, `hasValue`) + `orgId` / `canWrite`; `secrets.read` |
-| `GET`    | `/api/ext/secrets/:key`   | Vault (needs org) then env fallback; permission `secrets.read` when session cookie                                |
-| `PUT`    | `/api/ext/secrets/:key`   | `{ value, expiresAt? }` — encrypt + upsert; `secrets.write` / peer org header                                     |
-| `DELETE` | `/api/ext/secrets/:key`   | Remove vault row; `secrets.write` / peer org header                                                               |
-| `GET`    | `/api/ext/secrets/health` | `{ ok, vault, masterKey }`                                                                                        |
+| Method   | Path                                   | Role                                                                                                              |
+| -------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `GET`    | `/api/ext/secrets`                     | List vault **metadata only** (`key`, `updatedAt`, `expiresAt`, `hasValue`) + `orgId` / `canWrite`; `secrets.read` |
+| `GET`    | `/api/ext/secrets/:key`                | Vault (needs org) then env fallback; permission `secrets.read` when session cookie                                |
+| `PUT`    | `/api/ext/secrets/:key`                | `{ value, expiresAt? }` — encrypt + upsert; `secrets.write` / peer org header                                     |
+| `DELETE` | `/api/ext/secrets/:key`                | Remove vault row; `secrets.write` / peer org header                                                               |
+| `POST`   | `/api/ext/secrets/users/:userId/purge` | Peer only: delete the user's user-owned secrets in the org; audit + `secrets.user_purged`                         |
+| `GET`    | `/api/ext/secrets/health`              | `{ ok, vault, masterKey }`                                                                                        |
 
 **List notes:** Env-fallback-only keys are **not** listed (v1). List never returns plaintext, ciphertext, or IVs. Key names must match `^[a-zA-Z][a-zA-Z0-9._/-]{0,127}$`.
 
@@ -299,15 +301,26 @@ Builtin **`secrets`** stores OAuth refresh tokens and API keys **per org** in db
 
 **Org context:** auth session cookie `orgId`, or peer header `X-AgentOS-Org-Id` (services / FDE). Session callers need RBAC; peer header is trusted (same pattern as db-store). Kit: `listSecrets` / `getSecret` / `putSecret` / `deleteSecret` from `@agentos/core/api/secrets` with `{ orgId }` or forwarded `cookie`.
 
+**User-owned secrets (ticket 104):** add `?ownerUserId=<userId>` to `GET` / `PUT` / `DELETE /secrets/:key` to address a secret owned by one user inside the org (personal OAuth tokens such as Google Drive / OneDrive mounts).
+
+- Session callers: allowed only when the session user **is** the owner. `secrets.read` / `secrets.write` (including admin/owner `*`) never grant access to another user's secret → **403**.
+- Peer callers: must send `X-AgentOS-User-Id: <ownerUserId>` with `X-AgentOS-Org-Id`. Builtins/services forward the user of the **current request** only — never from background jobs.
+- No env fallback for user-owned keys. `GET /secrets` **excludes** user-owned rows for everyone (including the owner); personal tokens are managed by the feature that created them.
+- Storage: same collection + master key; db-store row id / `key` is namespaced `~u/<userId>/<key>` with `ownerUserId` on the row, so org-scoped lookups can never match a user row.
+- Kit: `SecretsCallInit.ownerUserId` (TS) / `owner_user_id=` (Python). OAuth kit: `persistOAuthTokens({ scope: 'user', userId })` / `persist_oauth_tokens(scope="user", user_id=…)`.
+- **Offboarding:** `POST /api/ext/auth/orgs/members/remove` deletes the membership, then calls `purgeUserSecrets` → secrets deletes that user's rows for the org, appends audit `secrets.user_purged` (`{ ownerUserId, count }`, no values), and publishes topic **`secrets.user_purged`** `{ orgId, userId, count, purgedAt }` (consumers such as files disconnect personal mounts). Purge is best-effort from auth (logged on failure); re-run with `purgeUserSecrets(userId, orgId)`.
+- Audit: `secrets.put` / `secrets.delete` meta include `ownerUserId` when present; entries are stamped with the org.
+
 **Threat model (v1)**
 
-| Asset                        | Control                                                                    |
-| ---------------------------- | -------------------------------------------------------------------------- |
-| Vault ciphertext in db-store | AES-256-GCM; unique IV per write; master key never in documents            |
-| Master key                   | Process env only (`AGENT_OS_EXT_SECRETS_MASTER_KEY`); rotate by re-encrypt |
-| Cross-org read               | db-store `org_id` filter + secrets checks `orgId` on the row               |
-| Bootstrap / local demos      | Env map / per-key env still work without a master key (read-only)          |
-| Config misuse                | Never put customer tokens in `agentos.config.ts`                           |
+| Asset                        | Control                                                                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Vault ciphertext in db-store | AES-256-GCM; unique IV per write; master key never in documents                                                        |
+| Master key                   | Process env only (`AGENT_OS_EXT_SECRETS_MASTER_KEY`); rotate by re-encrypt                                             |
+| Cross-org read               | db-store `org_id` filter + secrets checks `orgId` on the row                                                           |
+| User-owned secrets           | Owner-only (session user or peer `X-AgentOS-User-Id`); RBAC never grants; excluded from list; purged on member removal |
+| Bootstrap / local demos      | Env map / per-key env still work without a master key (read-only)                                                      |
+| Config misuse                | Never put customer tokens in `agentos.config.ts`                                                                       |
 
 KMS (Cloudflare / AWS) can wrap the master key later; the vault API stays the same.
 
