@@ -1,6 +1,6 @@
 # 105 — Email + SMS sending BYOK (notifications)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -37,12 +37,12 @@ Let an org send email and SMS through **its own provider account** (Resend or Cl
 
 ## Done when
 
-- [ ] Email + SMS resolved per org with env fallback
-- [ ] Resend, Cloudflare, Twilio configurable from Settings; test connection works
-- [ ] Delivery records show org vs platform source
-- [ ] Tests: org key used when set, env when unset, invalid key → clear delivery error
-- [ ] Docs: notifications env section notes the per-org override
-- [ ] `bun run ci` green
+- [x] Email + SMS resolved per org with env fallback
+- [x] Resend, Cloudflare, Twilio configurable from Settings; test connection works
+- [x] Delivery records show org vs platform source
+- [x] Tests: org key used when set, env when unset, invalid key → clear delivery error
+- [x] Docs: notifications env section notes the per-org override
+- [x] `bun run ci` green
 
 ## Verify
 

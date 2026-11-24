@@ -10,6 +10,9 @@ import {
   readJsonBody,
   unavailable,
 } from './http';
+import type { IntegrationsKit } from '@agentos/core/api/integrations';
+
+import { resolveChannelProvider } from './integrations';
 import type { NotificationProviders } from './providers/create-providers';
 import type {
   DeliveryChannel,
@@ -25,6 +28,9 @@ import { renderNotificationContent } from './templates/render';
 export type NotifyRouteDeps = {
   store: NotifyStore;
   providers?: NotificationProviders;
+  /** Per-org BYOK resolution (ticket 105); omit for env-only providers. */
+  integrations?: IntegrationsKit;
+  fetchImpl?: typeof fetch;
   runtimeEnv?: Record<string, string | undefined>;
   resolveOrg?: (
     request: Request,
@@ -239,10 +245,16 @@ export async function handleNotify(
       return json({ ok: true, notification: entry });
     }
 
-    const provider =
-      channel === 'email' ? deps.providers?.email : deps.providers?.sms;
+    const { provider, source } = await resolveChannelProvider({
+      channel,
+      orgId: orgId || undefined,
+      integrations: deps.integrations,
+      platform: deps.providers,
+      fetchImpl: deps.fetchImpl,
+    });
     if (!provider) {
       entry = await deps.store.markStatus(entry.id, 'failed', {
+        source,
         error: `no ${channel} provider configured`,
       });
       return json({ ok: true, notification: entry });
@@ -258,8 +270,8 @@ export async function handleNotify(
       entry.id,
       result.ok ? 'sent' : 'failed',
       result.ok
-        ? { provider: result.provider }
-        : { provider: result.provider, error: result.error },
+        ? { provider: result.provider, source }
+        : { provider: result.provider, source, error: result.error },
     );
     return json({ ok: true, notification: entry });
   } catch (error) {

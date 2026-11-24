@@ -40,9 +40,17 @@ export type DeliveryEntry = {
   subject?: string;
   orgId?: string;
   provider?: string;
+  /** `org` = sent with the org's own provider key (BYOK). */
+  source?: 'org' | 'platform';
   error?: string;
   sentAt?: string;
 };
+
+export function deliverySourceLabel(source?: string): string | null {
+  if (source === 'org') return 'Your key';
+  if (source === 'platform') return 'Platform default';
+  return null;
+}
 
 export function parseErrorBody(body: string, fallback: string): string {
   try {

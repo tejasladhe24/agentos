@@ -1,4 +1,9 @@
-import type { ChannelProvider, SendPayload, SendResult } from './types';
+import {
+  describeProviderFailure,
+  type ChannelProvider,
+  type SendPayload,
+  type SendResult,
+} from './types';
 
 export type CloudflareEmailConfig = {
   /** Cloudflare account id (path segment). */
@@ -7,6 +12,7 @@ export type CloudflareEmailConfig = {
   apiToken: string;
   from: string;
   fetchImpl?: typeof fetch;
+  missingConfigError?: string;
 };
 
 /**
@@ -26,6 +32,7 @@ export function createCloudflareEmailProvider(
           ok: false,
           provider: 'cloudflare',
           error:
+            config.missingConfigError ??
             'Cloudflare email requires AGENT_OS_EXT_NOTIFICATIONS_EMAIL_ACCOUNT_ID, EMAIL_API_KEY, and EMAIL_FROM',
         };
       }
@@ -49,7 +56,11 @@ export function createCloudflareEmailProvider(
           return {
             ok: false,
             provider: 'cloudflare',
-            error: `Cloudflare ${res.status}: ${detail || res.statusText}`,
+            error: describeProviderFailure(
+              'Cloudflare',
+              res.status,
+              detail || res.statusText,
+            ),
           };
         }
         try {
@@ -71,6 +82,43 @@ export function createCloudflareEmailProvider(
           }
         } catch {
           // Non-JSON success body — treat HTTP ok as success.
+        }
+        return { ok: true, provider: 'cloudflare' };
+      } catch (error) {
+        return {
+          ok: false,
+          provider: 'cloudflare',
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    /** GET /accounts/{id}/tokens/verify — confirms the token is active. */
+    async verify(): Promise<SendResult> {
+      if (!config.accountId || !config.apiToken) {
+        return {
+          ok: false,
+          provider: 'cloudflare',
+          error:
+            config.missingConfigError ??
+            'Cloudflare account id and token required',
+        };
+      }
+      const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(config.accountId)}/tokens/verify`;
+      try {
+        const res = await fetchImpl(url, {
+          headers: { authorization: `Bearer ${config.apiToken}` },
+        });
+        if (!res.ok) {
+          const detail = await res.text();
+          return {
+            ok: false,
+            provider: 'cloudflare',
+            error: describeProviderFailure(
+              'Cloudflare',
+              res.status,
+              detail || res.statusText,
+            ),
+          };
         }
         return { ok: true, provider: 'cloudflare' };
       } catch (error) {

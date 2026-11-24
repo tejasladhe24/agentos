@@ -1,6 +1,7 @@
 import {
   AddressBookIcon,
   BuildingsIcon,
+  ChatTextIcon,
   CubeIcon,
   EnvelopeIcon,
   FlaskIcon,
@@ -23,6 +24,7 @@ import {
 export const EXTENSION_ICON_MAP = {
   AddressBook: AddressBookIcon,
   Buildings: BuildingsIcon,
+  ChatText: ChatTextIcon,
   Cube: CubeIcon,
   Envelope: EnvelopeIcon,
   Flask: FlaskIcon,

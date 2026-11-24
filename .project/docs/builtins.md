@@ -88,6 +88,8 @@ Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default
 | `AGENT_OS_EXT_NOTIFICATIONS_SMS_AUTH_TOKEN`   | Twilio Auth Token                                               |
 | `AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM`         | Twilio from number (E.164)                                      |
 
+**Per-org override (BYOK, ticket 105):** the env vars above are the **platform default**. An org admin can configure its own provider in **Settings → Email** (`email.send`: Resend `apiKey` + `from`, or Cloudflare `apiToken` + `from` + `accountId`) and **Settings → SMS** (`sms`: Twilio `authToken` + `accountSid` + `from`). Each email/SMS delivery resolves the org's integration per request (tenants kit, cache + `integration.changed`), falling back to the env providers when the org has none. Delivery records carry `source: "org" | "platform"` plus the provider id; the Email manager **Deliveries** detail shows **Sent via**. Settings routes live at `/api/ext/notifications/integrations/*`; **Test connection** sends a test email to the signed-in admin (email) or verifies Twilio credentials via the Account resource (SMS). Provider 401/403s surface as "credentials rejected" delivery errors.
+
 **Cloudflare Email Sending** uses the public REST API (`POST /accounts/{account_id}/email/sending/send`) — no Workers binding inside the Bun builtin. Domain must be onboarded under Email Service; token needs **Email Sending Write**.
 
 **API**

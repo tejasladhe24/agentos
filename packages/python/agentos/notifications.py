@@ -37,6 +37,7 @@ class NotificationEntry(BaseModel):
     subject: str | None = None
     orgId: str | None = None
     provider: str | None = None
+    source: str | None = None
     error: str | None = None
     sentAt: str | None = None
 

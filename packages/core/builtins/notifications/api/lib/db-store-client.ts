@@ -16,6 +16,8 @@ export type NotificationEntry = {
   subject?: string;
   orgId?: string;
   provider?: string;
+  /** Who sent it: the org's own provider (BYOK) or the platform env. */
+  source?: 'org' | 'platform';
   error?: string;
   sentAt?: string;
 };
@@ -62,6 +64,9 @@ function parseEntry(
   if (typeof data.subject === 'string') entry.subject = data.subject;
   if (typeof data.orgId === 'string') entry.orgId = data.orgId;
   if (typeof data.provider === 'string') entry.provider = data.provider;
+  if (data.source === 'org' || data.source === 'platform') {
+    entry.source = data.source;
+  }
   if (typeof data.error === 'string') entry.error = data.error;
   if (typeof data.sentAt === 'string') entry.sentAt = data.sentAt;
   return entry;

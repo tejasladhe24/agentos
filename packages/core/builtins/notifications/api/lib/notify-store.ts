@@ -70,7 +70,7 @@ export function createNotifyStore(db: DbStoreClient, max = NOTIFICATIONS_MAX) {
       patch: Partial<
         Pick<
           NotificationEntry,
-          'provider' | 'error' | 'sentAt' | 'message' | 'subject'
+          'provider' | 'source' | 'error' | 'sentAt' | 'message' | 'subject'
         >
       > = {},
     ): Promise<NotificationEntry> {

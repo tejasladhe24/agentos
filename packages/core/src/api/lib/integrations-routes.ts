@@ -51,6 +51,8 @@ export type IntegrationDefinition = {
   test?: (input: {
     orgId: string;
     config: ResolvedIntegration | null;
+    /** Session user (email when known) — e.g. recipient of a test message. */
+    actor?: string;
   }) => Promise<IntegrationTestResult>;
 };
 
@@ -404,7 +406,7 @@ async function handleTest(
 
   let result: IntegrationTestResult;
   try {
-    result = await def.test({ orgId: org.orgId, config });
+    result = await def.test({ orgId: org.orgId, config, actor: org.actor });
   } catch (error) {
     result = {
       ok: false,
