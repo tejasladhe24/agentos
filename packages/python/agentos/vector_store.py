@@ -65,6 +65,10 @@ class DeleteResult(BaseModel):
     deleted: int
 
 
+class VectorStoreStats(BaseModel):
+    vectors: int
+
+
 class VectorStoreHealth(BaseModel):
     ok: bool
     mode: str
@@ -142,3 +146,16 @@ async def delete(
         headers=_headers(org_id),
     )
     return DeleteResult.model_validate(data)
+
+
+async def stats(
+    *,
+    org_id: str | None = None,
+    env: EnvMap | None = None,
+) -> VectorStoreStats:
+    """Count the org's stored vectors across every index."""
+    base = resolve_vector_store_api_base(env)
+    data = await get_json(
+        f"{base}/stats", "vector-store stats", headers=_headers(org_id)
+    )
+    return VectorStoreStats.model_validate(data)

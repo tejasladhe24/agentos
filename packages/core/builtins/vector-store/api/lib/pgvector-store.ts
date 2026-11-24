@@ -183,6 +183,13 @@ export async function createPgvectorStore(
       return { deleted: result.count };
     },
 
+    async stats(orgId) {
+      const [row] = await sql<{ vectors: number }[]>`
+        SELECT COUNT(*)::int AS vectors FROM vectors WHERE org_id = ${orgId}
+      `;
+      return { vectors: row?.vectors ?? 0 };
+    },
+
     async close() {
       await sql.end({ timeout: 5 });
     },

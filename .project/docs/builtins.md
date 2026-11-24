@@ -394,7 +394,7 @@ Omitted secret fields keep their stored value; switching **provider** drops secr
 
 **Audit:** `integration.put` / `integration.delete` / `integration.test` with provider and **field names** only.
 
-**UI building blocks** (`@agentos/core/client/components/integration-card`): `IntegrationCard`, `IntegrationSourceBadge` (**Using your key** / **Platform default**), `IntegrationProviderPicker`, `IntegrationSecretField` (write-only, set / not set, Replace), `IntegrationTestButton`, `IntegrationRemoveButton`. `@agentos/core/client/components/integration-section` exports `IntegrationSection` — a self-loading card for one single-instance integration that a builtin drops into its `ui/settings.tsx`.
+**UI building blocks** (`@agentos/core/client/components/integration-card`): `IntegrationCard`, `IntegrationSourceBadge` (**Using your key** / **Platform default**), `IntegrationProviderPicker`, `IntegrationSecretField` (write-only, set / not set, Replace), `IntegrationTestButton`, `IntegrationRemoveButton`. `@agentos/core/client/components/integration-section` exports `IntegrationSection` — a self-loading card for one single-instance integration that a builtin drops into its `ui/settings.tsx`. Optional `renderSetting` swaps one setting's control (e.g. a model select) and `renderExtra` adds content under the fields; switching provider keeps only the settings the new provider declares.
 
 ## Files (blob API + Drive UI)
 
@@ -515,6 +515,8 @@ Builtin **`ai`** owns platform LLM calls via Vercel AI SDK v7 ([ADR 006](./adr/0
 | `POST` | `/api/ext/ai/embed`          | Embedding vector                                                             |
 | `POST` | `/api/ext/ai/chat`           | Shell chat: composed instructions + tools                                    |
 
+Generate / embed / image / chat responses carry **`X-AgentOS-AI-Source: org | platform`** (whose key paid for the call). `/health` always describes the **platform** config.
+
 ### AI env
 
 | Variable                              | Role                                                                                                                   |
@@ -534,6 +536,36 @@ Builtin **`ai`** owns platform LLM calls via Vercel AI SDK v7 ([ADR 006](./adr/0
 **Errors:** provider 401/403 → **502** `{ code: "ai_provider_auth" }`; 429 → **503** `ai_provider_rate_limited`; other upstream failures → **502** `ai_provider_error`. Bodies never include the API key.
 
 **Per-request structure:** `createAiModels(config)` is a pure function of `{ provider, apiKey, model, embeddingModel?, imageModel?, baseUrl? }`; `getCachedAiModels(config)` memoizes by a SHA-256 config hash (bounded LRU) so per-org configs (ticket 109) reuse built models.
+
+### AI BYOK (per-org provider, ticket 109)
+
+Each request resolves the org (session cookie → active org, else peer `X-AgentOS-Org-Id`) and calls `kit.resolveProvider(orgId, 'ai', …)` ([tenant integrations](#tenant-integrations-byok-ticket-103)). An org with an **`ai`** integration uses **its** provider, key, and models; every other org (and anonymous calls) uses the platform env config above. A saved-but-broken org config (e.g. revoked key) returns the provider error — it never silently falls back to the platform key.
+
+| Integration field | Kind    | Notes                                                  |
+| ----------------- | ------- | ------------------------------------------------------ |
+| provider          | record  | `openai`, `anthropic`, `google`, `ai-gateway`          |
+| `apiKey`          | secret  | Vault `integrations/ai/default/apiKey`; never returned |
+| `model`           | setting | Required chat model id                                 |
+| `embeddingModel`  | setting | Optional; not offered for `anthropic`                  |
+| `imageModel`      | setting | Optional; not offered for `anthropic`                  |
+| `baseUrl`         | setting | Optional regional / proxy endpoint (absolute URL)      |
+
+Routes (on top of the shared [`/integrations/*` routes](#tenant-integrations-byok-ticket-103)):
+
+| Method | Path                                           | Role                                                                                                                                                                                                           |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/ext/ai/integrations/ai/models`           | `{ provider, apiKey?, baseUrl? }` → `{ models: { language, embedding, image } }`; needs `integrations.manage`. Without `apiKey` uses the saved org key for the same provider; the AI Gateway catalog is public |
+| `GET`  | `/api/ext/ai/integrations/ai/embedding-status` | `{ current, platform, vectors, locked }` — the org's embedding model identity and stored vector count                                                                                                          |
+
+`PUT` validates the draft with the provider factory (unknown provider, capability mismatch, bad base URL → **400**). `POST …/test` runs a short completion (`Reply with the single word OK.`) on the draft, saved, or platform config.
+
+**Embedding consistency:** vectors from different embedding models are not comparable, so the embedding identity (`<provider>:<embeddingModel>`) is locked while the org has stored vectors (vector-store `GET /stats`). A `PUT` or `DELETE` that would change it answers **409** `{ code: "ai_embedding_model_locked", vectors, current, next }`; delete or re-embed the vectors first. Changes that keep the identity (chat model, key rotation) or drop embeddings entirely are allowed. If the vector count cannot be read the change is refused with **503** `ai_embedding_check_failed`.
+
+**Rotation:** saves/removals invalidate the kit cache in-process and publish `integration.changed` (other replicas drop their cache; TTL 30s bounds staleness). Built models are keyed by config hash, so a new key or model takes effect on the next request without a restart.
+
+**Usage attribution:** every real-provider call appends an **`ai.usage`** audit entry to the org's Activity log: `resource` = operation (`generate-text` / `generate-image` / `embed` / `chat`), `meta` = `{ source: 'org' | 'platform', provider, model, inputTokens?, outputTokens? }`. Mock calls and calls without an org are not recorded. Recording is best-effort and never fails the AI call.
+
+**Settings › AI** (`builtins/ai/ui/settings.tsx`) uses the shared `IntegrationSection`: provider picker, model selects filled from the provider's model list (**Load models**, automatic with a saved key or for the AI Gateway; **Other model id…** for unlisted ids), write-only key, source badge, Test, Remove, and an embedding-lock warning.
 
 **Data policy:** customer documents are never used for training. Where the provider exposes a per-request switch the builtin sets it: OpenAI Responses `store: false` (no 30-day response storage); AI Gateway `disallowPromptTraining: true` (+ `zeroDataRetention` when enabled). OpenAI and Anthropic do not train on API traffic by default; use a **paid** Gemini API tier for Google (free-tier prompts may be used to improve Google products). Configure org-level zero-retention agreements with the provider where required.
 
@@ -561,6 +593,7 @@ Builtin **`vector-store`** owns embedding **storage and similarity search** only
 | `POST` | `/api/ext/vector-store/indexes/:name/upsert` | `{ items: [{ id, embedding, content?, metadata? }] }`                                     |
 | `POST` | `/api/ext/vector-store/indexes/:name/query`  | `{ embedding, topK?, filter? }` → cosine hits with optional flat metadata equality filter |
 | `POST` | `/api/ext/vector-store/indexes/:name/delete` | `{ id? \| ids? }`                                                                         |
+| `GET`  | `/api/ext/vector-store/stats`                | `{ vectors }` — the org's stored vectors across every index (kit `stats` / `stats()`)     |
 
 **Org context:** auth session cookie `orgId`, or peer header `X-AgentOS-Org-Id` (services / FDE). Rows are keyed by `(index_name, org_id, id)`.
 

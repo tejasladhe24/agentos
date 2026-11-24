@@ -42,6 +42,11 @@ export type DeleteResult = {
   deleted: number;
 };
 
+export type StatsResult = {
+  /** Vectors stored for the org across every index. */
+  vectors: number;
+};
+
 export type VectorStore = {
   mode: VectorStoreMode;
   dimensions: number;
@@ -60,5 +65,6 @@ export type VectorStore = {
     orgId: string,
     input: DeleteInput,
   ) => Promise<DeleteResult>;
+  stats: (orgId: string) => Promise<StatsResult>;
   close?: () => Promise<void> | void;
 };

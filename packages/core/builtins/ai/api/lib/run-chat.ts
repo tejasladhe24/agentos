@@ -1,4 +1,4 @@
-import { generateText, stepCountIs } from 'ai';
+import { generateText, stepCountIs, type LanguageModelUsage } from 'ai';
 
 import {
   buildToolsFromRegistry,
@@ -33,6 +33,7 @@ export type RunChatResult = {
   text: string;
   instructions: string;
   toolNames: string[];
+  usage?: LanguageModelUsage;
 };
 
 /** Fetch enabled agent registry from the Vite gateway. */
@@ -83,5 +84,6 @@ export async function runChat(input: RunChatInput): Promise<RunChatResult> {
     text: result.text,
     instructions,
     toolNames,
+    usage: result.totalUsage,
   };
 }

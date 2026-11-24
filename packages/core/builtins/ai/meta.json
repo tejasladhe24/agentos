@@ -3,5 +3,35 @@
   "api": {
     "language": "bun",
     "port": 6113
-  }
+  },
+  "settings": [
+    {
+      "id": "ai",
+      "label": "AI",
+      "description": "Bring your own AI provider key and models, or use the platform default.",
+      "icon": "Sparkle",
+      "group": "Workspace",
+      "keywords": [
+        "ai",
+        "llm",
+        "model",
+        "provider",
+        "openai",
+        "anthropic",
+        "google",
+        "gemini",
+        "gateway",
+        "api key",
+        "byok",
+        "embedding"
+      ],
+      "entries": [
+        {
+          "id": "ai-provider",
+          "label": "AI provider",
+          "hint": "own key byok provider model chat embedding image api key test platform default"
+        }
+      ]
+    }
+  ]
 }

@@ -134,6 +134,13 @@ describe('builtin vector-store (memory)', () => {
       }),
     );
     expect(await empty.json()).toEqual({ items: [] });
+
+    const statsA = await handle(orgRequest('GET', '/stats', 'org_a'));
+    expect(await statsA.json()).toEqual({ vectors: 0 });
+    const statsB = await handle(orgRequest('GET', '/stats', 'org_b'));
+    expect(await statsB.json()).toEqual({ vectors: 1 });
+    const statsAnon = await handle(new Request('http://127.0.0.1:6120/stats'));
+    expect(statsAnon.status).toBe(401);
   });
 
   test('rejects missing org, bad dimension, invalid index', async () => {

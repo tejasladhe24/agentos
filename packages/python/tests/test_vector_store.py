@@ -74,3 +74,16 @@ async def test_vector_store_client(monkeypatch: pytest.MonkeyPatch) -> None:
         org_id="org_a",
     )
     assert deleted.deleted == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_vector_store_stats(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGENT_OS_VECTOR_STORE_API_BASE", "http://vs.test")
+    route = respx.get("http://vs.test/stats").mock(
+        return_value=httpx.Response(200, json={"vectors": 3}),
+    )
+
+    result = await vector_store.stats(org_id="org_a")
+    assert result.vectors == 3
+    assert route.calls[-1].request.headers.get("x-agentos-org-id") == "org_a"
