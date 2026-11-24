@@ -639,10 +639,10 @@ Builtin **`vector-store`** owns embedding **storage and similarity search** only
 
 Activity Bar secondary **Email** (builtin `inbound-email` UI) is the operator surface for:
 
-| Direction                       | Builtin         | Providers                                                       |
-| ------------------------------- | --------------- | --------------------------------------------------------------- |
-| **Receive** (Inbox / Addresses) | `inbound-email` | `fixture` (local) or `resend` (platform default + per-org BYOK) |
-| **Send** (Compose / Deliveries) | `notifications` | `log` (local), `resend`, or `cloudflare` (Email Sending REST)   |
+| Direction                       | Builtin         | Providers                                                                                                        |
+| ------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Receive** (Inbox / Addresses) | `inbound-email` | `fixture` (local), `resend` (platform default + per-org BYOK), or `cloudflare` (Email Routing, platform default) |
+| **Send** (Compose / Deliveries) | `notifications` | `log` (local), `resend`, or `cloudflare` (Email Sending REST)                                                    |
 
 RBAC: `email.read` (inbox, addresses list, deliveries), `email.send` (compose + address provision). Admin/owner covered by `*`.
 
@@ -667,22 +667,37 @@ Builtin **`inbound-email`** receives provider webhooks, maps the **To / recipien
 | `POST`  | `/api/ext/inbound-email/webhooks/inbound`                | Platform default provider (whatever `PROVIDER` is)          |
 | `POST`  | `/api/ext/inbound-email/webhooks/fixture`                | Fixture provider (HMAC JSON; local/tests)                   |
 | `POST`  | `/api/ext/inbound-email/webhooks/resend`                 | Platform Resend account; org from recipient address mapping |
+| `POST`  | `/api/ext/inbound-email/webhooks/cloudflare`             | Raw MIME from the Cloudflare Email Worker (signed envelope) |
 | `POST`  | `/api/ext/inbound-email/webhooks/resend/:connectionId`   | Org's own Resend account (BYOK); org from the connection id |
 | `*`     | `/api/ext/inbound-email/integrations/email.receive[...]` | Receiving integration (`integrations.manage`; ticket 103)   |
 
 **Address mapping:** prefer `POST /addresses`, or demo env `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP=coi@inbound.example.com=org_demo`. Directory rows live in platform collection `inbound_addresses`. BYOK deliveries skip the directory: everything a connected Resend account receives belongs to that org.
 
-**`email.received` payload (stable):** `{ orgId, messageId, deliveryId, provider, from, to, subject, attachmentKeys, attachments, receivedAt }`.
+**`email.received` payload (stable):** `{ orgId, messageId, deliveryId, provider, from, to, subject, attachmentKeys, attachmentRefs, attachments, receivedAt, authentication? }`. `authentication` (`{ spf, dkim, dmarc }` verdicts) is set when the receiving MX recorded them (Cloudflare); it is also stored on the message and shown in the Inbox.
 
-| Variable                                           | Role                                                 |
-| -------------------------------------------------- | ---------------------------------------------------- |
-| `AGENT_OS_EXT_INBOUND_EMAIL_PORT`                  | Upstream port (default `6121`)                       |
-| `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER`              | Platform default: `fixture` (default) or `resend`    |
-| `AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET`        | HMAC secret for fixture webhooks                     |
-| `AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY`        | Platform Resend key (fetches received email content) |
-| `AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET` | Platform Resend webhook signing secret (`whsec_…`)   |
-| `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP`           | Demo `address=orgId` pairs (comma-separated)         |
-| `AGENT_OS_GLOBAL_APP_ORIGIN`                       | Public origin used for auto-registered webhook URLs  |
+| Variable                                           | Role                                                             |
+| -------------------------------------------------- | ---------------------------------------------------------------- |
+| `AGENT_OS_EXT_INBOUND_EMAIL_PORT`                  | Upstream port (default `6121`)                                   |
+| `AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER`              | Platform default: `fixture` (default), `resend`, or `cloudflare` |
+| `AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET`        | HMAC secret for fixture webhooks                                 |
+| `AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY`        | Platform Resend key (fetches received email content)             |
+| `AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET` | Platform Resend webhook signing secret (`whsec_…`)               |
+| `AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET`     | HMAC secret shared with the Cloudflare Email Worker              |
+| `AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN`                | Platform inbound domain; each org gets `<slug>@` it              |
+| `AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP`           | Demo `address=orgId` pairs (comma-separated)                     |
+| `AGENT_OS_GLOBAL_APP_ORIGIN`                       | Public origin used for auto-registered webhook URLs              |
+
+### Default org addresses
+
+When `AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN` is set (e.g. `in.example.com`), the first session visit to Email (Inbox or Addresses) provisions `<org-slug>@<domain>` with purpose `default` in the address directory; Addresses lists it like any other row. The slug comes from the org name (lowercased, ASCII, `-` separated; `org-<id>` if the name has no usable characters). If another org already owns the slug, the address gets a `-<first 6 chars of org id>` suffix. Peer (header) requests never provision. Renaming an org keeps its existing default address.
+
+### Cloudflare Email Routing (platform default)
+
+Cloudflare delivers mail to an **Email Worker**, not a webhook. The deploy adapter's Worker (`deploy/cloudflare/worker.ts` → `lib/email-forward.ts`) reads `message.raw` and POSTs it as `message/rfc822` to `/api/ext/inbound-email/webhooks/cloudflare` through the container binding, with headers `x-agentos-email-timestamp`, `x-agentos-email-from`, `x-agentos-email-to`, and `x-agentos-email-signature: v1=<hex>` — HMAC-SHA256 of `<timestamp>\n<from>\n<to>\n` + raw MIME with `AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET`. Any non-2xx (or an unreachable container) makes the Worker call `setReject`, so the sender gets a bounce (`Unknown recipient` for 404).
+
+The `cloudflare` provider verifies the signature (5-minute skew), parses MIME with `postal-mime`, routes **only on the envelope recipient** (header `To` is kept for display), and dedupes on `Message-ID` (or a SHA-256 of the raw message). SPF / DKIM / DMARC verdicts are read from the `Authentication-Results` header whose authserv-id is `mx.cloudflare.net` (headers from other hosts are ignored) and recorded on the message; failing verdicts are shown, not rejected.
+
+Runbook: [`deploy/cloudflare/README.md` → Inbound email](../../deploy/cloudflare/README.md#inbound-email-cloudflare-email-routing).
 
 ### Resend receiving
 

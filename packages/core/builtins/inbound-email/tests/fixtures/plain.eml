@@ -1,0 +1,12 @@
+Authentication-Results: spoofed.example; spf=pass; dkim=pass; dmarc=pass
+Authentication-Results: mx.cloudflare.net; dkim=pass header.d=example.com header.s=s1; dmarc=pass header.from=example.com policy.dmarc=none; spf=pass (mx.cloudflare.net: domain of vendor@example.com designates 192.0.2.1 as permitted sender) smtp.mailfrom=vendor@example.com
+From: Vendor Ops <vendor@example.com>
+To: Acme <acme@in.example.com>
+Subject: Plain hello
+Message-ID: <plain-1@example.com>
+Date: Tue, 24 Nov 2026 10:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hello from the vendor — café.

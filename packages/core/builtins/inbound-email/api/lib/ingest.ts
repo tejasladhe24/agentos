@@ -32,7 +32,9 @@ export async function ingestInboundEmail(
   email: NormalizedInboundEmail,
   target: { orgId?: string } = {},
 ): Promise<IngestResult> {
-  const orgId = target.orgId ?? (await deps.addresses.resolveOrgId(email.to));
+  const orgId =
+    target.orgId ??
+    (await deps.addresses.resolveOrgId(email.routeTo ?? email.to));
   if (!orgId) {
     throw new IngestError('unknown_recipient', 'no org mapped for recipient');
   }
@@ -76,6 +78,7 @@ export async function ingestInboundEmail(
       html: email.html,
       attachments,
       receivedAt: new Date().toISOString(),
+      ...(email.authentication ? { authentication: email.authentication } : {}),
     };
 
     await deps.messages.insertMessage(message);
@@ -92,6 +95,9 @@ export async function ingestInboundEmail(
       attachmentRefs: attachments.map((a) => a.ref),
       attachments,
       receivedAt: message.receivedAt,
+      ...(message.authentication
+        ? { authentication: message.authentication }
+        : {}),
     });
 
     return {

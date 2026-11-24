@@ -34,6 +34,8 @@ export type InboundEmailDeps = IngestDeps & {
   connections?: ConnectionStore;
   integrations?: Pick<IntegrationsKit, 'getIntegration'>;
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
+  /** Platform inbound domain; each org gets `<slug>@<domain>` on first visit. */
+  inboundDomain?: string;
   runtimeEnv?: Record<string, string | undefined>;
   resolveOrg?: (
     request: Request,
@@ -72,6 +74,21 @@ async function ensurePermission(
   return null;
 }
 
+/** Session visits provision the org's default address (best-effort). */
+async function ensureDefaultAddress(
+  deps: InboundEmailDeps,
+  org: Extract<ResolveOrgResult, { ok: true }>,
+): Promise<void> {
+  if (!deps.inboundDomain || org.via !== 'session') return;
+  await deps.addresses
+    .ensureDefault({
+      orgId: org.orgId,
+      orgName: org.orgName,
+      domain: deps.inboundDomain,
+    })
+    .catch(() => undefined);
+}
+
 export async function handleHealth(deps: InboundEmailDeps): Promise<Response> {
   return json({
     ok: true,
@@ -95,6 +112,7 @@ export async function handleListAddresses(
     PERMISSION_EMAIL_READ,
   );
   if (denied) return denied;
+  await ensureDefaultAddress(deps, org);
   try {
     const addresses = await deps.addresses.list(org.orgId);
     return json({ addresses });
@@ -171,6 +189,7 @@ export async function handleListMessages(
     PERMISSION_EMAIL_READ,
   );
   if (denied) return denied;
+  await ensureDefaultAddress(deps, org);
 
   const url = new URL(request.url);
   const limitRaw = Number(url.searchParams.get('limit') ?? MESSAGES_PAGE_MAX);
@@ -266,9 +285,9 @@ export async function handleWebhook(
   provider: InboundEmailProvider = deps.provider,
   target: { orgId?: string } = {},
 ): Promise<Response> {
-  let rawBody: string;
+  let rawBody: Uint8Array;
   try {
-    rawBody = await request.text();
+    rawBody = new Uint8Array(await request.arrayBuffer());
   } catch {
     return json({ error: 'invalid_body' }, { status: 400 });
   }
@@ -402,6 +421,11 @@ export const EXACT_ROUTES: ExactRoute[] = [
     method: 'POST',
     path: '/webhooks/fixture',
     handle: handleNamedWebhook('fixture'),
+  },
+  {
+    method: 'POST',
+    path: '/webhooks/cloudflare',
+    handle: handleNamedWebhook('cloudflare'),
   },
 ];
 

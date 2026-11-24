@@ -33,4 +33,13 @@ interface Env {
   AGENT_OS_EXT_AI_BASE_URL?: string;
   AGENT_OS_EXT_AI_ZERO_DATA_RETENTION?: string;
   AGENT_OS_EXT_AI_GATEWAY_URL?: string;
+
+  /** `fixture` | `resend` | `cloudflare` (Email Routing via this Worker's `email()`). */
+  AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER?: string;
+  /** HMAC secret shared by `email()` and the inbound-email builtin. Prefer secret. */
+  AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET?: string;
+  /** Platform inbound domain, e.g. `in.example.com` (orgs get `<slug>@` there). */
+  AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN?: string;
+  AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY?: string;
+  AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET?: string;
 }

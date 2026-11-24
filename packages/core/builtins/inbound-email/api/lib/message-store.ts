@@ -1,5 +1,9 @@
 import { MESSAGES_COLLECTION, MESSAGES_PAGE_MAX } from './constants';
-import type { InboundMessage, StoredAttachment } from './types';
+import type {
+  EmailAuthentication,
+  InboundMessage,
+  StoredAttachment,
+} from './types';
 
 export type ListMessagesQuery = {
   orgId: string;
@@ -69,6 +73,15 @@ function parseRow(
   };
   if (typeof data.readAt === 'string' && data.readAt.length > 0) {
     row.readAt = data.readAt;
+  }
+  const auth = data.authentication;
+  if (auth && typeof auth === 'object' && !Array.isArray(auth)) {
+    const verdicts: EmailAuthentication = {};
+    for (const key of ['spf', 'dkim', 'dmarc'] as const) {
+      const value = (auth as Record<string, unknown>)[key];
+      if (typeof value === 'string') verdicts[key] = value;
+    }
+    row.authentication = verdicts;
   }
   return row;
 }

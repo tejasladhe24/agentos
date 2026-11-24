@@ -44,6 +44,7 @@ class InboundMessage(BaseModel):
     attachments: list[StoredAttachment] = Field(default_factory=list)
     receivedAt: str
     readAt: str | None = None
+    authentication: dict[str, str] | None = None
 
     model_config = {"populate_by_name": True}
 

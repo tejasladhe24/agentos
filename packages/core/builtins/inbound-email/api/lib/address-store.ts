@@ -16,7 +16,33 @@ export type AddressStore = {
     purpose?: string;
   }) => Promise<InboundAddress>;
   list: (orgId?: string) => Promise<InboundAddress[]>;
+  /**
+   * Provision the org's `<slug>@<domain>` address once (purpose `default`).
+   * A slug taken by another org gets an org-id suffix.
+   */
+  ensureDefault: (input: {
+    orgId: string;
+    orgName?: string;
+    domain: string;
+  }) => Promise<InboundAddress | undefined>;
 };
+
+export const DEFAULT_ADDRESS_PURPOSE = 'default';
+
+/** Mailbox-safe local part from the org name, else from the org id. */
+export function orgAddressSlug(orgName: string | undefined, orgId: string) {
+  const fromName = (orgName ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
+  if (fromName) return fromName;
+  const compact = orgId.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return `org-${compact.slice(0, 12) || 'unknown'}`;
+}
 
 function parseRow(
   id: string,
@@ -111,7 +137,8 @@ export function createAddressStore(
   db: AddressDb,
   envMap: Map<string, string> = new Map(),
 ): AddressStore {
-  return {
+  const ensured = new Map<string, InboundAddress>();
+  const store: AddressStore = {
     async resolveOrgId(recipients) {
       for (const raw of recipients) {
         const address = normalizeAddress(raw);
@@ -166,5 +193,45 @@ export function createAddressStore(
           : merged;
       return filtered.sort((a, b) => a.address.localeCompare(b.address));
     },
+
+    async ensureDefault({ orgId, orgName, domain }) {
+      const host = domain.trim().toLowerCase().replace(/^@/, '');
+      if (!host) return undefined;
+      const cached = ensured.get(orgId);
+      if (cached?.address.endsWith(`@${host}`)) return cached;
+      const rows = await store.list(orgId);
+      const existing = rows.find(
+        (r) =>
+          r.purpose === DEFAULT_ADDRESS_PURPOSE &&
+          r.address.endsWith(`@${host}`),
+      );
+      if (existing) {
+        ensured.set(orgId, existing);
+        return existing;
+      }
+      const slug = orgAddressSlug(orgName, orgId);
+      const suffix = orgId
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .slice(0, 6);
+      for (const local of [slug, `${slug}-${suffix}`]) {
+        const address = `${local}@${host}`;
+        const taken = await db.findByAddress(address).catch(() => undefined);
+        if (taken && taken.orgId !== orgId) continue;
+        const row =
+          taken ??
+          (await db.insertAddress({
+            id: crypto.randomUUID(),
+            address,
+            orgId,
+            purpose: DEFAULT_ADDRESS_PURPOSE,
+            createdAt: new Date().toISOString(),
+          }));
+        ensured.set(orgId, row);
+        return row;
+      }
+      return undefined;
+    },
   };
+  return store;
 }

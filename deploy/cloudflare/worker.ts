@@ -6,6 +6,7 @@
  */
 import { DurableObject } from 'cloudflare:workers';
 
+import { forwardEmail } from './lib/email-forward';
 import { collectContainerEnv } from './lib/forward-env';
 
 const CONTAINER_PORT = 8080;
@@ -116,5 +117,13 @@ export default {
   fetch(request: Request, env: Env): Promise<Response> {
     // Singleton DO → one container (wrangler max_instances: 1).
     return env.AGENT_OS_CONTAINER.getByName(SINGLETON_NAME).fetch(request);
+  },
+  // Email Routing catch-all on the inbound domain → signed raw MIME to inbound-email.
+  async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
+    await forwardEmail(message, {
+      secret: env.AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET,
+      send: (request) =>
+        env.AGENT_OS_CONTAINER.getByName(SINGLETON_NAME).fetch(request),
+    });
   },
 } satisfies ExportedHandler<Env>;
