@@ -136,10 +136,12 @@ Agents must never promote tickets to `done/` themselves.
 116. (Later) Files: more storage adapters (Dropbox, Box, Azure, …)
 117. (Later) Files: bulk move between mounts
 118. (Later) Per-org OAuth app credentials
+119. Files: streaming uploads and a higher upload cap
+120. Files: UploadThing listing from the index + SDK cleanup
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **103**–**118**. `in-progress/` — **94**–**102** (plus stale peers pending reconciliation).
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**120**. `in-progress/` — **94**–**114** (plus stale peers pending reconciliation).
 
-**BYOK + storage mounts order:** **103 → 104**; email **105 → 106 → 107**; AI **108 → 109**; files **110 → 111 → 112 → 113 → 114**. Later: **115**–**118**.
+**BYOK + storage mounts order:** **103 → 104**; email **105 → 106 → 107**; AI **108 → 109**; files **110 → 111 → 112 → 113 → 114**. Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 
