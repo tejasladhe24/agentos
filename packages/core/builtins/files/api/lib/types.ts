@@ -53,22 +53,33 @@ export type NativeTrashObject = BlobListObject & {
  * Storage backend behind a mount. Keys are absolute within the adapter
  * (the mount scope adds any org / prefix root).
  */
+export type StoragePutOptions = {
+  /** Hint for providers that store a MIME type with the object. */
+  contentType?: string;
+};
+
 export type StorageAdapter = {
   /** Provider id from the adapter registry (`filesystem`, `s3`, …). */
   provider: string;
   /** @deprecated Platform health label; use `provider`. */
-  backend: BlobStoreBackend | string;
+  backend?: BlobStoreBackend | string;
   /** Filesystem absolute root, `s3://bucket`, or provider label. */
   label: string;
   indexMode: StorageIndexMode;
   capabilities: StorageCapabilities;
-  put: (key: string, bytes: Uint8Array) => Promise<void>;
+  put: (
+    key: string,
+    bytes: Uint8Array,
+    options?: StoragePutOptions,
+  ) => Promise<void>;
   get: (key: string) => Promise<Uint8Array | null>;
   /** Remove object if present (idempotent). */
   delete: (key: string) => Promise<void>;
   list: (options: BlobListOptions) => Promise<BlobListResult>;
   /** Copy within the adapter (overwrite destination). */
   copy: (fromKey: string, toKey: string) => Promise<void>;
+  /** Same-mount rename without copying bytes (e.g. flat upload services). */
+  move?: (fromKey: string, toKey: string) => Promise<void>;
   /** Optional connectivity probe for Settings › Test. */
   test?: () => Promise<void>;
   /** Native trash (`capabilities.nativeTrash`). Returns the provider trash key. */

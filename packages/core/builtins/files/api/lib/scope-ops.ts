@@ -415,10 +415,17 @@ export async function transferObject(
   }
   const meta = await indexGet(ctx, from, fromKey);
   let bytes = meta?.bytes;
+  const contentType = meta?.contentType;
+  let moved = false;
 
   if (from.mount.id === to.mount.id) {
     if (fromKey === toKey) return;
-    await from.adapter.copy(fromKey, toKey);
+    if (options.move && from.adapter.move) {
+      await from.adapter.move(fromKey, toKey);
+      moved = true;
+    } else {
+      await from.adapter.copy(fromKey, toKey);
+    }
   } else {
     const data = await from.adapter.get(fromKey);
     if (!data) throw new BlobStoreError('not found', 404);
@@ -429,12 +436,16 @@ export async function transferObject(
         413,
       );
     }
-    await to.adapter.put(toKey, data);
+    await to.adapter.put(
+      toKey,
+      data,
+      contentType ? { contentType } : undefined,
+    );
     bytes = data.byteLength;
   }
 
   if (options.move) {
-    await from.adapter.delete(fromKey);
+    if (!moved) await from.adapter.delete(fromKey);
     await indexDelete(ctx, from, fromKey);
     invalidateLive(ctx, from);
   }

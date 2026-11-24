@@ -13,7 +13,11 @@ export type StorageProviderField = {
   id: string;
   label: string;
   /** `secret` values go to the vault and are never echoed back. */
-  type: 'text' | 'secret';
+  type: 'text' | 'secret' | 'choice';
+  /** Options for `choice` fields; the first is the default. */
+  options?: ReadonlyArray<{ value: string; label: string }>;
+  /** Required when the provider has no presets (presets list their own). */
+  required?: boolean;
   placeholder?: string;
   help?: string;
 };

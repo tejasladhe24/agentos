@@ -112,7 +112,19 @@ export function AddStorageDialog({
   const fields = selected
     ? visibleFields(selected.provider, selected.preset)
     : [];
-  const required = new Set(selected?.preset?.required ?? []);
+  const required = new Set(
+    selected?.preset?.required ??
+      fields.filter((f) => f.required).map((f) => f.id),
+  );
+
+  function valueOf(field: StorageProviderField): string {
+    return values[field.id] ?? field.options?.[0]?.value ?? '';
+  }
+
+  function setField(id: string, next: string) {
+    setValues((prev) => ({ ...prev, [id]: next }));
+    setTest({ status: 'idle' });
+  }
 
   function payload() {
     if (!selected) return null;
@@ -120,7 +132,7 @@ export function AddStorageDialog({
     const secrets: Record<string, string> = {};
     if (selected.preset) config.preset = selected.preset.id;
     for (const field of fields) {
-      const value = values[field.id]?.trim();
+      const value = valueOf(field).trim();
       if (!value) continue;
       if (field.type === 'secret') secrets[field.id] = value;
       else config[field.id] = value;
@@ -237,29 +249,53 @@ export function AddStorageDialog({
                 onChange={(e) => setName(e.target.value)}
               />
             </Field>
-            {fields.map((field) => (
-              <Field key={field.id}>
-                <FieldLabel htmlFor={`files-add-field-${field.id}`}>
-                  {field.label}
-                  {required.has(field.id) ? ' *' : ''}
-                </FieldLabel>
-                <Input
-                  id={`files-add-field-${field.id}`}
-                  type={field.type === 'secret' ? 'password' : 'text'}
-                  autoComplete="off"
-                  placeholder={field.placeholder}
-                  value={values[field.id] ?? ''}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setValues((prev) => ({ ...prev, [field.id]: next }));
-                    setTest({ status: 'idle' });
-                  }}
-                />
-                {field.help ? (
-                  <FieldDescription>{field.help}</FieldDescription>
-                ) : null}
-              </Field>
-            ))}
+            {fields.map((field) =>
+              field.type === 'choice' ? (
+                <Field key={field.id}>
+                  <FieldLabel>{field.label}</FieldLabel>
+                  <RadioGroup
+                    value={valueOf(field)}
+                    onValueChange={(v) => setField(field.id, String(v))}
+                    aria-label={field.label}
+                  >
+                    {(field.options ?? []).map((option) => (
+                      <Field key={option.value} orientation="horizontal">
+                        <RadioGroupItem
+                          value={option.value}
+                          id={`files-add-field-${field.id}-${option.value}`}
+                        />
+                        <FieldLabel
+                          htmlFor={`files-add-field-${field.id}-${option.value}`}
+                        >
+                          {option.label}
+                        </FieldLabel>
+                      </Field>
+                    ))}
+                  </RadioGroup>
+                  {field.help ? (
+                    <FieldDescription>{field.help}</FieldDescription>
+                  ) : null}
+                </Field>
+              ) : (
+                <Field key={field.id}>
+                  <FieldLabel htmlFor={`files-add-field-${field.id}`}>
+                    {field.label}
+                    {required.has(field.id) ? ' *' : ''}
+                  </FieldLabel>
+                  <Input
+                    id={`files-add-field-${field.id}`}
+                    type={field.type === 'secret' ? 'password' : 'text'}
+                    autoComplete="off"
+                    placeholder={field.placeholder}
+                    value={values[field.id] ?? ''}
+                    onChange={(e) => setField(field.id, e.target.value)}
+                  />
+                  {field.help ? (
+                    <FieldDescription>{field.help}</FieldDescription>
+                  ) : null}
+                </Field>
+              ),
+            )}
             <Field orientation="horizontal">
               <Checkbox
                 id="files-add-default"

@@ -446,6 +446,15 @@ Admins add their own buckets — any number per org — as `files.mount` / provi
 
 Bucket mounts are `indexed`. Copy/move **within a mount** uses a SigV4-signed `CopyObject` (path-style; `api/lib/s3-sign.ts`, since `Bun.S3Client` has no copy) and falls back to download + upload when the provider answers `NotImplemented`. Location settings (`preset`, `bucket`, `endpoint`, `region`, `accountId`, `projectRef`, `prefix`) are frozen while the mount holds files; keys can be rotated via `PATCH /mounts/:id { secrets }`.
 
+### Upload-service org mounts (ticket 112)
+
+| Provider      | Settings                                                         | Secret (vault)                | Notes                                                                                                                                                                                                                                                                                                                                                             |
+| ------------- | ---------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uploadthing` | `appId` (required; must match the token), `prefix`               | `token` (`UPLOADTHING_TOKEN`) | Flat storage via the official `uploadthing/server` SDK. The AgentOS path is the file name, folders are virtual (derived from names), and files carry `customId: agentos_<uuid>`. No server-side copy; **move within the mount renames in place** (`renameFiles`, same file key). Overwrite = upload new + delete old. Paths resolve through a 10 s listing cache. |
+| `vercel-blob` | `access` (`public` \| `private`), `storeId` (optional), `prefix` | `readWriteToken`              | REST API `https://vercel.com/api/blob` (API version 13). Path-like pathnames, folded `list`, server-side `copy`, reads from `<storeId>.<access>.blob.vercel-storage.com`. Writes set `x-cache-control-max-age: 60`, so a public overwrite may be served stale for up to 60 s.                                                                                     |
+
+Both run as `indexed` mounts, cap uploads at the platform 10 MiB limit, and test the connection by uploading, listing, and deleting a probe file. Errors are mapped (`token was rejected`, `store does not exist`, `token belongs to app/store …`). Adapters may implement optional `move(from, to)` for same-mount renames, and `put` receives `{ contentType }`.
+
 ### Routes (`/api/ext/files`)
 
 Blob routes take `?mount=<id>` (or `mount=default`); a `files://` ref in the path overrides it. Without either, the platform mount is used.

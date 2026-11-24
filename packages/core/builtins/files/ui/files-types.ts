@@ -46,7 +46,9 @@ export type FilesMount = {
 export type StorageProviderField = {
   id: string;
   label: string;
-  type: 'text' | 'secret';
+  type: 'text' | 'secret' | 'choice';
+  options?: Array<{ value: string; label: string }>;
+  required?: boolean;
   placeholder?: string;
   help?: string;
 };
