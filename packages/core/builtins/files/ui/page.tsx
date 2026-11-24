@@ -31,7 +31,7 @@ import {
   type FilesViewMode,
   type UploadProgressItem,
 } from './files-types';
-import { startDriveConnect } from './personal-drives';
+import { driveCopy, startDriveConnect } from './personal-drives';
 import { useFilesMount } from './use-files-mount';
 import { broadcastMountsChanged, useFilesMounts } from './use-files-mounts';
 import { useFilesPrefix } from './use-files-prefix';
@@ -393,7 +393,9 @@ export default function FilesPage() {
     }
     setSelectedKeys(new Set());
     await notifications.show(
-      section === 'bin' ? 'Permanently deleted' : 'Moved to Bin',
+      section === 'bin'
+        ? 'Permanently deleted'
+        : `Moved to ${driveCopy(mount?.provider).trash ?? 'Bin'}`,
       'info',
     );
     await loadList();
@@ -585,6 +587,9 @@ export default function FilesPage() {
       onDownload={(item, format) => void downloadItem(item, format)}
       onOpenExternal={(url) =>
         void navigation.openExternal(url).catch(() => undefined)
+      }
+      openInLabel={
+        driveCopy(mounts.find((m) => m.id === primary?.mountId)?.provider).app
       }
       onClose={() => setDetailOpen(false)}
     />

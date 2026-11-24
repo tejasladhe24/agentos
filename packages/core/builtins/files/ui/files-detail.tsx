@@ -23,6 +23,8 @@ export type FilesDetailProps = {
   /** `format` exports provider-native documents (Google Docs…). */
   onDownload: (item: FilesListItem, format?: string) => void;
   onOpenExternal?: (url: string) => void;
+  /** Provider app name for the open button (`Google`, `Microsoft 365`). */
+  openInLabel?: string;
   onClose: () => void;
 };
 
@@ -36,6 +38,7 @@ export function FilesDetail({
   previewError,
   onDownload,
   onOpenExternal,
+  openInLabel = 'provider',
   onClose,
 }: FilesDetailProps) {
   if (!open) return null;
@@ -138,7 +141,7 @@ export function FilesDetail({
                       onClick={() => onOpenExternal(primary.webUrl!)}
                     >
                       <ArrowSquareOutIcon className="size-4" aria-hidden />
-                      Open in Google
+                      Open in {openInLabel}
                     </Button>
                   ) : null}
                   {primary.exportFormats?.map((format) => (

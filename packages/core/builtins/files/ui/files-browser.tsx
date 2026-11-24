@@ -66,6 +66,7 @@ import {
   type FilesViewMode,
 } from './files-types';
 import { MountIcon } from './mount-icon';
+import { driveCopy } from './personal-drives';
 import {
   FilesUploadZone,
   type FilesUploadZoneProps,
@@ -565,7 +566,13 @@ export function FilesBrowser({
           </DialogHeader>
           <p className="text-xs text-muted-foreground">
             {personalSource
-              ? `Copies ${selectedItems.length} item(s) into org storage. Google Docs, Sheets, and Slides are exported (DOCX / XLSX / PPTX); the originals stay in your drive.`
+              ? [
+                  `Copies ${selectedItems.length} item(s) into org storage.`,
+                  driveCopy(mount?.provider).exportNote,
+                  'The originals stay in your drive.',
+                ]
+                  .filter(Boolean)
+                  .join(' ')
               : `Copies ${selectedItems.length} item(s) into another mount. Files are streamed across storage backends; originals stay in place.`}
           </p>
           <RadioGroup

@@ -1,5 +1,6 @@
 import {
   CloudIcon,
+  CloudCheckIcon,
   DatabaseIcon,
   DropboxLogoIcon,
   GoogleDriveLogoIcon,
@@ -15,6 +16,7 @@ const PROVIDER_ICONS: Record<string, Icon> = {
   uploadthing: UploadSimpleIcon,
   'vercel-blob': TriangleIcon,
   'google-drive': GoogleDriveLogoIcon,
+  onedrive: CloudCheckIcon,
   dropbox: DropboxLogoIcon,
 };
 

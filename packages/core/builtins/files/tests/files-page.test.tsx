@@ -384,6 +384,13 @@ describe('personal drives', () => {
                   personal: true,
                   connectable,
                 },
+                {
+                  id: 'onedrive',
+                  label: 'OneDrive',
+                  orgAddable: false,
+                  personal: true,
+                  connectable,
+                },
               ],
               canManage: false,
             },
@@ -398,6 +405,10 @@ describe('personal drives', () => {
     expect(html).toContain('Connect Google Drive');
     expect(html).toMatch(
       /data-connect-provider="google-drive"(?![^>]*\sdisabled="")/,
+    );
+    expect(html).toContain('Connect OneDrive');
+    expect(html).toMatch(
+      /data-connect-provider="onedrive"(?![^>]*\sdisabled="")/,
     );
     expect(render(false)).toContain('not configured on this deployment');
   });

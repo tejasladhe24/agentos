@@ -14,6 +14,7 @@ import { createFilesObjectIndex } from './lib/object-index';
 import { createFilesOrgSettingsStore } from './lib/org-settings';
 import { purgeUserMounts } from './lib/personal-mount-routes';
 import { createVaultPersonalTokenStore } from './lib/personal-tokens';
+import { createOneDriveProvider } from './lib/onedrive-provider';
 import { createS3MountProvider } from './lib/s3-mount-provider';
 import { storageProviders } from './lib/storage-providers';
 import {
@@ -46,6 +47,7 @@ for (const provider of [
   createUploadThingProvider(),
   createVercelBlobProvider(),
   createGoogleDriveProvider(),
+  createOneDriveProvider(),
 ]) {
   if (!storageProviders.get(provider.id)) storageProviders.register(provider);
 }

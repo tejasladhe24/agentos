@@ -26,6 +26,10 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
       /** Platform Google OAuth app for personal Google Drive mounts. */
       AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID: z.string().min(1).optional(),
       AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+      /** Platform Microsoft Entra app for personal OneDrive / SharePoint mounts. */
+      AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_ID: z.string().min(1).optional(),
+      AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_SECRET: z.string().min(1).optional(),
+      AGENT_OS_EXT_FILES_MICROSOFT_TENANT: z.string().min(1).optional(),
     },
     clientPrefix: 'AGENT_OS_EXT_FILES_CLIENT',
     client: {},
@@ -45,6 +49,12 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         runtimeEnv.AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID,
       AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET:
         runtimeEnv.AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET,
+      AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_ID:
+        runtimeEnv.AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_ID,
+      AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_SECRET:
+        runtimeEnv.AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_SECRET,
+      AGENT_OS_EXT_FILES_MICROSOFT_TENANT:
+        runtimeEnv.AGENT_OS_EXT_FILES_MICROSOFT_TENANT,
     },
     emptyStringAsUndefined: true,
   });

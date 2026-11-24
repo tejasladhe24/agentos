@@ -484,6 +484,27 @@ Every member can connect **their own** drive in **Settings › Files › My conn
 
 **Scope trade-off.** AgentOS requests full `drive` because users browse files they created elsewhere; `drive.file` only exposes files the app created or a Google Picker opened, which cannot back a browse-anything mount. `drive` is a **restricted** scope: until Google verifies the app (OAuth verification plus an annual third-party security assessment), the consent screen warns users, only listed test users (≤100) can connect, and testing-mode refresh tokens expire after 7 days (users see Reconnect). Apps marked **Internal** in a Google Workspace org skip verification for that org's users. Per-org OAuth apps are ticket 118.
 
+### OneDrive + SharePoint personal mounts (ticket 114)
+
+Provider `onedrive` connects a **Microsoft account** (work/school or personal) through Microsoft Graph with the same personal-mount flow, visibility, token lifecycle, and **Copy to org storage** as Google Drive. The account id is the Graph user `id`; reconnects must use the same account.
+
+- **Layout.** `OneDrive/…` is the user's own drive; `SharePoint/<site>/<library>/…` lists the document libraries of every site the user **follows** (`/me/followedSites`). Site and library names that collide get a suffix (`Marketing (marketing-emea)`). Shortcuts to items shared with the user and OneNote notebooks are not listed.
+- **Addressing.** Paths resolve with Graph path addressing (`/drives/<id>/root:/a/b`) and are cached as item ids for 30 s. OneDrive names are unique per folder (case-insensitive), so no duplicate-name scheme is needed. Listing pages use Graph `@odata.nextLink` cursors, and only `https://graph.microsoft.com/v1.0/…` cursors are accepted (the bearer token is sent to them).
+- **Uploads.** Up to 4 MiB uses a simple `PUT …/content`; larger files use an **upload session** in 3.125 MiB chunks (multiples of 320 KiB) sent to the pre-authenticated session URL **without** the bearer token. Writes use `conflictBehavior=replace`, so an overwrite becomes a new **version** of the same item. Downloads follow Graph's redirect to a pre-authenticated URL, also without the token. The adapter accepts Graph's 250 GB limit, but the platform request cap (`MAX_OBJECT_BYTES`, 10 MiB) still applies until uploads are streamed end to end.
+- **Copy / move.** Copies are server-side (`POST …/copy`, with the async monitor URL polled until `completed`), including between OneDrive and SharePoint libraries. Moves within one drive are a `PATCH` of parent and name; across drives they copy and then delete the source.
+- **Delete.** Deletes go to the **Microsoft recycle bin** and the toast says so. Graph v1.0 cannot list the OneDrive for Business / SharePoint recycle bin, so the AgentOS Bin shows nothing for this mount. Restore (`POST …/restore`) works where Graph supports it (OneDrive personal accounts); otherwise users restore in Microsoft 365.
+- **Quota.** From `/me/drive` `quota` (the user's OneDrive; SharePoint libraries count against site quota).
+- **Throttling.** `429` / `503` / `509` / `5xx` back off, honoring `Retry-After`. `423` (file locked or checked out) and `507` (storage full) map to readable errors.
+- **Disconnect.** Deletes tokens and the record. Microsoft has no per-app refresh-token revocation; users remove the app at [myapps.microsoft.com](https://myapps.microsoft.com) or [account.live.com/consent/Manage](https://account.live.com/consent/Manage).
+
+**Platform Microsoft Entra app** (one per deployment):
+
+1. Entra admin center → **App registrations** → New registration. Supported account types: **Accounts in any organizational directory and personal Microsoft accounts** (for tenant `common`).
+2. Redirect URI (platform **Web**): `<AGENT_OS_GLOBAL_APP_ORIGIN>/api/ext/files/personal-mounts/onedrive/callback`.
+3. **API permissions** → Microsoft Graph → _Delegated_: `offline_access`, `User.Read`, `Files.ReadWrite.All`, `Sites.Read.All`. None needs admin consent by default, but tenants that restrict user consent must grant it (or approve an admin-consent request). `Files.ReadWrite.All` (rather than `Files.ReadWrite`) is required to write to SharePoint libraries, and `Sites.Read.All` to list followed sites.
+4. **Certificates & secrets** → new client secret. Secrets expire (at most 24 months), so rotate before expiry.
+5. Set `AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_ID`, `AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_SECRET` (Worker secret), and optionally `AGENT_OS_EXT_FILES_MICROSOFT_TENANT` (default `common`; set a tenant id to allow only one directory). Multi-tenant apps should complete **publisher verification** so consent screens show a verified publisher.
+
 ### Routes (`/api/ext/files`)
 
 Blob routes take `?mount=<id>` (or `mount=default`); a `files://` ref in the path overrides it. Without either, the platform mount is used.
@@ -520,18 +541,21 @@ Clients: `@agentos/core/api/files` (`putBlob` / `getBlob` / `listBlobs` / `moveB
 
 Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default backend is **local filesystem** (`AGENT_OS_EXT_FILES_PATH` or OS temp `agentos-files`). When `AGENT_OS_EXT_FILES_S3_BUCKET` is set, the builtin uses Bun’s portable `S3Client` (works with **Cloudflare R2**, **AWS S3**, and **GCS** S3-compatible endpoints). Do **not** import Cloudflare R2 bindings into `@agentos/core` — ticket 62 only injects credentials into the container env.
 
-| Variable                                   | Role                                                           |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| `AGENT_OS_EXT_FILES_PATH`                  | Optional local root (ignored when S3 bucket is set)            |
-| `AGENT_OS_EXT_FILES_S3_BUCKET`             | Enables S3-compatible backend                                  |
-| `AGENT_OS_EXT_FILES_S3_ENDPOINT`           | Endpoint URL (required for R2 / GCS / MinIO; optional for AWS) |
-| `AGENT_OS_EXT_FILES_S3_REGION`             | Region (`auto` for R2; e.g. `us-east-1` for AWS)               |
-| `AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID`      | Access key (required when bucket is set)                       |
-| `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY`  | Secret key (required when bucket is set)                       |
-| `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`      | Optional session token                                         |
-| `AGENT_OS_EXT_FILES_DB_STORE_HOST`/`_PORT` | Peer db-store for metadata index (defaults `127.0.0.1:6111`)   |
-| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID`      | Platform Google OAuth app for personal Drive mounts (optional) |
-| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET`  | Its client secret                                              |
+| Variable                                     | Role                                                           |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| `AGENT_OS_EXT_FILES_PATH`                    | Optional local root (ignored when S3 bucket is set)            |
+| `AGENT_OS_EXT_FILES_S3_BUCKET`               | Enables S3-compatible backend                                  |
+| `AGENT_OS_EXT_FILES_S3_ENDPOINT`             | Endpoint URL (required for R2 / GCS / MinIO; optional for AWS) |
+| `AGENT_OS_EXT_FILES_S3_REGION`               | Region (`auto` for R2; e.g. `us-east-1` for AWS)               |
+| `AGENT_OS_EXT_FILES_S3_ACCESS_KEY_ID`        | Access key (required when bucket is set)                       |
+| `AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY`    | Secret key (required when bucket is set)                       |
+| `AGENT_OS_EXT_FILES_S3_SESSION_TOKEN`        | Optional session token                                         |
+| `AGENT_OS_EXT_FILES_DB_STORE_HOST`/`_PORT`   | Peer db-store for metadata index (defaults `127.0.0.1:6111`)   |
+| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_ID`        | Platform Google OAuth app for personal Drive mounts (optional) |
+| `AGENT_OS_EXT_FILES_GOOGLE_CLIENT_SECRET`    | Its client secret                                              |
+| `AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_ID`     | Platform Entra app for personal OneDrive / SharePoint mounts   |
+| `AGENT_OS_EXT_FILES_MICROSOFT_CLIENT_SECRET` | Its client secret                                              |
+| `AGENT_OS_EXT_FILES_MICROSOFT_TENANT`        | Entra tenant (default `common`)                                |
 
 ### Example env values
 
