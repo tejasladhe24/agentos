@@ -65,8 +65,9 @@ function envOnly(id: string): StorageProviderDefinition['create'] {
 }
 
 /**
- * Platform backends as registry entries (labels / icons for the UI). They
- * back only the built-in platform mount; org S3 mounts arrive in ticket 111.
+ * Platform-only backends as registry entries (labels / icons for the UI).
+ * `s3` is registered separately as an org-addable provider
+ * (`createS3MountProvider`); the platform mount never goes through the registry.
  */
 export const PLATFORM_STORAGE_PROVIDERS: StorageProviderDefinition[] = [
   {
@@ -75,13 +76,5 @@ export const PLATFORM_STORAGE_PROVIDERS: StorageProviderDefinition[] = [
     icon: 'HardDrives',
     orgAddable: false,
     create: envOnly('filesystem'),
-  },
-  {
-    id: 's3',
-    label: 'S3-compatible',
-    icon: 'Cloud',
-    orgAddable: false,
-    locationFields: ['bucket', 'endpoint', 'region', 'prefix'],
-    create: envOnly('s3'),
   },
 ];

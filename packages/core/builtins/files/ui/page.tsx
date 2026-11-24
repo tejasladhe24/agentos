@@ -20,6 +20,7 @@ import {
   parseErrorBody,
   parseListResponse,
   PLATFORM_MOUNT_ID,
+  resolveSelectedMount,
   type FilesBlobJson,
   type FilesListItem,
   type FilesViewMode,
@@ -70,15 +71,13 @@ export default function FilesPage() {
   const [selectedMountId, setSelectedMountId] = useFilesMount();
   const { data: mountsData, loading: mountsLoading } = useFilesMounts();
   const mounts = mountsData.mounts;
-  const mount =
-    mounts.find((m) => m.id === selectedMountId) ??
-    mounts.find((m) => m.id === PLATFORM_MOUNT_ID);
+  const mount = resolveSelectedMount(mounts, selectedMountId);
   const mountId = mount?.id ?? PLATFORM_MOUNT_ID;
 
   useEffect(() => {
     if (mountsLoading || !mounts.length) return;
-    if (!mounts.some((m) => m.id === selectedMountId)) {
-      void setSelectedMountId(PLATFORM_MOUNT_ID);
+    if (selectedMountId && !mounts.some((m) => m.id === selectedMountId)) {
+      void setSelectedMountId('');
     }
   }, [mounts, mountsLoading, selectedMountId, setSelectedMountId]);
 

@@ -8,6 +8,26 @@ export type StorageProviderContext = {
   secrets: Record<string, string>;
 };
 
+/** Form field the Settings UI renders when adding a mount. */
+export type StorageProviderField = {
+  id: string;
+  label: string;
+  /** `secret` values go to the vault and are never echoed back. */
+  type: 'text' | 'secret';
+  placeholder?: string;
+  help?: string;
+};
+
+/** Preset of a provider (e.g. Cloudflare R2 on the S3 adapter). */
+export type StorageProviderPreset = {
+  id: string;
+  label: string;
+  help?: string;
+  /** Non-secret field ids shown for this preset (secrets always shown). */
+  fields?: string[];
+  required?: string[];
+};
+
 export type StorageProviderDefinition = {
   /** Stable provider id stored on mounts (`s3`, `google-drive`, …). */
   id: string;
@@ -25,6 +45,8 @@ export type StorageProviderDefinition = {
   locationFields?: string[];
   /** Config fields stored in the vault, never in the mount record. */
   secretFields?: string[];
+  fields?: readonly StorageProviderField[];
+  presets?: readonly StorageProviderPreset[];
   create: (
     mount: FilesMount,
     ctx: StorageProviderContext,

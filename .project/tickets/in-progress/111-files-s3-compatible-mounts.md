@@ -1,6 +1,6 @@
 # 111 — Files: S3-compatible org mounts (BYOK presets)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -33,11 +33,11 @@ Let org admins add **their own buckets** as org mounts — several per org — u
 
 ## Done when
 
-- [ ] Admin can add multiple bucket mounts from presets
-- [ ] Test connection catches bad keys / missing permissions
-- [ ] Mounts appear in the sidebar; uploads go to the default mount
-- [ ] Tests: preset endpoint resolution, per-mount isolation (mocked S3)
-- [ ] `bun run ci` green
+- [x] Admin can add multiple bucket mounts from presets
+- [x] Test connection catches bad keys / missing permissions
+- [x] Mounts appear in the sidebar; uploads go to the default mount
+- [x] Tests: preset endpoint resolution, per-mount isolation (mocked S3)
+- [x] `bun run ci` green
 
 ## Verify
 

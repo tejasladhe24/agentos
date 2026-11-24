@@ -11,6 +11,7 @@ import { handleFilesRequest } from './lib/handle-request';
 import { createIntegrationsMountStore } from './lib/mount-store';
 import { createFilesObjectIndex } from './lib/object-index';
 import { createFilesOrgSettingsStore } from './lib/org-settings';
+import { createS3MountProvider } from './lib/s3-mount-provider';
 import { storageProviders } from './lib/storage-providers';
 
 const env = keys();
@@ -31,7 +32,10 @@ const store = await createBlobStore({
     : undefined,
 });
 
-for (const provider of PLATFORM_STORAGE_PROVIDERS) {
+for (const provider of [
+  ...PLATFORM_STORAGE_PROVIDERS,
+  createS3MountProvider(),
+]) {
   if (!storageProviders.get(provider.id)) storageProviders.register(provider);
 }
 

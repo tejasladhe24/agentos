@@ -286,3 +286,41 @@ describe('FilesSidebarNav', () => {
     expect(html).toContain('Bin');
   });
 });
+
+describe('AddStorageDialog fields', () => {
+  test('preset fields filter non-secret inputs; secrets always shown', async () => {
+    const { visibleFields } = await import('../ui/add-storage-dialog');
+    const provider = {
+      id: 's3',
+      label: 'S3',
+      orgAddable: true,
+      personal: false,
+      fields: [
+        { id: 'bucket', label: 'Bucket', type: 'text' as const },
+        { id: 'accountId', label: 'Account', type: 'text' as const },
+        { id: 'endpoint', label: 'Endpoint', type: 'text' as const },
+        { id: 'secretAccessKey', label: 'Secret', type: 'secret' as const },
+      ],
+    };
+    const ids = visibleFields(provider, {
+      id: 'r2',
+      label: 'R2',
+      fields: ['bucket', 'accountId'],
+    }).map((f) => f.id);
+    expect(ids).toEqual(['bucket', 'accountId', 'secretAccessKey']);
+    expect(visibleFields(provider).length).toBe(4);
+  });
+});
+
+describe('resolveSelectedMount', () => {
+  test('falls back to the org default mount when nothing is chosen', async () => {
+    const { resolveSelectedMount } = await import('../ui/files-types');
+    const mounts = [
+      { ...PLATFORM, isDefault: false },
+      { ...ARCHIVE, isDefault: true },
+    ];
+    expect(resolveSelectedMount(mounts, '')?.id).toBe('m_archive');
+    expect(resolveSelectedMount(mounts, 'platform')?.id).toBe('platform');
+    expect(resolveSelectedMount(mounts, 'gone')?.id).toBe('m_archive');
+  });
+});

@@ -43,12 +43,30 @@ export type FilesMount = {
   usage?: { files: number; bytes: number };
 };
 
+export type StorageProviderField = {
+  id: string;
+  label: string;
+  type: 'text' | 'secret';
+  placeholder?: string;
+  help?: string;
+};
+
+export type StorageProviderPreset = {
+  id: string;
+  label: string;
+  help?: string;
+  fields?: string[];
+  required?: string[];
+};
+
 export type StorageProviderInfo = {
   id: string;
   label: string;
   icon?: string;
   orgAddable: boolean;
   personal: boolean;
+  fields?: StorageProviderField[];
+  presets?: StorageProviderPreset[];
 };
 
 export type FilesMountsResponse = {
@@ -76,6 +94,18 @@ export function parseMountsResponse(body: string): FilesMountsResponse {
     providers: Array.isArray(data.providers) ? data.providers : [],
     canManage: data.canManage === true,
   };
+}
+
+/** Selected mount, else the org default (new uploads), else platform. */
+export function resolveSelectedMount(
+  mounts: FilesMount[],
+  selectedId: string,
+): FilesMount | undefined {
+  return (
+    (selectedId ? mounts.find((m) => m.id === selectedId) : undefined) ??
+    mounts.find((m) => m.isDefault) ??
+    mounts.find((m) => m.id === PLATFORM_MOUNT_ID)
+  );
 }
 
 /** Stable selection id across mounts (refs are unique; keys may collide). */

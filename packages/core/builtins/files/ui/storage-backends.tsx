@@ -32,18 +32,13 @@ import {
   DropdownMenuTrigger,
 } from '@agentos/ui/components/dropdown-menu';
 import {
-  Field,
-  FieldContent,
   FieldDescription,
   FieldError,
-  FieldLabel,
   FieldLegend,
   FieldSet,
-  FieldTitle,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 import { LoadingState } from '@agentos/ui/components/loading-state';
-import { RadioGroup, RadioGroupItem } from '@agentos/ui/components/radio-group';
 
 import {
   formatBytes,
@@ -51,6 +46,7 @@ import {
   type FilesMount,
   type FilesMountsResponse,
 } from './files-types';
+import { AddStorageDialog } from './add-storage-dialog';
 import { MountIcon } from './mount-icon';
 import { broadcastMountsChanged } from './use-files-mounts';
 
@@ -87,7 +83,6 @@ export function StorageBackends({
   const [removeTarget, setRemoveTarget] = useState<FilesMount | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [addProvider, setAddProvider] = useState('');
 
   const orgMounts = data.mounts.filter((m) => m.kind === 'org');
   const addable = data.providers.filter((p) => p.orgAddable);
@@ -283,10 +278,7 @@ export function StorageBackends({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              setAddProvider(addable[0]?.id ?? '');
-              setAddOpen(true);
-            }}
+            onClick={() => setAddOpen(true)}
           >
             <PlusIcon className="size-4" aria-hidden />
             Add storage
@@ -294,55 +286,15 @@ export function StorageBackends({
         </div>
       ) : null}
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent data-slot="files-add-storage-dialog">
-          <DialogHeader>
-            <DialogTitle>Add storage</DialogTitle>
-          </DialogHeader>
-          {addable.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No storage providers are available to connect yet. Platform
-              storage is configured by the deployment.
-            </p>
-          ) : (
-            <RadioGroup
-              value={addProvider}
-              onValueChange={(v) => setAddProvider(String(v))}
-              aria-label="Storage provider"
-            >
-              {addable.map((provider) => (
-                <FieldLabel
-                  key={provider.id}
-                  htmlFor={`files-add-${provider.id}`}
-                >
-                  <Field orientation="horizontal">
-                    <MountIcon
-                      provider={provider.id}
-                      className="size-4 shrink-0"
-                    />
-                    <FieldContent>
-                      <FieldTitle>{provider.label}</FieldTitle>
-                    </FieldContent>
-                    <RadioGroupItem
-                      value={provider.id}
-                      id={`files-add-${provider.id}`}
-                    />
-                  </Field>
-                </FieldLabel>
-              ))}
-            </RadioGroup>
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setAddOpen(false)}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddStorageDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        providers={addable}
+        onAdded={async () => {
+          broadcastMountsChanged();
+          await reload();
+        }}
+      />
 
       <Dialog
         open={renameTarget !== null}
