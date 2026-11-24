@@ -1,6 +1,6 @@
 # 96 — Files Drive-style UI (fully functional)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

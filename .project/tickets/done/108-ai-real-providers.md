@@ -1,6 +1,6 @@
 # 108 — AI: real model providers (platform env)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

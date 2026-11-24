@@ -111,38 +111,45 @@ Agents must never promote tickets to `done/` themselves.
 91. PlacementOS MVP (`examples/placementos`)
 92. ChannelGuard MVP (`examples/channelguard`)
 93. Ticket reconciliation: promote covered in-progress → done — **done** (71–87 → `done/`)
-94. Upgrade Node dependency to v24 — **in-progress**
-95. Proper loading states (extension frames, HostProvider, HITL/invoice fetch, gateway stream) — **in-progress**
-96. Files Drive-style UI (fully functional)
-97. Audit Activity manager UI (fully functional)
-98. Secrets manager UI (fully functional)
-99. Email manager UI (send + receive, fully functional) — **in-progress**
-100. Python store org context + invoice-bot tenancy fix — **in-progress**
-101. Extension-registered Settings — **in-progress**
-102. Shell keep views mounted — **in-progress**
-103. Tenant integrations foundation (BYOK: per-org records + vault refs, env fallback)
-104. User-owned secrets in the vault (personal OAuth tokens)
-105. Email + SMS sending BYOK (Resend / Cloudflare / Twilio)
-106. Inbound email via Resend (platform + BYOK, webhook auto-registration); remove Mailgun
-107. Inbound email via Cloudflare Email Worker (platform default)
-108. AI: real model providers (platform env)
-109. AI BYOK (per-org provider keys)
-110. Files: storage mounts foundation (adapters, `files://` refs, sidebar mounts)
-111. Files: S3-compatible org mounts (presets)
-112. Files: UploadThing + Vercel Blob org mounts
-113. Files: personal mounts + Google Drive
-114. Files: OneDrive + SharePoint personal mounts
+94. Upgrade Node dependency to v24 — **done**
+95. Proper loading states (extension frames, HostProvider, HITL/invoice fetch, gateway stream) — **done**
+96. Files Drive-style UI (fully functional) — **done**
+97. Audit Activity manager UI (fully functional) — **done**
+98. Secrets manager UI (fully functional) — **done**
+99. Email manager UI (send + receive, fully functional) — **done**
+100. Python store org context + invoice-bot tenancy fix — **done**
+101. Extension-registered Settings — **done**
+102. Shell keep views mounted — **done**
+103. Tenant integrations foundation (BYOK: per-org records + vault refs, env fallback) — **done**
+104. User-owned secrets in the vault (personal OAuth tokens) — **done**
+105. Email + SMS sending BYOK (Resend / Cloudflare / Twilio) — **done**
+106. Inbound email via Resend (platform + BYOK, webhook auto-registration); remove Mailgun — **done**
+107. Inbound email via Cloudflare Email Worker (platform default) — **done**
+108. AI: real model providers (platform env) — **done**
+109. AI BYOK (per-org provider keys) — **done**
+110. Files: storage mounts foundation (adapters, `files://` refs, sidebar mounts) — **done**
+111. Files: S3-compatible org mounts (presets) — **done**
+112. Files: UploadThing + Vercel Blob org mounts — **done**
+113. Files: personal mounts + Google Drive — **done**
+114. Files: OneDrive + SharePoint personal mounts — **done**
 115. (Later) Inbound email via an org's own Cloudflare account
 116. (Later) Files: more storage adapters (Dropbox, Box, Azure, …)
 117. (Later) Files: bulk move between mounts
 118. (Later) Per-org OAuth app credentials
 119. Files: streaming uploads and a higher upload cap
 120. Files: UploadThing listing from the index + SDK cleanup
-121. Operator tenancy model (deployment operators + single-org customers, invites)
+121. Tenancy presets: `saas` / `internal` / `customer-facing` (operators, org admins, delegation, invites)
+122. Ticket reconciliation: promote covered in-progress → done — **done** (94–114 → `done/`)
+123. Per-org SSO connections
+124. Per-org plans and feature toggles
+125. Usage metering, limits, and billing hooks for platform keys
+126. (Later) Per-org white-label
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**. `in-progress/` — **94**–**114** (plus stale peers pending reconciliation).
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — none.
 
-**BYOK + storage mounts order:** **103 → 104**; email **105 → 106 → 107**; AI **108 → 109**; files **110 → 111 → 112 → 113 → 114**. Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
+**BYOK + storage mounts:** **103**–**114** done (reconciled in **122**). Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
+
+**Delivery types / tenancy:** **121** first (presets `saas` / `internal` / `customer-facing`), then **123** (per-org SSO) and **124** (plans) → **125** (usage limits). **126** later. Product MVPs **88**–**92** declare their delivery type and prefer **121**.
 
 **Deploy order:** **53 → 54 → 55 → 56 → 57 → 58 → 59 → 62 → 63 → 64** (done through **64**); **60** / **61** / **67**–**69** done; finish files durability via **65** after enabling R2.
 

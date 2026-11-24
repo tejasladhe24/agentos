@@ -15,6 +15,10 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 - Ticket **74** (scheduler) — preferred; host cron workaround OK
 - Ticket **91** (PlacementOS) — start order 5th
 
+## Delivery type
+
+Your own vertical product: demo as `tenancy.preset: 'saas'` (each consumer brand is an org). Delivered to a single brand, use `internal`. Depends on ticket **121** (tenancy presets) — preferred.
+
 ## Done when
 
 - [ ] `examples/channelguard` + `map-monitor` + `services/crawler`

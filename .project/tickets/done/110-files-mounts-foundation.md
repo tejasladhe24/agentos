@@ -1,6 +1,6 @@
 # 110 — Files: storage mounts foundation
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # 97 — Audit Activity manager UI (fully functional)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

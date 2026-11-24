@@ -1,6 +1,6 @@
 # 98 — Secrets manager UI (fully functional)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

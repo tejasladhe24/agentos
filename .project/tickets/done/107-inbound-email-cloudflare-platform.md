@@ -1,6 +1,6 @@
 # 107 — Inbound email via Cloudflare Email Worker (platform default)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

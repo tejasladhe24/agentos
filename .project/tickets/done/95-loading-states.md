@@ -1,6 +1,6 @@
 # 95 — Proper loading states
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

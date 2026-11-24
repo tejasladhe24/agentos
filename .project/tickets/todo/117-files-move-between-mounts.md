@@ -4,12 +4,13 @@
 
 ## Goal
 
-Let an admin move **all files** (or a folder) from one org mount to another as a background job — e.g. before disconnecting a mount, or migrating from platform storage to the org's own bucket.
+Let an operator — or an org admin when the deployment delegates `storage` (`orgAdminCan`, ticket **121**) — move **all files** (or a folder) from one org mount to another as a background job — e.g. before disconnecting a mount, or migrating from platform storage to the org's own bucket.
 
 ## Depends on
 
 - Ticket **110** (mounts, reference counting)
 - Ticket **74** (durable jobs) — done
+- Ticket **121** (tenancy presets — who may manage org storage)
 
 ## Scope
 

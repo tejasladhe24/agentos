@@ -14,6 +14,10 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 - Ticket **72** (public routes) — candidate links as needed
 - Ticket **90** (VendorGate) — start order 4th
 
+## Delivery type
+
+Your own vertical product: demo as `tenancy.preset: 'saas'` (each staffing agency is an org; candidates use links). Delivered to one agency, use `internal`, or `customer-facing` if its hiring companies get their own portal orgs. Depends on ticket **121** (tenancy presets) — preferred.
+
 ## Done when
 
 - [ ] `examples/placementos` + core submission-packet extension

@@ -13,7 +13,12 @@ Source: [`.project/portfolio/portfolio-briefs.md`](../../portfolio/portfolio-bri
 - Ticket **71** (tenancy) — strongly preferred before demo data
 - Ticket **79** (vector-store) — preferred for cited retrieval; workaround: keyword/filter until ready
 - Ticket **74** (events + `hitl.resolved`) — preferred
-- Ticket **65** (live files/R2) — for durable uploads on deploy
+- Durable uploads on deploy: an org S3/R2 storage mount (ticket **111**, done) or platform R2 (ticket **65**)
+- Ticket **121** (tenancy presets) — preferred
+
+## Delivery type
+
+Your own vertical product: demo as `tenancy.preset: 'saas'` (each SaaS company is an org; open sign-up creates its org). The same pack can later be delivered to a client as `customer-facing` (e.g. a GRC consultancy serving many SaaS companies).
 
 ## Done when
 

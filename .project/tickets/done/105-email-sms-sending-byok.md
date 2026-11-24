@@ -1,6 +1,6 @@
 # 105 — Email + SMS sending BYOK (notifications)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
