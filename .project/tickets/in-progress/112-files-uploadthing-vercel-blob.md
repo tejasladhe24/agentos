@@ -1,6 +1,6 @@
 # 112 — Files: UploadThing and Vercel Blob org mounts
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -25,10 +25,10 @@ Add **UploadThing** and **Vercel Blob** as org mount providers.
 
 ## Done when
 
-- [ ] Both providers addable, testable, browsable, uploadable
-- [ ] Virtual folders work on UploadThing; rename/move behaves correctly
-- [ ] Tests with mocked provider APIs
-- [ ] `bun run ci` green
+- [x] Both providers addable, testable, browsable, uploadable
+- [x] Virtual folders work on UploadThing; rename/move behaves correctly
+- [x] Tests with mocked provider APIs
+- [x] `bun run ci` green
 
 ## Verify
 

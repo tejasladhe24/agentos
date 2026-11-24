@@ -13,6 +13,10 @@ import { createFilesObjectIndex } from './lib/object-index';
 import { createFilesOrgSettingsStore } from './lib/org-settings';
 import { createS3MountProvider } from './lib/s3-mount-provider';
 import { storageProviders } from './lib/storage-providers';
+import {
+  createUploadThingProvider,
+  createVercelBlobProvider,
+} from './lib/upload-service-providers';
 
 const env = keys();
 
@@ -35,6 +39,8 @@ const store = await createBlobStore({
 for (const provider of [
   ...PLATFORM_STORAGE_PROVIDERS,
   createS3MountProvider(),
+  createUploadThingProvider(),
+  createVercelBlobProvider(),
 ]) {
   if (!storageProviders.get(provider.id)) storageProviders.register(provider);
 }

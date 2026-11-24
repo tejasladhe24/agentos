@@ -261,7 +261,7 @@ export async function handleFilesRequest(
   if (method === 'GET' && path === '/health') {
     return json({
       ok: true,
-      backend: ctx.store.backend,
+      backend: ctx.store.backend ?? ctx.store.provider,
       provider: ctx.store.provider,
       label: ctx.store.label,
       index: Boolean(ctx.index),
@@ -622,7 +622,7 @@ export async function handleFilesRequest(
         );
       }
 
-      await store.put(absKey, body.bytes);
+      await store.put(absKey, body.bytes, { contentType: body.contentType });
       invalidateLive(ctx, scope);
       await indexPutLive(
         ctx,
