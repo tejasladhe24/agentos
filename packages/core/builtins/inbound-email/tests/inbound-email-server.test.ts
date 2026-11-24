@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { hmacSha256Hex } from '@agentos/core/api/hmac';
 
@@ -6,7 +9,18 @@ import type { AddressDb } from '../api/lib/address-store';
 import { createAddressStore } from '../api/lib/address-store';
 import { handleInboundEmailRequest } from '../api/lib/handle-request';
 import type { MessageDb } from '../api/lib/message-store';
-import { createMemoryIdempotencyStore } from '../api/lib/peers';
+import { createBlobStore } from '@agentos/core/builtins/files/api/lib/blob-store';
+import {
+  handleFilesRequest,
+  type FilesContext,
+} from '@agentos/core/builtins/files/api/lib/handle-request';
+import { createMemoryMountStore } from '@agentos/core/builtins/files/api/lib/mount-store';
+import { createMemoryObjectIndex } from '@agentos/core/builtins/files/api/lib/object-index';
+
+import {
+  createFilesClient,
+  createMemoryIdempotencyStore,
+} from '../api/lib/peers';
 import { createInboundProvider } from '../api/lib/providers/create-provider';
 import type {
   EventsClient,
@@ -90,9 +104,15 @@ function mockFiles(
 ): FilesClient & { blobs: Map<string, Uint8Array> } {
   return {
     blobs,
-    async putBlob(key, data, _orgId) {
+    async putBlob(path, data, orgId) {
+      const key = `orgs/${orgId}/${path}`;
       blobs.set(key, data);
-      return { key, bytes: data.byteLength };
+      return {
+        key,
+        ref: `files://platform/${path}`,
+        mountId: 'platform',
+        bytes: data.byteLength,
+      };
     },
   };
 }
@@ -316,7 +336,10 @@ describe('builtin inbound-email server', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       ok: boolean;
-      message: { orgId: string; attachments: Array<{ key: string }> };
+      message: {
+        orgId: string;
+        attachments: Array<{ key: string; ref?: string }>;
+      };
       eventId?: string;
     };
     expect(body.ok).toBe(true);
@@ -325,6 +348,9 @@ describe('builtin inbound-email server', () => {
     expect(body.message.attachments[0]!.key).toContain(
       'orgs/org_demo/inbound/',
     );
+    expect(body.message.attachments[0]!.ref).toMatch(
+      /^files:\/\/platform\/inbound\/.+-acord25\.pdf$/,
+    );
     expect(files.blobs.size).toBe(1);
     expect(messages.backing).toHaveLength(1);
     expect(events.published).toHaveLength(1);
@@ -332,9 +358,11 @@ describe('builtin inbound-email server', () => {
     const payload = events.published[0]!.payload as {
       orgId: string;
       attachmentKeys: string[];
+      attachmentRefs: string[];
     };
     expect(payload.orgId).toBe('org_demo');
     expect(payload.attachmentKeys).toHaveLength(1);
+    expect(payload.attachmentRefs[0]).toBe(body.message.attachments[0]!.ref!);
     expect(body.eventId).toBe('evt_1');
   });
 
@@ -460,5 +488,58 @@ describe('builtin inbound-email server', () => {
     expect(body.message.orgId).toBe('org_mg');
     expect(body.message.attachments).toHaveLength(1);
     expect(events.published[0]!.topic).toBe('email.received');
+  });
+
+  test('attachments land in the files builtin with a files://platform ref', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'agentos-inbound-files-'));
+    const filesCtx: FilesContext = {
+      store: await createBlobStore(root),
+      index: createMemoryObjectIndex(),
+      mounts: createMemoryMountStore(),
+    };
+    const server = Bun.serve({
+      port: 0,
+      fetch: (request) => handleFilesRequest(filesCtx, request),
+    });
+    try {
+      const secret = 'e2e-secret';
+      const { deps } = createDeps({ secret });
+      deps.files = createFilesClient(`http://127.0.0.1:${server.port}`);
+      const res = await handleInboundEmailRequest(
+        deps,
+        await signedFixtureRequest(secret, {
+          deliveryId: 'msg_e2e',
+          to: 'coi@inbound.example.com',
+          from: 'vendor@example.com',
+          subject: 'COI',
+          attachments: [
+            {
+              filename: 'coi.pdf',
+              contentType: 'application/pdf',
+              base64: btoa('%PDF'),
+            },
+          ],
+        }),
+      );
+      expect(res.status).toBe(200);
+      const att = (
+        (await res.json()) as {
+          message: { attachments: Array<{ key: string; ref: string }> };
+        }
+      ).message.attachments[0]!;
+      expect(att.key).toStartWith('orgs/org_demo/inbound/');
+      expect(att.ref).toStartWith('files://platform/inbound/');
+
+      const fetched = await handleFilesRequest(
+        filesCtx,
+        new Request(`http://127.0.0.1/blobs/${encodeURIComponent(att.ref)}`, {
+          headers: { 'x-agentos-org-id': 'org_demo' },
+        }),
+      );
+      expect(fetched.status).toBe(200);
+      expect(await fetched.text()).toBe('%PDF');
+    } finally {
+      server.stop(true);
+    }
   });
 });

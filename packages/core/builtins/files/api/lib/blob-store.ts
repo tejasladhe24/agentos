@@ -1,15 +1,31 @@
 import { createFilesystemBlobStore } from './filesystem-blob-store';
+import { MountUnavailableError } from './mounts';
 import {
   createS3BlobStore,
   type S3BlobStoreConfig,
   type S3ClientLike,
 } from './s3-blob-store';
-import type { BlobStore, BlobStoreBackend } from './types';
+import type { StorageProviderDefinition } from './storage-providers';
+import type {
+  BlobStore,
+  BlobStoreBackend,
+  StorageAdapter,
+  StorageCapabilities,
+  StorageIndexMode,
+} from './types';
 
 export { BlobStoreError } from './blob-store-error';
 export { resolveBlobPath } from './filesystem-blob-store';
 export { normalizeBlobKey } from './normalize-key';
-export type { BlobStore, BlobStoreBackend, S3BlobStoreConfig, S3ClientLike };
+export type {
+  BlobStore,
+  BlobStoreBackend,
+  S3BlobStoreConfig,
+  S3ClientLike,
+  StorageAdapter,
+  StorageCapabilities,
+  StorageIndexMode,
+};
 
 export type CreateBlobStoreOptions = {
   /** Local root when not using S3 (`AGENT_OS_EXT_FILES_PATH`). */
@@ -22,12 +38,12 @@ export type CreateBlobStoreOptions = {
 };
 
 /**
- * Create a blob store. Filesystem is the default; set `s3.bucket` for
- * durable S3-compatible object storage across restarts.
+ * Create the platform mount adapter. Filesystem is the default; set
+ * `s3.bucket` for durable S3-compatible object storage across restarts.
  */
 export async function createBlobStore(
   options: CreateBlobStoreOptions | string = {},
-): Promise<BlobStore> {
+): Promise<StorageAdapter> {
   // Back-compat: createBlobStore(rootDir) used by older call sites/tests.
   if (typeof options === 'string') {
     return createFilesystemBlobStore(options);
@@ -39,3 +55,33 @@ export async function createBlobStore(
 
   return createFilesystemBlobStore(options.path);
 }
+
+function envOnly(id: string): StorageProviderDefinition['create'] {
+  return () => {
+    throw new MountUnavailableError(
+      `${id} storage is configured by the deployment env (platform mount only)`,
+    );
+  };
+}
+
+/**
+ * Platform backends as registry entries (labels / icons for the UI). They
+ * back only the built-in platform mount; org S3 mounts arrive in ticket 111.
+ */
+export const PLATFORM_STORAGE_PROVIDERS: StorageProviderDefinition[] = [
+  {
+    id: 'filesystem',
+    label: 'Local filesystem',
+    icon: 'HardDrives',
+    orgAddable: false,
+    create: envOnly('filesystem'),
+  },
+  {
+    id: 's3',
+    label: 'S3-compatible',
+    icon: 'Cloud',
+    orgAddable: false,
+    locationFields: ['bucket', 'endpoint', 'region', 'prefix'],
+    create: envOnly('s3'),
+  },
+];

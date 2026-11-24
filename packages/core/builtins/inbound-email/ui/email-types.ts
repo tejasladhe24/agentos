@@ -2,6 +2,7 @@ export type StoredAttachment = {
   filename: string;
   contentType: string;
   key: string;
+  ref?: string;
   bytes: number;
 };
 
@@ -63,6 +64,7 @@ export function parseErrorBody(body: string, fallback: string): string {
   return body.trim() || fallback;
 }
 
+/** Files blob URL for a legacy key or `files://` reference. */
 export function filesBlobUrl(key: string): string {
   return `/api/ext/files/blobs/${encodeURIComponent(key)}`;
 }

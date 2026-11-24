@@ -13,14 +13,20 @@ import { FilesDetail } from './files-detail';
 import {
   encodeBlobPath,
   fileToBase64,
+  formatBytes,
+  itemId,
   joinPrefix,
+  mountQuery,
   parseErrorBody,
   parseListResponse,
+  PLATFORM_MOUNT_ID,
   type FilesBlobJson,
   type FilesListItem,
   type FilesViewMode,
   type UploadProgressItem,
 } from './files-types';
+import { useFilesMount } from './use-files-mount';
+import { useFilesMounts } from './use-files-mounts';
 import { useFilesPrefix } from './use-files-prefix';
 import { useFilesSection } from './use-files-section';
 
@@ -61,6 +67,26 @@ export default function FilesPage() {
   const notifications = useHostNotifications();
   const [prefix, setPrefix] = useFilesPrefix();
   const [section] = useFilesSection();
+  const [selectedMountId, setSelectedMountId] = useFilesMount();
+  const { data: mountsData, loading: mountsLoading } = useFilesMounts();
+  const mounts = mountsData.mounts;
+  const mount =
+    mounts.find((m) => m.id === selectedMountId) ??
+    mounts.find((m) => m.id === PLATFORM_MOUNT_ID);
+  const mountId = mount?.id ?? PLATFORM_MOUNT_ID;
+
+  useEffect(() => {
+    if (mountsLoading || !mounts.length) return;
+    if (!mounts.some((m) => m.id === selectedMountId)) {
+      void setSelectedMountId(PLATFORM_MOUNT_ID);
+    }
+  }, [mounts, mountsLoading, selectedMountId, setSelectedMountId]);
+
+  /** Mount owning an item (cross-mount views carry it per item). */
+  const mountOf = useCallback(
+    (item: FilesListItem) => item.mountId ?? mountId,
+    [mountId],
+  );
 
   const [items, setItems] = useState<FilesListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +127,7 @@ export default function FilesPage() {
   const previewUrlRef = useRef<string | null>(null);
 
   const selectedItems = useMemo(
-    () => items.filter((i) => selectedKeys.has(i.key)),
+    () => items.filter((i) => selectedKeys.has(itemId(i))),
     [items, selectedKeys],
   );
 
@@ -129,6 +155,7 @@ export default function FilesPage() {
       params.set('view', 'storage');
     } else {
       params.set('prefix', prefix);
+      if (mountId !== PLATFORM_MOUNT_ID) params.set('mount', mountId);
       if (activeSearch) params.set('q', activeSearch);
     }
 
@@ -148,12 +175,12 @@ export default function FilesPage() {
     const list = parseListResponse(res.body);
     setItems(list.items);
     setLoading(false);
-  }, [activeSearch, api, prefix, section]);
+  }, [activeSearch, api, mountId, prefix, section]);
 
   useEffect(() => {
     setSelectedKeys(new Set());
     setDetailOpen(false);
-  }, [section]);
+  }, [section, mountId]);
 
   useEffect(() => {
     void loadList();
@@ -173,7 +200,9 @@ export default function FilesPage() {
     void (async () => {
       setPreviewLoading(true);
       const path = encodeBlobPath(primary.relativeKey);
-      const res = await api.fetch(`/blobs/${path}?format=json`);
+      const res = await api.fetch(
+        `/blobs/${path}?format=json${mountQuery(mountOf(primary), '&')}`,
+      );
       if (cancelled) return;
       if (!res.ok) {
         setPreviewError(parseErrorBody(res.body, 'Preview failed'));
@@ -206,12 +235,14 @@ export default function FilesPage() {
       cancelled = true;
       revokePreviewUrl();
     };
-  }, [api, detailOpen, primary, revokePreviewUrl]);
+  }, [api, detailOpen, mountOf, primary, revokePreviewUrl]);
 
   async function downloadItem(item: FilesListItem) {
     if (item.kind === 'folder') return;
     const path = encodeBlobPath(item.relativeKey);
-    const res = await api.fetch(`/blobs/${path}?format=json`);
+    const res = await api.fetch(
+      `/blobs/${path}?format=json${mountQuery(mountOf(item), '&')}`,
+    );
     if (!res.ok) {
       await notifications.show(
         parseErrorBody(res.body, 'Download failed'),
@@ -240,6 +271,7 @@ export default function FilesPage() {
 
   async function onUploadFiles(files: File[]) {
     if (unauthenticated || section !== 'files') return;
+    const maxBytes = mount?.capabilities?.maxFileSize;
     const jobs: UploadProgressItem[] = files.map((file, i) => ({
       id: `${Date.now()}-${i}`,
       name: file.name,
@@ -254,10 +286,15 @@ export default function FilesPage() {
         prev.map((p) => (p.id === jobId ? { ...p, status: 'uploading' } : p)),
       );
       try {
+        if (maxBytes && file.size > maxBytes) {
+          throw new Error(
+            `exceeds ${mount?.name ?? 'storage'} limit of ${formatBytes(maxBytes)}`,
+          );
+        }
         const base64 = await fileToBase64(file);
         const key = joinPrefix(prefix, file.name);
         const path = encodeBlobPath(key);
-        const res = await api.fetch(`/blobs/${path}`, {
+        const res = await api.fetch(`/blobs/${path}${mountQuery(mountId)}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -291,7 +328,7 @@ export default function FilesPage() {
       if (item.kind === 'folder') {
         const folderPrefix = folderPrefixFor(item);
         const res = await api.fetch(
-          `/blobs?prefix=${encodeURIComponent(folderPrefix)}`,
+          `/blobs?prefix=${encodeURIComponent(folderPrefix)}${mountQuery(mountOf(item), '&')}`,
           { method: 'DELETE' },
         );
         if (!res.ok) {
@@ -303,7 +340,10 @@ export default function FilesPage() {
         }
       } else {
         const path = encodeBlobPath(item.relativeKey);
-        const res = await api.fetch(`/blobs/${path}`, { method: 'DELETE' });
+        const res = await api.fetch(
+          `/blobs/${path}${mountQuery(mountOf(item))}`,
+          { method: 'DELETE' },
+        );
         if (!res.ok) {
           await notifications.show(
             parseErrorBody(res.body, `Failed to delete ${item.name}`),
@@ -326,7 +366,10 @@ export default function FilesPage() {
       const res = await api.fetch('/blobs/restore', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ key: item.relativeKey }),
+        body: JSON.stringify({
+          key: item.relativeKey,
+          mountId: mountOf(item),
+        }),
       });
       if (!res.ok) {
         await notifications.show(
@@ -348,6 +391,7 @@ export default function FilesPage() {
       body: JSON.stringify({
         from: item.kind === 'folder' ? folderPrefixFor(item) : item.relativeKey,
         to,
+        mount: mountOf(item),
       }),
     });
     if (!res.ok) {
@@ -373,7 +417,7 @@ export default function FilesPage() {
       const res = await api.fetch('/blobs/move', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ from, to }),
+        body: JSON.stringify({ from, to, mount: mountOf(item) }),
       });
       if (!res.ok) {
         await notifications.show(
@@ -385,6 +429,50 @@ export default function FilesPage() {
     setSelectedKeys(new Set());
     await notifications.show('Move completed', 'info');
     await loadList();
+  }
+
+  async function onCopyTo(
+    itemsToCopy: FilesListItem[],
+    targetMountId: string,
+    destinationPrefix: string,
+  ) {
+    const dest = destinationPrefix.replace(/^\/+/, '').replace(/\/+$/, '');
+    const target = mounts.find((m) => m.id === targetMountId);
+    let copied = 0;
+    for (const item of itemsToCopy) {
+      const from =
+        item.kind === 'folder' ? folderPrefixFor(item) : item.relativeKey;
+      const name = `${item.name}${item.kind === 'folder' ? '/' : ''}`;
+      const res = await api.fetch('/blobs/copy', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          from,
+          to: dest ? `${dest}/${name}` : name,
+          fromMount: mountOf(item),
+          toMount: targetMountId,
+        }),
+      });
+      if (!res.ok) {
+        await notifications.show(
+          parseErrorBody(res.body, `Failed to copy ${item.name}`),
+          'error',
+        );
+        continue;
+      }
+      copied += 1;
+      if (itemsToCopy.length > 1) {
+        await notifications.show(
+          `Copying ${copied}/${itemsToCopy.length} to ${target?.name ?? 'storage'}…`,
+          'info',
+        );
+      }
+    }
+    setSelectedKeys(new Set());
+    await notifications.show(
+      `Copied ${copied} item(s) to ${target?.name ?? 'storage'}`,
+      'info',
+    );
   }
 
   const disabled = unauthenticated;
@@ -417,17 +505,17 @@ export default function FilesPage() {
           setSelectedKeys(new Set());
           return;
         }
-        setSelectedKeys(new Set([item.key]));
+        setSelectedKeys(new Set([itemId(item)]));
       }}
       onToggleSelect={(item) => {
         setSelectedKeys((prev) => {
           const next = new Set(prev);
-          if (next.has(item.key)) next.delete(item.key);
-          else next.add(item.key);
+          if (next.has(itemId(item))) next.delete(itemId(item));
+          else next.add(itemId(item));
           return next;
         });
       }}
-      onSelectAll={() => setSelectedKeys(new Set(items.map((i) => i.key)))}
+      onSelectAll={() => setSelectedKeys(new Set(items.map((i) => itemId(i))))}
       onClearSelection={() => setSelectedKeys(new Set())}
       onDownloadSelected={() => {
         void (async () => {
@@ -440,6 +528,9 @@ export default function FilesPage() {
       onMove={onMove}
       onDelete={onDelete}
       onRestore={section === 'bin' ? onRestore : undefined}
+      mount={mount}
+      mounts={mounts}
+      onCopyTo={onCopyTo}
     />
   );
 

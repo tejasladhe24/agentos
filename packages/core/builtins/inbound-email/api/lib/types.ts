@@ -21,7 +21,11 @@ export type NormalizedInboundEmail = {
 export type StoredAttachment = {
   filename: string;
   contentType: string;
+  /** Storage key within the mount (legacy `orgs/<orgId>/…` for platform). */
   key: string;
+  /** Canonical `files://<mountId>/<path>` reference. */
+  ref?: string;
+  mountId?: string;
   bytes: number;
 };
 
@@ -57,11 +61,12 @@ export type IngestResult = {
 };
 
 export type FilesClient = {
+  /** Write a mount-relative path to the org's default (org-kind) mount. */
   putBlob: (
-    key: string,
+    path: string,
     data: Uint8Array,
     orgId: string,
-  ) => Promise<{ key: string; bytes: number }>;
+  ) => Promise<{ key: string; bytes: number; ref?: string; mountId?: string }>;
 };
 
 export type EventsClient = {

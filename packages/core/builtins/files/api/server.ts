@@ -1,9 +1,17 @@
+import {
+  createHttpIntegrationsBackend,
+  createIntegrationsKit,
+  watchIntegrationChanges,
+} from '@agentos/core/api/integrations';
+
 import { keys } from './env';
-import { createBlobStore } from './lib/blob-store';
+import { createBlobStore, PLATFORM_STORAGE_PROVIDERS } from './lib/blob-store';
 import { FILES_PORT } from './lib/constants';
 import { handleFilesRequest } from './lib/handle-request';
+import { createIntegrationsMountStore } from './lib/mount-store';
 import { createFilesObjectIndex } from './lib/object-index';
 import { createFilesOrgSettingsStore } from './lib/org-settings';
+import { storageProviders } from './lib/storage-providers';
 
 const env = keys();
 
@@ -23,6 +31,10 @@ const store = await createBlobStore({
     : undefined,
 });
 
+for (const provider of PLATFORM_STORAGE_PROVIDERS) {
+  if (!storageProviders.get(provider.id)) storageProviders.register(provider);
+}
+
 const dbHost =
   (Bun.env.AGENT_OS_EXT_FILES_DB_STORE_HOST as string | undefined) ??
   '127.0.0.1';
@@ -32,14 +44,25 @@ const dbPort = Number(
 const dbBase = `http://${dbHost}:${dbPort}`;
 const index = createFilesObjectIndex(dbBase);
 const settings = createFilesOrgSettingsStore(dbBase);
+const integrations = createIntegrationsKit(
+  createHttpIntegrationsBackend({ dbStoreApiBase: dbBase }),
+);
+watchIntegrationChanges(integrations);
+const mounts = createIntegrationsMountStore(integrations);
+
+const ctx = {
+  store,
+  runtimeEnv: Bun.env,
+  index,
+  settings,
+  mounts,
+  providers: storageProviders,
+};
 
 const server = Bun.serve({
   port,
   async fetch(request) {
-    return handleFilesRequest(
-      { store, runtimeEnv: Bun.env, index, settings },
-      request,
-    );
+    return handleFilesRequest(ctx, request);
   },
 });
 

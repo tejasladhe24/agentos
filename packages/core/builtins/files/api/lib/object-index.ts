@@ -1,7 +1,10 @@
 import { FILES_OBJECTS_COLLECTION, ORG_ID_HEADER } from './constants';
 
 export type ObjectMetaRecord = {
+  /** Legacy absolute key for the platform mount; `files://…` ref otherwise. */
   key: string;
+  /** Owning mount; absent on pre-mount records (backfilled as `platform`). */
+  mountId?: string;
   name: string;
   bytes: number;
   contentType: string;
@@ -63,6 +66,9 @@ function parseRecord(
     contentType,
     updatedAt,
   };
+  if (typeof data.mountId === 'string' && data.mountId) {
+    record.mountId = data.mountId;
+  }
   if (typeof data.trashedAt === 'string') record.trashedAt = data.trashedAt;
   if (data.purgeAt === null) record.purgeAt = null;
   else if (typeof data.purgeAt === 'string') record.purgeAt = data.purgeAt;
@@ -109,6 +115,7 @@ export function createFilesObjectIndex(baseUrl: string): FilesObjectIndex {
         contentType: record.contentType,
         updatedAt: record.updatedAt,
       };
+      if (record.mountId !== undefined) data.mountId = record.mountId;
       if (record.trashedAt !== undefined) data.trashedAt = record.trashedAt;
       if (record.purgeAt !== undefined) data.purgeAt = record.purgeAt;
       if (record.originalKey !== undefined) {

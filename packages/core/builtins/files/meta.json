@@ -10,11 +10,31 @@
     {
       "id": "files",
       "label": "Files",
-      "description": "Configure file storage and bin retention preferences.",
+      "description": "Configure storage backends, connected drives, and bin retention.",
       "icon": "Folder",
       "group": "Workspace",
-      "keywords": ["storage", "bin", "trash", "retention", "delete"],
+      "keywords": [
+        "storage",
+        "bin",
+        "trash",
+        "retention",
+        "delete",
+        "mount",
+        "backend",
+        "s3",
+        "drive"
+      ],
       "entries": [
+        {
+          "id": "storage-backends",
+          "label": "Storage backends",
+          "hint": "mount mounted storage backend provider default bucket s3 connect disconnect usage platform"
+        },
+        {
+          "id": "connected-drives",
+          "label": "My connected drives",
+          "hint": "personal drive google drive onedrive dropbox connect"
+        },
         {
           "id": "bin-retention",
           "label": "Bin auto-delete",

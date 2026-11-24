@@ -398,25 +398,63 @@ Omitted secret fields keep their stored value; switching **provider** drops secr
 
 ## Files (blob API + Drive UI)
 
-Builtin **`files`** is the platform object store. Activity Bar **secondary** (`Folder`) opens `ui/page.tsx` (+ `ui/sidebar.tsx`) — a Drive-style manager (browse, upload, download, preview, rename/move, delete, search). Tenants do **not** bring their own S3 credentials; the operator configures one shared backend via env. Isolation is **key prefix** `orgs/<orgId>/…`.
+Builtin **`files`** is the platform object store. Activity Bar **secondary** (`Folder`) opens `ui/page.tsx` (+ `ui/sidebar.tsx`) — a Drive-style manager (browse, upload, download, preview, rename/move, copy across storage, delete, search). The operator configures one shared **platform** backend via env; isolation there is **key prefix** `orgs/<orgId>/…`.
+
+### Mounts (ticket 110)
+
+Files is a set of **mounted storages** per org. Each mount is `{ id, kind: 'org' | 'personal', ownerUserId?, provider, name, isDefault, status }`.
+
+- **Platform mount** (`id: "platform"`) — always present, backed by the env store below, cannot be removed (rename is allowed). It is the default unless an admin flags another org mount.
+- **Org mounts** — added by admins (RBAC `files.mounts.manage`; admin/owner via `*`), visible to everyone with `files.read`. Exactly one org mount is the **default** upload target (`mount=default`).
+- **Personal mounts** (ticket 113) — visible only to `ownerUserId`; never the org default. Background callers (peer header, no user) get **403** writing to personal mounts.
+- Records are **`files.mount` integration instances** (ticket 103 kit; doc id `files.mount:<mountId>`) behind the `FilesMountStore` interface (`api/lib/mount-store.ts`). Non-secret config (bucket, region, …) lives in the record's settings; fields a provider lists in `secretFields` go to the vault under `integrations/files.mount/<mountId>/<field>` and reach the adapter as `ctx.secrets`. The platform mount stores only a rename override.
+
+**Adapters.** Every backend implements `StorageAdapter` (`api/lib/types.ts`; `BlobStore` is a deprecated alias) with `provider`, `label`, `indexMode`, and `capabilities`:
+
+| Capability       | Effect                                                                |
+| ---------------- | --------------------------------------------------------------------- |
+| `serverSideCopy` | Same-mount copy/move uses `adapter.copy`; otherwise stream get → put  |
+| `nativeFolders`  | Provider has real folders (UI still shows virtual folders otherwise)  |
+| `nativeTrash`    | Delete goes to the provider trash (`trash` / `listTrash` / `restore`) |
+| `versions`       | Provider keeps versions (reserved for later tickets)                  |
+| `maxFileSize`    | Per-object upload limit (PUT/copy return **413** above it)            |
+| `exportFormats`  | Native docs export targets (drives)                                   |
+| `quota`          | Provider reports its own quota                                        |
+
+**Index mode:** `indexed` (AgentOS is the only writer; `files_objects` is the record — platform, buckets, upload services) or `live` (provider is the record; listings are fetched live with a 15 s cache invalidated on writes — drives). New providers register into `storageProviders` (`api/lib/storage-providers.ts`); filesystem / S3 are registered as platform-only (not org-addable).
+
+**References.** Canonical form is **`files://<mountId>/<path>`** (path is mount-relative; for platform it is relative to `orgs/<orgId>/`). Helpers: `@agentos/core/api/files-ref` (`formatFileRef`, `parseFileRef`, `toFileRef`) and `agentos.files` (`format_file_ref`, `parse_file_ref`, `to_file_ref`). Legacy keys (`orgs/<orgId>/…` or relative paths with no `mount`) always resolve to the platform mount; index records missing `mountId` are backfilled to `"platform"` on read. Inbound-email attachments store `ref` (event payload adds `attachmentRefs` beside `attachmentKeys`); the `ai` builtin accepts `{ ref }` attachments.
+
+**Safety.** `DELETE /mounts/:id` returns **409** `{ references, files, records }` while the mount still holds objects (Bin items included) or other records reference it. Changing a mount's location config (bucket / endpoint / prefix) while it holds files is **409** — add a new mount instead; credential changes are allowed.
 
 ### Routes (`/api/ext/files`)
 
-| Method   | Path                               | Notes                                                           |
-| -------- | ---------------------------------- | --------------------------------------------------------------- |
-| `GET`    | `/health`                          | Backend label; no auth                                          |
-| `GET`    | `/blobs?prefix=&limit=&cursor=&q=` | List files + virtual folders; search by name when `q` set       |
-| `PUT`    | `/blobs/:key`                      | Create/replace; JSON `{ base64, contentType? }` or octet-stream |
-| `GET`    | `/blobs/:key`                      | Binary (stored content-type) or `?format=json`                  |
-| `DELETE` | `/blobs/:key`                      | Idempotent single-object delete                                 |
-| `DELETE` | `/blobs?prefix=`                   | Recursive folder-prefix delete                                  |
-| `POST`   | `/blobs/move`                      | `{ from, to }` file or folder-prefix move                       |
+Blob routes take `?mount=<id>` (or `mount=default`); a `files://` ref in the path overrides it. Without either, the platform mount is used.
 
-Org context: session cookie `orgId` **or** peer header `X-AgentOS-Org-Id`. Session callers need RBAC `files.read` / `files.write` (seeded for admin/owner write; viewer/reviewer/sales read). Peer header path skips RBAC (trusted services). Max object size: **10 MiB** (aligned with AI attachments). Metadata (content-type, size, updatedAt) is indexed in db-store collection `files_objects`.
+| Method   | Path                                      | Notes                                                                             |
+| -------- | ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET`    | `/health`                                 | Backend label, provider, mounts count; no auth                                    |
+| `GET`    | `/blobs?prefix=&limit=&cursor=&q=&mount=` | List files + virtual folders; `view=bin\|storage` spans all visible mounts        |
+| `PUT`    | `/blobs/:key`                             | Create/replace; JSON `{ base64, contentType? }` or octet-stream; returns `ref`    |
+| `GET`    | `/blobs/:key`                             | Binary (stored content-type) or `?format=json` (includes `ref`, `mountId`)        |
+| `DELETE` | `/blobs/:key`                             | Soft-delete to Bin (native trash when the mount supports it)                      |
+| `DELETE` | `/blobs?prefix=`                          | Recursive folder-prefix delete                                                    |
+| `POST`   | `/blobs/move`                             | `{ from, to, mount?, fromMount?, toMount? }` — cross-mount streams                |
+| `POST`   | `/blobs/copy`                             | Same body as move; keeps the source                                               |
+| `POST`   | `/blobs/restore`                          | `{ key, mountId? }` restore from Bin                                              |
+| `GET`    | `/mounts?usage=1`                         | Visible mounts + capabilities, default id, providers, `canManage`                 |
+| `POST`   | `/mounts`                                 | `{ provider, name, config, secrets? }` — connection-tested; `files.mounts.manage` |
+| `POST`   | `/mounts/:id/test`                        | Re-test; updates `status`                                                         |
+| `PATCH`  | `/mounts/:id`                             | `{ name?, isDefault?, config?, secrets? }` (rotation ok)                          |
+| `DELETE` | `/mounts/:id`                             | Guarded by reference count (409)                                                  |
 
-Clients: `@agentos/core/api/files` (`putBlob` / `getBlob` / `listBlobs` / `moveBlob` / …) and `agentos.files` — pass `orgId` for peer calls.
+Org context: session cookie `orgId` **or** peer header `X-AgentOS-Org-Id`. Session callers need RBAC `files.read` / `files.write` (seeded for admin/owner write; viewer/reviewer/sales read). Peer header path skips RBAC (trusted services) but may only write to org mounts. Max object size: **10 MiB** or the mount's `maxFileSize`, whichever is lower. Metadata (content-type, size, updatedAt, `mountId`) is indexed in db-store collection `files_objects`.
 
-**Drive UI vs raw blob API:** the Activity Bar UI is for operators browsing org files. Extensions/services should keep using the raw blob client for attachments and ingest (same keys under `orgs/<orgId>/…`).
+Clients: `@agentos/core/api/files` (`putBlob` / `getBlob` / `listBlobs` / `moveBlob` / `copyBlob` / `listMounts` / …, all accepting `mountId`) and `agentos.files` (`mount_id=` kwargs, `copy_blob`, `list_mounts`) — pass `orgId` for peer calls.
+
+**UI.** Sidebar lists **Mounted storage** (provider icon, name, Error/Disconnected badge), then **Bin** and **Storage** views across mounts. The breadcrumb root is the selected mount (persisted in host storage as `files:mount`). **Settings › Files** shows **Storage backends** (status, default badge, usage; test / set default / rename / disconnect), a **My connected drives** placeholder (ticket 113), and Bin retention.
+
+**Drive UI vs raw blob API:** the Activity Bar UI is for operators browsing org files. Extensions/services should keep using the raw blob client for attachments and ingest, storing the returned `ref`.
 
 ### Files storage env
 

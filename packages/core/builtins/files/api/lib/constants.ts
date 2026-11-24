@@ -10,6 +10,15 @@ export const FILES_OBJECTS_COLLECTION = 'files_objects';
 /** Org-scoped db-store collection for Files settings (bin retention). */
 export const FILES_SETTINGS_COLLECTION = 'files_org_settings';
 
+/** Mounts are integration instances (ticket 103 kit) — `files.mount:<mountId>`. */
+export const FILES_MOUNT_INTEGRATION = 'files.mount';
+
+/** Permission to add / rename / set default / remove org mounts. */
+export const PERMISSION_FILES_MOUNTS_MANAGE = 'files.mounts.manage';
+
+/** TTL for live-mode (provider is the record) list caching. */
+export const LIVE_LIST_CACHE_MS = 15_000;
+
 /** Permission to list/get blobs (admin/owner covered by `*`). */
 export const PERMISSION_FILES_READ = 'files.read';
 

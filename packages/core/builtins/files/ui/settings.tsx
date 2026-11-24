@@ -14,6 +14,9 @@ import {
 import { LoadingState } from '@agentos/ui/components/loading-state';
 import { RadioGroup, RadioGroupItem } from '@agentos/ui/components/radio-group';
 
+import { ConnectedDrives, StorageBackends } from './storage-backends';
+import { useFilesMounts } from './use-files-mounts';
+
 type RetentionValue = '15' | '30' | 'never';
 
 const RETENTION_OPTIONS: ReadonlyArray<{
@@ -64,6 +67,7 @@ export default function FilesSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const mounts = useFilesMounts({ usage: true });
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +118,13 @@ export default function FilesSettings() {
       data-slot="settings-files"
     >
       <FieldGroup>
+        <StorageBackends
+          data={mounts.data}
+          loading={mounts.loading}
+          error={mounts.error}
+          reload={mounts.reload}
+        />
+        <ConnectedDrives mounts={mounts.data.mounts} />
         <FieldSet data-setting-entry="bin-retention">
           <FieldLegend>Bin auto-delete</FieldLegend>
           <FieldDescription>

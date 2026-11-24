@@ -15,6 +15,7 @@ import {
 import type { AiModels } from './create-model';
 import type { FetchLike } from './fetch-like';
 import {
+  attachmentAuth,
   isResolveAttachmentsError,
   resolveAttachments,
   type ResolvedAttachment,
@@ -139,6 +140,7 @@ export async function handleAiRequest(
           body?.files,
           ctx.gatewayUrl,
           fetchImpl,
+          attachmentAuth(request),
         );
         if (isResolveAttachmentsError(attachments)) {
           return json(

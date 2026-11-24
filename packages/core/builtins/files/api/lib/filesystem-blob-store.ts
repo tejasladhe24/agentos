@@ -3,8 +3,9 @@ import { join, normalize, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { BlobStoreError } from './blob-store-error';
+import { MAX_OBJECT_BYTES } from './constants';
 import { normalizeBlobKey } from './normalize-key';
-import type { BlobListOptions, BlobListResult, BlobStore } from './types';
+import type { BlobListOptions, BlobListResult, StorageAdapter } from './types';
 
 function defaultRoot(): string {
   return join(tmpdir(), 'agentos-files');
@@ -102,13 +103,24 @@ async function pruneEmptyParents(
 
 export async function createFilesystemBlobStore(
   rootDir: string = defaultRoot(),
-): Promise<BlobStore> {
+): Promise<StorageAdapter> {
   const root = resolve(rootDir);
   await mkdir(root, { recursive: true });
 
   return {
+    provider: 'filesystem',
     backend: 'filesystem',
     label: root,
+    indexMode: 'indexed',
+    capabilities: {
+      serverSideCopy: true,
+      nativeFolders: true,
+      nativeTrash: false,
+      versions: false,
+      maxFileSize: MAX_OBJECT_BYTES,
+      exportFormats: [],
+      quota: false,
+    },
     async put(key, bytes) {
       const path = resolveBlobPath(root, key);
       await mkdir(join(path, '..'), { recursive: true });

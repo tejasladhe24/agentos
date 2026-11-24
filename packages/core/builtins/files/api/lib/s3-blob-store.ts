@@ -1,8 +1,9 @@
 import { S3Client } from 'bun';
 
 import { BlobStoreError } from './blob-store-error';
+import { MAX_OBJECT_BYTES } from './constants';
 import { normalizeBlobKey } from './normalize-key';
-import type { BlobListOptions, BlobListResult, BlobStore } from './types';
+import type { BlobListOptions, BlobListResult, StorageAdapter } from './types';
 
 /** Minimal surface used by the S3 blob store (Bun.S3Client-compatible). */
 export type S3ClientLike = {
@@ -41,7 +42,7 @@ export type S3BlobStoreConfig = {
   client?: S3ClientLike;
 };
 
-export function createS3BlobStore(config: S3BlobStoreConfig): BlobStore {
+export function createS3BlobStore(config: S3BlobStoreConfig): StorageAdapter {
   const bucket = config.bucket.trim();
   if (!bucket) {
     throw new BlobStoreError('AGENT_OS_EXT_FILES_S3_BUCKET is required', 500);
@@ -65,8 +66,19 @@ export function createS3BlobStore(config: S3BlobStoreConfig): BlobStore {
     });
 
   return {
+    provider: 's3',
     backend: 's3',
     label: `s3://${bucket}`,
+    indexMode: 'indexed',
+    capabilities: {
+      serverSideCopy: false,
+      nativeFolders: false,
+      nativeTrash: false,
+      versions: false,
+      maxFileSize: MAX_OBJECT_BYTES,
+      exportFormats: [],
+      quota: false,
+    },
     async put(key, bytes) {
       const objectKey = normalizeBlobKey(key);
       await client.file(objectKey).write(bytes);

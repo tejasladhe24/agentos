@@ -4,12 +4,23 @@ import {
   MAX_ATTACHMENTS,
   MAX_ATTACHMENTS_TOTAL_BYTES,
 } from './constants';
+import { isFileRef, orgIdFromLegacyKey } from '@agentos/core/api/files-ref';
+
 import type { FetchLike } from './fetch-like';
 
 export type AttachmentInput = {
+  /** Legacy files key or `files://<mountId>/<path>` reference. */
   key?: string;
+  /** Alias of `key` for `files://` references. */
+  ref?: string;
   base64?: string;
   mediaType?: string;
+};
+
+/** Caller context forwarded to the files builtin for `files://` refs. */
+export type AttachmentAuth = {
+  orgId?: string;
+  cookie?: string;
 };
 
 export type ResolvedAttachment = {
@@ -45,20 +56,38 @@ function decodeBase64(base64: string): Uint8Array | null {
   }
 }
 
-function orgIdFromBlobKey(key: string): string | undefined {
-  const match = /^orgs\/([^/]+)\//.exec(key);
-  return match?.[1];
+/** Org header / session cookie from the inbound AI request. */
+export function attachmentAuth(request: Request): AttachmentAuth {
+  const auth: AttachmentAuth = {};
+  const orgId = request.headers.get('x-agentos-org-id')?.trim();
+  if (orgId) auth.orgId = orgId;
+  const cookie = request.headers.get('cookie');
+  if (cookie) auth.cookie = cookie;
+  return auth;
+}
+
+function filesHeaders(
+  key: string,
+  auth: AttachmentAuth | undefined,
+): Record<string, string> | undefined {
+  const headers: Record<string, string> = {};
+  const orgId = isFileRef(key)
+    ? auth?.orgId
+    : (orgIdFromLegacyKey(key) ?? auth?.orgId);
+  if (orgId) headers['x-agentos-org-id'] = orgId;
+  if (auth?.cookie) headers.cookie = auth.cookie;
+  return Object.keys(headers).length ? headers : undefined;
 }
 
 async function fetchBlobByKey(
   gatewayUrl: string,
   key: string,
   fetchImpl: FetchLike,
+  auth?: AttachmentAuth,
 ): Promise<{ base64: string; bytes: number } | ResolveAttachmentsError> {
   const base = gatewayUrl.replace(/\/+$/, '');
   const url = `${base}/api/ext/files/blobs/${encodeURIComponent(key)}?format=json`;
-  const orgId = orgIdFromBlobKey(key);
-  const headers = orgId ? { 'x-agentos-org-id': orgId } : undefined;
+  const headers = filesHeaders(key, auth);
   const res = await fetchImpl(url, headers ? { headers } : undefined);
   if (!res.ok) {
     return {
@@ -81,12 +110,14 @@ async function fetchBlobByKey(
 
 /**
  * Resolve optional `files` on generate requests into AI SDK file parts.
- * Accepts files-builtin keys or inline base64 with size / MIME limits.
+ * Accepts files-builtin keys, `files://` references (resolved with the
+ * caller's org / cookie), or inline base64 with size / MIME limits.
  */
 export async function resolveAttachments(
   files: unknown,
   gatewayUrl: string,
   fetchImpl: FetchLike = fetch,
+  auth?: AttachmentAuth,
 ): Promise<ResolvedAttachment[] | ResolveAttachmentsError> {
   if (files === undefined || files === null) {
     return [];
@@ -123,19 +154,30 @@ export async function resolveAttachments(
       };
     }
 
-    const hasKey = typeof entry.key === 'string' && entry.key.length > 0;
+    const blobKey =
+      typeof entry.key === 'string' && entry.key.length > 0
+        ? entry.key
+        : typeof entry.ref === 'string' && entry.ref.length > 0
+          ? entry.ref
+          : undefined;
+    const hasKey = blobKey !== undefined;
     const hasBase64 =
       typeof entry.base64 === 'string' && entry.base64.length > 0;
     if (hasKey === hasBase64) {
       return {
         status: 400,
-        error: `files[${i}] requires exactly one of key or base64`,
+        error: `files[${i}] requires exactly one of key (or ref) or base64`,
       };
     }
 
     let base64: string;
     if (hasKey) {
-      const fetched = await fetchBlobByKey(gatewayUrl, entry.key!, fetchImpl);
+      const fetched = await fetchBlobByKey(
+        gatewayUrl,
+        blobKey!,
+        fetchImpl,
+        auth,
+      );
       if ('error' in fetched) return fetched;
       base64 = fetched.base64;
     } else {

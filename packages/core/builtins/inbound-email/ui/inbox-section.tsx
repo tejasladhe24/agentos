@@ -188,7 +188,7 @@ export function InboxSection() {
                       <li key={att.key}>
                         <a
                           className="text-sm text-primary underline-offset-2 hover:underline"
-                          href={filesBlobUrl(att.key)}
+                          href={filesBlobUrl(att.ref ?? att.key)}
                           download={att.filename}
                         >
                           {att.filename} ({att.bytes} bytes)
