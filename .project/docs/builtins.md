@@ -392,15 +392,37 @@ AGENT_OS_EXT_FILES_S3_SECRET_ACCESS_KEY=…
 
 ## AI (structured + multimodal)
 
-Builtin **`ai`** owns platform LLM calls via Vercel AI SDK v7 ([ADR 006](./adr/006-vercel-ai-sdk.md)). Clients: `@agentos/core/api/ai` / `agentos.ai`. Default models are **mocks** (`AGENT_OS_EXT_AI_MODEL` unset). Real providers stay env-gated; keep provider/region configurable and do **not** use customer documents for model training.
+Builtin **`ai`** owns platform LLM calls via Vercel AI SDK v7 ([ADR 006](./adr/006-vercel-ai-sdk.md)). Clients: `@agentos/core/api/ai` / `agentos.ai`. Default models are **mocks** (`AGENT_OS_EXT_AI_PROVIDER` unset). Real providers are env-gated (table below) and built with the AI SDK provider packages (`@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/google`, and the AI SDK gateway from `ai`).
 
-| Method | Path                         | Role                                                            |
-| ------ | ---------------------------- | --------------------------------------------------------------- |
-| `GET`  | `/api/ext/ai/health`         | `{ ok, mode }` — `mock` or `configured`                         |
-| `POST` | `/api/ext/ai/generate-text`  | Text generate; optional **JSON Schema** + **file/image** inputs |
-| `POST` | `/api/ext/ai/generate-image` | Image stub / provider generate                                  |
-| `POST` | `/api/ext/ai/embed`          | Embedding vector                                                |
-| `POST` | `/api/ext/ai/chat`           | Shell chat: composed instructions + tools                       |
+| Method | Path                         | Role                                                                         |
+| ------ | ---------------------------- | ---------------------------------------------------------------------------- |
+| `GET`  | `/api/ext/ai/health`         | `{ ok, mode }` (`mock`); configured adds `provider`, `model`, `capabilities` |
+| `POST` | `/api/ext/ai/generate-text`  | Text generate; optional **JSON Schema** + **file/image** inputs              |
+| `POST` | `/api/ext/ai/generate-image` | Image stub / provider generate                                               |
+| `POST` | `/api/ext/ai/embed`          | Embedding vector                                                             |
+| `POST` | `/api/ext/ai/chat`           | Shell chat: composed instructions + tools                                    |
+
+### AI env
+
+| Variable                              | Role                                                                                                                   |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_OS_EXT_AI_PROVIDER`            | `openai`, `anthropic`, `google`, `ai-gateway` (Vercel AI Gateway — one key, many models), or `mock`. **Unset → mocks** |
+| `AGENT_OS_EXT_AI_API_KEY`             | Provider API key (required when a provider is set). Secret — `wrangler secret put` / runtime env only                  |
+| `AGENT_OS_EXT_AI_MODEL`               | Language model id (required when a provider is set), e.g. `gpt-4.1-mini`, `claude-sonnet-4-5`, `openai/gpt-4.1-mini`   |
+| `AGENT_OS_EXT_AI_EMBEDDING_MODEL`     | Optional embedding model (`openai` / `google` / `ai-gateway`). Unset → `POST /embed` returns **501**                   |
+| `AGENT_OS_EXT_AI_IMAGE_MODEL`         | Optional image model (`openai` / `google` / `ai-gateway`). Unset → `POST /generate-image` returns **501**              |
+| `AGENT_OS_EXT_AI_BASE_URL`            | Optional provider base URL — regional / proxy endpoints (e.g. `https://eu.api.openai.com/v1` for OpenAI EU residency)  |
+| `AGENT_OS_EXT_AI_ZERO_DATA_RETENTION` | `ai-gateway` only: `true` routes only to providers with zero-data-retention agreements                                 |
+| `AGENT_OS_EXT_AI_GATEWAY_URL`         | AgentOS gateway origin for registry + tool HTTP (not the Vercel AI Gateway)                                            |
+| `AGENT_OS_EXT_AI_PORT`                | Upstream port (default `6113`)                                                                                         |
+
+`AGENT_OS_EXT_AI_MODEL` without `AGENT_OS_EXT_AI_PROVIDER` keeps mocks (a warning is logged). A provider that lacks a capability (Anthropic has no embedding or image models) is rejected at boot if you configure one, and the endpoint answers **501** `ai_capability_unsupported` — configured mode never falls back to mocks.
+
+**Errors:** provider 401/403 → **502** `{ code: "ai_provider_auth" }`; 429 → **503** `ai_provider_rate_limited`; other upstream failures → **502** `ai_provider_error`. Bodies never include the API key.
+
+**Per-request structure:** `createAiModels(config)` is a pure function of `{ provider, apiKey, model, embeddingModel?, imageModel?, baseUrl? }`; `getCachedAiModels(config)` memoizes by a SHA-256 config hash (bounded LRU) so per-org configs (ticket 109) reuse built models.
+
+**Data policy:** customer documents are never used for training. Where the provider exposes a per-request switch the builtin sets it: OpenAI Responses `store: false` (no 30-day response storage); AI Gateway `disallowPromptTraining: true` (+ `zeroDataRetention` when enabled). OpenAI and Anthropic do not train on API traffic by default; use a **paid** Gemini API tier for Google (free-tier prompts may be used to improve Google products). Configure org-level zero-retention agreements with the provider where required.
 
 ### `POST /generate-text` body
 

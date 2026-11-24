@@ -1,6 +1,6 @@
 # 108 — AI: real model providers (platform env)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -26,11 +26,11 @@ Replace the mock-only `ai` builtin with real model providers configured from pla
 
 ## Done when
 
-- [ ] Real providers work for chat, structured output, embeddings, images (where supported)
-- [ ] Mocks still default when unconfigured; tests stay deterministic
-- [ ] Clear errors for unsupported capabilities and bad keys
-- [ ] Docs: `builtins.md` AI env table
-- [ ] `bun run ci` green
+- [x] Real providers work for chat, structured output, embeddings, images (where supported)
+- [x] Mocks still default when unconfigured; tests stay deterministic
+- [x] Clear errors for unsupported capabilities and bad keys
+- [x] Docs: `builtins.md` AI env table
+- [x] `bun run ci` green
 
 ## Verify
 

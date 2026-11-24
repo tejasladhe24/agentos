@@ -5,6 +5,13 @@ import {
   MockLanguageModelV4,
 } from 'ai/test';
 
+import {
+  aiConfigHash,
+  buildProviderModels,
+  type AiProviderConfig,
+  type AiProviderId,
+  type AiProviderOptions,
+} from './providers';
 import { stubFromJsonSchema } from './stub-from-schema';
 import { MOCK_USAGE } from './usage';
 
@@ -235,24 +242,72 @@ export function createMockImageModel(): ImageModel {
 }
 
 export type AiModels = {
-  language: LanguageModel;
-  embedding: EmbeddingModel;
-  image: ImageModel;
   mode: 'mock' | 'configured';
+  provider: AiProviderId | 'mock';
+  model: string;
+  language: LanguageModel;
+  /** `null` → capability not available for this provider/config. */
+  embedding: EmbeddingModel | null;
+  image: ImageModel | null;
+  embeddingModel: string | null;
+  imageModel: string | null;
 };
 
-/**
- * Resolve models for the AI builtin.
- * Unset `AGENT_OS_EXT_AI_MODEL` → mock suite (ADR 006 default).
- * Configured model strings are reserved for a later env-gated provider path;
- * for now they still use mocks so the HTTP surface stays stable.
- */
-export function createAiModels(modelEnv?: string): AiModels {
-  const configured = Boolean(modelEnv?.trim());
+export function createMockAiModels(): AiModels {
   return {
+    mode: 'mock',
+    provider: 'mock',
+    model: 'mock-text',
     language: createMockLanguageModel(),
     embedding: createMockEmbeddingModel(),
     image: createMockImageModel(),
-    mode: configured ? 'configured' : 'mock',
+    embeddingModel: 'mock-embed',
+    imageModel: 'mock-image',
   };
+}
+
+/**
+ * Resolve models for the AI builtin. No config → mock suite (ADR 006 default).
+ * Pure function of `config` so callers (ticket 109) can build per org.
+ */
+export function createAiModels(
+  config?: AiProviderConfig | null,
+  options: AiProviderOptions = {},
+): AiModels {
+  if (!config) return createMockAiModels();
+  const built = buildProviderModels(config, options);
+  return {
+    mode: 'configured',
+    provider: config.provider,
+    model: config.model,
+    ...built,
+    embeddingModel: built.embedding ? (config.embeddingModel ?? null) : null,
+    imageModel: built.image ? (config.imageModel ?? null) : null,
+  };
+}
+
+const MODEL_CACHE_LIMIT = 64;
+const modelCache = new Map<string, AiModels>();
+
+/** {@link createAiModels} memoized by {@link aiConfigHash} (LRU, bounded). */
+export function getCachedAiModels(config?: AiProviderConfig | null): AiModels {
+  if (!config) return createAiModels(null);
+  const key = aiConfigHash(config);
+  const hit = modelCache.get(key);
+  if (hit) {
+    modelCache.delete(key);
+    modelCache.set(key, hit);
+    return hit;
+  }
+  const models = createAiModels(config);
+  modelCache.set(key, models);
+  if (modelCache.size > MODEL_CACHE_LIMIT) {
+    const oldest = modelCache.keys().next().value;
+    if (oldest !== undefined) modelCache.delete(oldest);
+  }
+  return models;
+}
+
+export function clearAiModelCache(): void {
+  modelCache.clear();
 }

@@ -7,6 +7,11 @@ import {
   Output,
 } from 'ai';
 
+import {
+  aiErrorResponse,
+  requireEmbeddingModel,
+  requireImageModel,
+} from './ai-errors';
 import type { AiModels } from './create-model';
 import type { FetchLike } from './fetch-like';
 import {
@@ -102,7 +107,19 @@ export async function handleAiRequest(
   const fetchImpl = ctx.fetchImpl ?? fetch;
 
   if (method === 'GET' && path === '/health') {
-    return json({ ok: true, mode: ctx.models.mode });
+    const { models } = ctx;
+    if (models.mode === 'mock') return json({ ok: true, mode: models.mode });
+    return json({
+      ok: true,
+      mode: models.mode,
+      provider: models.provider,
+      model: models.model,
+      capabilities: {
+        language: true,
+        embedding: Boolean(models.embedding),
+        image: Boolean(models.image),
+      },
+    });
   }
 
   if (method !== 'POST') {
@@ -187,7 +204,7 @@ export async function handleAiRequest(
           return json({ error: 'prompt required' }, { status: 400 });
         }
         const result = await generateImage({
-          model: ctx.models.image,
+          model: requireImageModel(ctx.models),
           prompt,
         });
         const first = result.images[0];
@@ -211,7 +228,7 @@ export async function handleAiRequest(
           return json({ error: 'value required' }, { status: 400 });
         }
         const result = await embed({
-          model: ctx.models.embedding,
+          model: requireEmbeddingModel(ctx.models),
           value,
         });
         return json({
@@ -247,7 +264,7 @@ export async function handleAiRequest(
         return json({ error: 'not found' }, { status: 404 });
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return json({ error: message }, { status: 500 });
+    const { status, body } = aiErrorResponse(error, ctx.models.provider);
+    return json(body, { status });
   }
 }
