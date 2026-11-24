@@ -18,11 +18,12 @@ Optional before multi-instance: set `AGENT_OS_EXT_CACHE_STORE_REDIS_URL` for sha
 
 ## Layout
 
-| File                 | Role                                                                                   |
-| -------------------- | -------------------------------------------------------------------------------------- |
-| `wrangler.jsonc`     | Container + Durable Object binding; `max_instances: 1`; image = repo-root `Dockerfile` |
-| `worker.ts`          | Proxy-only Durable Object (`ctx.container`); readiness via `GET /healthz`              |
-| `lib/forward-env.ts` | Forwards Worker vars/secrets into the container on start                               |
+| File                   | Role                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `wrangler.jsonc`       | Container + Durable Object binding; `max_instances: 1`; image = repo-root `Dockerfile` |
+| `worker.ts`            | Proxy-only Durable Object (`ctx.container`); readiness via `GET /healthz`              |
+| `lib/forward-env.ts`   | Forwards Worker vars/secrets into the container on start                               |
+| `lib/email-forward.ts` | `email()` handler: signs raw MIME and posts it to inbound-email (Email Routing)        |
 
 `@cloudflare/*` stays **here only** — never under `packages/core` or builtins. The deprecated `@cloudflare/containers` package is **not** used; Worker code uses the Durable Object Container API.
 
@@ -183,6 +184,33 @@ curl -sS "$BASE_URL/api/ext/files/blobs/$KEY"
 If S3 env is unset, `/api/ext/files/health` may still return ok on ephemeral local storage — skip the PUT/GET durability claim and note it in the ticket.
 
 Keep `max_instances: 1` until Redis is wired for cache-store (`AGENT_OS_EXT_CACHE_STORE_REDIS_URL`) if replicas must share caches; HITL/notifications/events outbox are already durable via db-store. File gaps as follow-ups under `.project/tickets/todo/`; automated Playwright against a preview URL is an optional later ticket.
+
+## Inbound email (Cloudflare Email Routing)
+
+The Worker also exports an `email()` handler (`lib/email-forward.ts`) that turns Cloudflare Email Routing into the platform-default inbound provider for builtin `inbound-email` (ticket 107). It signs the raw MIME + SMTP envelope and forwards it to the container over the Durable Object binding (no public round-trip). Non-2xx responses reject the message so senders get a bounce.
+
+1. **Pick an inbound subdomain**, e.g. `in.example.com`, on a zone in this Cloudflare account.
+2. **Email Routing** → enable it for the zone. Cloudflare adds the MX + SPF records for the subdomain (accept the prompts).
+3. **Routing rules → Catch-all address** → action **Send to a Worker** → this Worker (`agentos` for staging, `agentos-demo` for production). Deploy the Worker first so it appears in the list.
+4. **Secrets / vars** (Worker env; forwarded into the container):
+
+   ```bash
+   openssl rand -hex 32 | pnpm exec wrangler secret put AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET --env dev
+   ```
+
+   Add to `vars` in `wrangler.jsonc` (per environment):
+
+   ```jsonc
+   "AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER": "cloudflare",
+   "AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN": "in.example.com",
+   ```
+
+   The Worker reads the secret to sign; the container reads the same value to verify.
+
+5. **Redeploy** (`pnpm run deploy:dev`). Restart the container if it was already warm so it picks up the new env.
+6. **Verify:** sign in, open **Email** (this provisions `<org-slug>@in.example.com`; see Addresses), send a message with a PDF to that address, and confirm it appears in Inbox with the attachment and an SPF/DKIM/DMARC badge. Sending to an unknown local part should bounce with `Unknown recipient`.
+
+Troubleshooting: a bounce reading `Inbound email is not configured` means the Worker has no secret; `Message rejected` usually means the secrets differ between Worker and container (signature 401). Email Routing → **Activity log** shows each delivery and the Worker's reject reason.
 
 ## Migrate off Cloudflare
 

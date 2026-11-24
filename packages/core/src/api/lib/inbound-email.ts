@@ -35,6 +35,8 @@ export type InboundMessage = {
   attachments: StoredAttachment[];
   receivedAt: string;
   readAt?: string;
+  /** SPF / DKIM / DMARC verdicts from the receiving MX (Cloudflare inbound). */
+  authentication?: { spf?: string; dkim?: string; dmarc?: string };
 };
 
 export type InboundAddress = {

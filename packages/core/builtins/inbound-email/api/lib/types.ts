@@ -4,11 +4,20 @@ export type InboundAttachment = {
   bytes: Uint8Array;
 };
 
+/** SPF / DKIM / DMARC verdicts recorded by the receiving MX (e.g. `pass`, `fail`). */
+export type EmailAuthentication = {
+  spf?: string;
+  dkim?: string;
+  dmarc?: string;
+};
+
 export type NormalizedInboundEmail = {
   /** Provider delivery / message id (idempotency). */
   deliveryId: string;
   /** Envelope / To recipients (lowercased). */
   to: string[];
+  /** Recipients used for org routing when narrower than `to` (SMTP envelope). */
+  routeTo?: string[];
   from: string;
   subject: string;
   text?: string;
@@ -16,6 +25,7 @@ export type NormalizedInboundEmail = {
   attachments: InboundAttachment[];
   /** Raw provider name for audit. */
   provider: string;
+  authentication?: EmailAuthentication;
 };
 
 export type StoredAttachment = {
@@ -41,6 +51,7 @@ export type InboundMessage = {
   html?: string;
   attachments: StoredAttachment[];
   receivedAt: string;
+  authentication?: EmailAuthentication;
   /** ISO timestamp when marked read in the Email manager; omitted/undefined = unread. */
   readAt?: string;
 };

@@ -86,6 +86,7 @@
     "comlink": "^4.4.2",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",
+    "postal-mime": "^4.2.1",
     "postgres": "^4.1.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

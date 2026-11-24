@@ -7,6 +7,7 @@ import { ScrollArea } from '@agentos/ui/components/scroll-area';
 import { Separator } from '@agentos/ui/components/separator';
 
 import {
+  authenticationSummary,
   filesBlobUrl,
   parseErrorBody,
   type InboundMessage,
@@ -21,6 +22,7 @@ export function InboxSection() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showHtml, setShowHtml] = useState(false);
+  const authSummary = authenticationSummary(detail?.authentication);
 
   async function refresh() {
     setBusy(true);
@@ -146,6 +148,15 @@ export function InboxSection() {
                   From {detail.from} → {detail.to.join(', ')} ·{' '}
                   {new Date(detail.receivedAt).toLocaleString()}
                 </p>
+                {authSummary ? (
+                  <Badge
+                    variant={authSummary.failing ? 'destructive' : 'outline'}
+                    className="mt-1 text-[10px]"
+                    data-slot="email-authentication"
+                  >
+                    {authSummary.label}
+                  </Badge>
+                ) : null}
               </div>
               <Separator />
               {detail.html ? (

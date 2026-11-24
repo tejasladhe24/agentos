@@ -19,7 +19,24 @@ export type InboundMessage = {
   attachments: StoredAttachment[];
   receivedAt: string;
   readAt?: string;
+  /** SPF / DKIM / DMARC verdicts from the receiving MX (Cloudflare). */
+  authentication?: { spf?: string; dkim?: string; dmarc?: string };
 };
+
+/** `SPF pass · DKIM fail` style summary, or null when not recorded. */
+export function authenticationSummary(
+  auth: InboundMessage['authentication'],
+): { label: string; failing: boolean } | null {
+  if (!auth) return null;
+  const parts = (['spf', 'dkim', 'dmarc'] as const)
+    .filter((k) => auth[k])
+    .map((k) => `${k.toUpperCase()} ${auth[k]}`);
+  if (parts.length === 0) return null;
+  const failing = (['spf', 'dkim', 'dmarc'] as const).some(
+    (k) => auth[k] !== undefined && auth[k] !== 'pass',
+  );
+  return { label: parts.join(' · '), failing };
+}
 
 export type InboundAddress = {
   id: string;

@@ -41,9 +41,9 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         .int()
         .positive()
         .default(6115),
-      /** Platform default: `fixture` (local/tests) or `resend`. */
+      /** Platform default: `fixture` (local/tests), `resend`, or `cloudflare`. */
       AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER: z
-        .enum(['fixture', 'resend'])
+        .enum(['fixture', 'resend', 'cloudflare'])
         .default('fixture'),
       /** HMAC secret for fixture webhooks. */
       AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET: z.string().min(1).optional(),
@@ -54,6 +54,13 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         .string()
         .min(1)
         .optional(),
+      /** HMAC secret shared with the Cloudflare Email Worker. */
+      AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET: z
+        .string()
+        .min(1)
+        .optional(),
+      /** Platform inbound domain (e.g. `in.example.com`) for `<org-slug>@` addresses. */
+      AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN: z.string().min(1).optional(),
       /**
        * Demo address map: `coi@inbound.example.com=org_demo,renewals@x=org_2`
        * (comma-separated; `=` or `:` separators).
@@ -86,6 +93,10 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY,
       AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET:
         runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET,
+      AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET:
+        runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET,
+      AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN:
+        runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN,
       AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP:
         runtimeEnv.AGENT_OS_EXT_INBOUND_EMAIL_ADDRESS_MAP,
     },

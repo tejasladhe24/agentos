@@ -3,7 +3,7 @@ import { ORG_ID_HEADER } from './constants';
 const DEFAULT_AUTH_BASE = 'http://127.0.0.1:6110';
 
 export type ResolveOrgResult =
-  | { ok: true; orgId: string; via: 'session' | 'header' }
+  | { ok: true; orgId: string; via: 'session' | 'header'; orgName?: string }
   | { ok: false; status: number; error: string };
 
 function resolveAuthApiBase(
@@ -25,7 +25,7 @@ function resolveAuthApiBase(
 async function orgIdFromSessionCookie(
   request: Request,
   env: Record<string, string | undefined>,
-): Promise<string | null | undefined> {
+): Promise<{ orgId: string; orgName?: string } | null | undefined> {
   const cookie = request.headers.get('cookie');
   if (!cookie) return undefined;
 
@@ -37,9 +37,16 @@ async function orgIdFromSessionCookie(
     });
     if (res.status === 401) return null;
     if (!res.ok) return null;
-    const body = (await res.json()) as { orgId?: string | null };
+    const body = (await res.json()) as {
+      orgId?: string | null;
+      orgs?: Array<{ id?: string; name?: string }>;
+    };
     if (typeof body.orgId === 'string' && body.orgId.length > 0) {
-      return body.orgId;
+      const orgName = body.orgs?.find((o) => o.id === body.orgId)?.name;
+      return {
+        orgId: body.orgId,
+        ...(typeof orgName === 'string' && orgName ? { orgName } : {}),
+      };
     }
     return null;
   } catch {
@@ -55,8 +62,8 @@ export async function resolveOrgForInboundEmailRequest(
   env: Record<string, string | undefined> = Bun.env,
 ): Promise<ResolveOrgResult> {
   const fromSession = await orgIdFromSessionCookie(request, env);
-  if (typeof fromSession === 'string') {
-    return { ok: true, orgId: fromSession, via: 'session' };
+  if (fromSession) {
+    return { ok: true, via: 'session', ...fromSession };
   }
   if (fromSession === null && request.headers.get('cookie')) {
     return { ok: false, status: 403, error: 'active org required' };

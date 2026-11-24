@@ -1,6 +1,6 @@
 # 107 — Inbound email via Cloudflare Email Worker (platform default)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -36,12 +36,12 @@ Cloudflare delivers inbound mail to an **Email Worker** (`email()` handler with 
 
 ## Done when
 
-- [ ] Email Worker in `deploy/cloudflare` forwards signed raw MIME
-- [ ] `cloudflare` provider parses and ingests messages + attachments
-- [ ] Bad signature rejected; unknown recipient → reject
-- [ ] Tests with fixture MIME messages (text, HTML, attachments)
-- [ ] Docs: Cloudflare inbound runbook (Email Routing setup, Worker deploy, env)
-- [ ] `bun run ci` green
+- [x] Email Worker in `deploy/cloudflare` forwards signed raw MIME
+- [x] `cloudflare` provider parses and ingests messages + attachments
+- [x] Bad signature rejected; unknown recipient → reject
+- [x] Tests with fixture MIME messages (text, HTML, attachments)
+- [x] Docs: Cloudflare inbound runbook (Email Routing setup, Worker deploy, env)
+- [x] `bun run ci` green
 
 ## Verify
 

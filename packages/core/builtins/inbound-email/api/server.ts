@@ -44,14 +44,16 @@ const provider = createInboundProvider({
   webhookSecret: env.AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET,
   resendApiKey: env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY,
   resendSigningSecret: env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET,
+  cloudflareSecret: env.AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET,
 });
-const platformConfigured =
-  env.AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER === 'resend'
-    ? Boolean(
-        env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY &&
-        env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET,
-      )
-    : Boolean(env.AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET);
+const platformConfigured = {
+  resend: Boolean(
+    env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_API_KEY &&
+    env.AGENT_OS_EXT_INBOUND_EMAIL_RESEND_SIGNING_SECRET,
+  ),
+  cloudflare: Boolean(env.AGENT_OS_EXT_INBOUND_EMAIL_CLOUDFLARE_SECRET),
+  fixture: Boolean(env.AGENT_OS_EXT_INBOUND_EMAIL_WEBHOOK_SECRET),
+}[env.AGENT_OS_EXT_INBOUND_EMAIL_PROVIDER];
 
 const integrations = createIntegrationsKit(
   createHttpIntegrationsBackend({ dbStoreApiBase: dbBase }),
@@ -67,6 +69,7 @@ const deps = {
   provider,
   connections,
   integrations,
+  inboundDomain: env.AGENT_OS_EXT_INBOUND_EMAIL_DOMAIN,
   idempotency: createMemoryIdempotencyStore(),
 };
 
