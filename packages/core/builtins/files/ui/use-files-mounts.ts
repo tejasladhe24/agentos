@@ -38,7 +38,14 @@ export function useFilesMounts(options: { usage?: boolean } = {}): {
   const usage = options.usage === true;
 
   const reload = useCallback(async () => {
-    const res = await api.fetch(`/mounts${usage ? '?usage=1' : ''}`);
+    let res: Awaited<ReturnType<typeof api.fetch>>;
+    try {
+      res = await api.fetch(`/mounts${usage ? '?usage=1' : ''}`);
+    } catch {
+      setError('Could not reach storage. Reload the page to retry.');
+      setLoading(false);
+      return;
+    }
     if (!res.ok) {
       setError(parseErrorBody(res.body, 'Could not load storage'));
       setLoading(false);

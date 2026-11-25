@@ -59,4 +59,37 @@ describe('proxyHostApi', () => {
     channel.port1.close();
     channel.port2.close();
   });
+
+  test('slow calls survive garbage collection of the namespace proxy', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const stub = stubHostApi([]);
+    stub.api.fetch = async () => {
+      await gate;
+      return { ok: true, status: 200, body: 'slow' };
+    };
+    const channel = new MessageChannel();
+    Comlink.expose(proxyHostApi(stub), channel.port1);
+    const remote = hostApiFromRemote(Comlink.wrap<HostAPI>(channel.port2));
+
+    const pending = remote.api.fetch('/slow');
+    for (let i = 0; i < 5; i++) {
+      await Bun.sleep(20);
+      Bun.gc(true);
+    }
+    release();
+
+    const result = await Promise.race([
+      pending,
+      Bun.sleep(2000).then(() => 'hung' as const),
+    ]);
+    expect(result).toEqual({ ok: true, status: 200, body: 'slow' });
+    // The client stays referenced for the frame's lifetime (HostContext).
+    expect(remote.api).toBeDefined();
+
+    channel.port1.close();
+    channel.port2.close();
+  });
 });

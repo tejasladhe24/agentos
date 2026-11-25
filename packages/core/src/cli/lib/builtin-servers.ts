@@ -37,7 +37,7 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
   },
 ] as const;
 
-/** Direct builtin bases so Python kits skip the Vite hop during local dev. */
+/** Direct builtin bases so child APIs and Python kits skip the Vite hop. */
 export function builtinApiEnv(
   gatewayUrl = Bun.env.AGENT_OS_GLOBAL_GATEWAY_URL ?? 'http://127.0.0.1:5173',
 ): Record<string, string> {
