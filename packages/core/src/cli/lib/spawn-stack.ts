@@ -28,6 +28,8 @@ export function spawnAgentOsStack(options: SpawnStackOptions): void {
   const packageRoot = corePackageRoot();
   const root = repoRoot();
   const gatewayUrl = options.gatewayUrl;
+  // Vite may bind only `[::1]`, so the `127.0.0.1` gateway fallback can refuse connections.
+  const apiEnv = builtinApiEnv(gatewayUrl);
 
   console.log(`[agentos] starting builtin APIs…`);
   for (const server of BUILTIN_SERVERS) {
@@ -35,6 +37,7 @@ export function spawnAgentOsStack(options: SpawnStackOptions): void {
       name: server.name,
       cmd: ['bun', server.entry],
       cwd: packageRoot,
+      env: apiEnv,
       fatalOnExit: true,
     });
   }
@@ -53,12 +56,13 @@ export function spawnAgentOsStack(options: SpawnStackOptions): void {
       name: api.id,
       cmd: ['bun', api.serverEntry],
       cwd: consumerRoot,
+      env: apiEnv,
       fatalOnExit: false,
     });
   }
 
   const pythonServices = discoverPythonServices(extensionsDir);
-  const pyEnv = builtinApiEnv(gatewayUrl);
+  const pyEnv = apiEnv;
   const httpServices = pythonServices.filter((s) => s.kind === 'http');
   const workerServices = pythonServices.filter((s) => s.kind === 'worker');
 

@@ -74,7 +74,15 @@ export default function FilesSettings() {
     void (async () => {
       setLoading(true);
       setError(null);
-      const res = await api.fetch('/org-settings');
+      let res: Awaited<ReturnType<typeof api.fetch>>;
+      try {
+        res = await api.fetch('/org-settings');
+      } catch {
+        if (cancelled) return;
+        setError('Could not reach Files settings. Reload the page to retry.');
+        setLoading(false);
+        return;
+      }
       if (cancelled) return;
       if (!res.ok) {
         setError('Could not load Files settings.');
@@ -99,13 +107,15 @@ export default function FilesSettings() {
   async function onChange(next: RetentionValue) {
     setValue(next);
     setSaving(true);
-    const res = await api.fetch('/org-settings', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ binRetentionDays: fromValue(next) }),
-    });
+    const res = await api
+      .fetch('/org-settings', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ binRetentionDays: fromValue(next) }),
+      })
+      .catch(() => null);
     setSaving(false);
-    if (!res.ok) {
+    if (!res?.ok) {
       await notifications.show('Failed to save Files settings', 'error');
       return;
     }

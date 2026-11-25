@@ -33,34 +33,46 @@ export interface ExtensionClient {
 export function hostApiFromRemote(
   remote: Comlink.Remote<HostAPI>,
 ): HostAPIClient {
+  // Namespace proxies must stay strongly referenced: Comlink releases a proxy
+  // once it is garbage-collected, closing its port and dropping in-flight replies.
+  const cache = new Map<keyof HostAPI, Promise<unknown>>();
+  function ns<K extends keyof HostAPI>(key: K): Promise<HostAPI[K]> {
+    let entry = cache.get(key);
+    if (!entry) {
+      entry = Promise.resolve(remote[key] as unknown as Promise<HostAPI[K]>);
+      cache.set(key, entry);
+    }
+    return entry as Promise<HostAPI[K]>;
+  }
+
   return {
     storage: {
-      get: async (key) => (await remote.storage).get(key),
-      set: async (key, value) => (await remote.storage).set(key, value),
-      remove: async (key) => (await remote.storage).remove(key),
+      get: async (key) => (await ns('storage')).get(key),
+      set: async (key, value) => (await ns('storage')).set(key, value),
+      remove: async (key) => (await ns('storage')).remove(key),
     },
     notifications: {
       show: async (message, type) =>
-        (await remote.notifications).show(message, type),
+        (await ns('notifications')).show(message, type),
     },
     ai: {
       generateText: async (prompt, options) =>
-        (await remote.ai).generateText(prompt, options),
+        (await ns('ai')).generateText(prompt, options),
     },
     hitl: {
       requestApproval: async (input) =>
-        (await remote.hitl).requestApproval(input),
+        (await ns('hitl')).requestApproval(input),
     },
     api: {
-      fetch: async (path, init) => (await remote.api).fetch(path, init),
+      fetch: async (path, init) => (await ns('api')).fetch(path, init),
     },
     events: {
       publish: async (topic, payload) =>
-        (await remote.events).publish(topic, payload),
+        (await ns('events')).publish(topic, payload),
     },
     navigation: {
       openExternal: async (url, options) =>
-        (await remote.navigation).openExternal(url, options),
+        (await ns('navigation')).openExternal(url, options),
     },
   };
 }
