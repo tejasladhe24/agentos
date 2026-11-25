@@ -20,7 +20,10 @@
 # ---------------------------------------------------------------------------
 # builder — full toolchain, install, agentos build, then prune
 # ---------------------------------------------------------------------------
-FROM oven/bun:1.4 AS builder
+FROM node:24-bookworm-slim AS builder
+# Real Node 24 for pnpm (pnpm runs on this, not on a bundled Node). Bun copied in for agentos build/scripts.
+COPY --from=oven/bun:1.4 /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -sf /usr/local/bin/bun /usr/local/bin/bunx
 
 ARG CONSUMER_PATH=examples/client-app
 
@@ -34,11 +37,12 @@ ENV CONSUMER_PATH=${CONSUMER_PATH} \
 
 WORKDIR /app
 
-# pnpm (oven/bun has no npm) + uv (postinstall Python sync)
+# pnpm via npm on Node 24 (matches ci.yml / ticket 94) + uv (postinstall Python sync)
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl \
   && rm -rf /var/lib/apt/lists/* \
-  && curl -fsSL https://get.pnpm.io/install.sh | SHELL=bash PNPM_VERSION=9.15.4 bash - \
+  && npm install -g pnpm@9.15.4 \
+  && node -v && pnpm -v \
   && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 COPY . .
