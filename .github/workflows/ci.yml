@@ -83,6 +83,24 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: bun run build
 
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: pnpm install --frozen-lockfile
+      - run: bun run test
+
   deploy-workflow:
     name: Deploy workflow smoke
     runs-on: ubuntu-latest
