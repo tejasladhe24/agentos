@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import {
   defaultEnabledById,
   defaultSkillsByExtension,
@@ -27,6 +27,8 @@ function resetStore() {
   });
 }
 
+const originalFetch = globalThis.fetch;
+
 describe('useShellStore', () => {
   beforeEach(() => {
     resetStore();
@@ -34,6 +36,10 @@ describe('useShellStore', () => {
     globalThis.fetch = mock(() =>
       Promise.resolve(new Response(null, { status: 404 })),
     ) as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   test('fixture catalog seeds manager and skills', () => {

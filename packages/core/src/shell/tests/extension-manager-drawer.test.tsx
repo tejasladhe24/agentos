@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   ActivityBar,
@@ -28,6 +28,8 @@ function resetStore() {
   });
 }
 
+const originalFetch = globalThis.fetch;
+
 describe('ExtensionManagerDrawer', () => {
   beforeEach(() => {
     resetStore();
@@ -35,6 +37,10 @@ describe('ExtensionManagerDrawer', () => {
     globalThis.fetch = mock(() =>
       Promise.resolve(new Response(null, { status: 404 })),
     ) as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   test('list hides builtins by default and shows customers', () => {
