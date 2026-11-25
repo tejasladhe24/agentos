@@ -23,8 +23,10 @@ import {
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
 } from '@agentos/ui/components/field';
+import type { UiFieldError } from '../lib/form-errors';
 import { Input } from '@agentos/ui/components/input';
 import {
   Select,
@@ -93,16 +95,19 @@ export function IntegrationProviderPicker({
   value,
   onValueChange,
   disabled,
+  errors,
 }: {
   id?: string;
   providers: IntegrationProviderSpec[];
   value: string;
   onValueChange: (provider: string) => void;
   disabled?: boolean;
+  errors?: UiFieldError[];
 }) {
   const items = providers.map((p) => ({ value: p.id, label: p.label }));
+  const invalid = Boolean(errors?.length);
   return (
-    <Field data-slot="integration-provider">
+    <Field data-slot="integration-provider" data-invalid={invalid || undefined}>
       <FieldLabel htmlFor={id}>Provider</FieldLabel>
       <Select
         items={items}
@@ -112,7 +117,11 @@ export function IntegrationProviderPicker({
         }}
         disabled={disabled}
       >
-        <SelectTrigger id={id} className="w-full max-w-xs">
+        <SelectTrigger
+          id={id}
+          className="w-full max-w-xs"
+          aria-invalid={invalid || undefined}
+        >
           <SelectValue placeholder="Choose a provider" />
         </SelectTrigger>
         <SelectContent>
@@ -123,6 +132,7 @@ export function IntegrationProviderPicker({
           ))}
         </SelectContent>
       </Select>
+      {invalid ? <FieldError errors={errors} /> : null}
     </Field>
   );
 }
@@ -132,16 +142,21 @@ export function IntegrationTextField({
   field,
   value,
   onValueChange,
+  onBlur,
   disabled,
+  errors,
 }: {
   id: string;
   field: IntegrationFieldSpec;
   value: string;
   onValueChange: (value: string) => void;
+  onBlur?: () => void;
   disabled?: boolean;
+  errors?: UiFieldError[];
 }) {
+  const invalid = Boolean(errors?.length);
   return (
-    <Field data-slot="integration-setting">
+    <Field data-slot="integration-setting" data-invalid={invalid || undefined}>
       <FieldLabel htmlFor={id}>
         {field.label}
         {field.required ? null : (
@@ -153,11 +168,14 @@ export function IntegrationTextField({
         value={value}
         placeholder={field.placeholder}
         disabled={disabled}
+        aria-invalid={invalid || undefined}
+        onBlur={onBlur}
         onChange={(e) => onValueChange(e.target.value)}
       />
       {field.description ? (
         <FieldDescription>{field.description}</FieldDescription>
       ) : null}
+      {invalid ? <FieldError errors={errors} /> : null}
     </Field>
   );
 }
@@ -172,22 +190,27 @@ export function IntegrationSecretField({
   status,
   value,
   onValueChange,
+  onBlur,
   disabled,
+  errors,
 }: {
   id: string;
   field: IntegrationFieldSpec;
   status?: IntegrationSecretStatus;
   value: string;
   onValueChange: (value: string) => void;
+  onBlur?: () => void;
   disabled?: boolean;
+  errors?: UiFieldError[];
 }) {
   const [replacing, setReplacing] = useState(false);
   const isSet = status?.set === true;
   const editing = !isSet || replacing;
   const stamp = formatStamp(status?.updatedAt);
+  const invalid = Boolean(errors?.length);
 
   return (
-    <Field data-slot="integration-secret">
+    <Field data-slot="integration-secret" data-invalid={invalid || undefined}>
       <FieldLabel htmlFor={editing ? id : undefined}>
         {field.label}
         <Badge
@@ -209,6 +232,8 @@ export function IntegrationSecretField({
               field.placeholder ?? (isSet ? 'Enter a new value' : '')
             }
             disabled={disabled}
+            aria-invalid={invalid || undefined}
+            onBlur={onBlur}
             onChange={(e) => onValueChange(e.target.value)}
           />
           {isSet ? (
@@ -250,6 +275,7 @@ export function IntegrationSecretField({
       {field.description ? (
         <FieldDescription>{field.description}</FieldDescription>
       ) : null}
+      {invalid ? <FieldError errors={errors} /> : null}
     </Field>
   );
 }

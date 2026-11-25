@@ -1,4 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import {
   ArrowsDownUpIcon,
   CheckCircleIcon,
@@ -7,6 +9,10 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+} from '@agentos/core/client/lib/form-errors';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,6 +95,8 @@ export type AccountRolesSectionProps = {
   onDeleteRole?: (role: string) => Promise<void>;
 };
 
+const DEFAULT_NEW_ROLE_PERMS = 'auth.session.read, files.read, email.read';
+
 function parsePermissionsInput(raw: string): string[] {
   return [
     ...new Set(
@@ -99,6 +107,20 @@ function parsePermissionsInput(raw: string): string[] {
     ),
   ];
 }
+
+const createRoleSchema = z.object({
+  name: z.string().trim().min(1, 'Role name is required'),
+  permissions: z
+    .string()
+    .refine(
+      (raw) => parsePermissionsInput(raw).length > 0,
+      'At least one permission is required',
+    ),
+});
+
+const editRoleSchema = z.object({
+  permissions: z.string(),
+});
 
 function formatPermissionsSummary(permissions: readonly string[]): string {
   if (permissions.includes('*')) return 'All permissions (*)';
@@ -125,13 +147,52 @@ export function AccountRolesSection({
   >('name-asc');
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [newRoleName, setNewRoleName] = useState('');
-  const [newRolePerms, setNewRolePerms] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [editingRole, setEditingRole] = useState<AccountRoleEntry | null>(null);
-  const [editPerms, setEditPerms] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [deletingRole, setDeletingRole] = useState<string | null>(null);
+
+  const createForm = useForm({
+    defaultValues: { name: '', permissions: DEFAULT_NEW_ROLE_PERMS },
+    validators: { onSubmit: createRoleSchema },
+    onSubmit: async ({ value }) => {
+      if (!onSaveRole) return;
+      setCreateError(null);
+      try {
+        await onSaveRole(
+          value.name.trim(),
+          parsePermissionsInput(value.permissions),
+        );
+        setCreateOpen(false);
+        createForm.reset({ name: '', permissions: DEFAULT_NEW_ROLE_PERMS });
+      } catch (err) {
+        setCreateError(
+          err instanceof Error ? err.message : 'Create role failed',
+        );
+      }
+    },
+  });
+
+  const editForm = useForm({
+    defaultValues: { permissions: '' },
+    validators: { onSubmit: editRoleSchema },
+    onSubmit: async ({ value }) => {
+      if (!editingRole || !onSaveRole) return;
+      setEditError(null);
+      try {
+        await onSaveRole(
+          editingRole.role,
+          parsePermissionsInput(value.permissions),
+        );
+        setEditingRole(null);
+        editForm.reset({ permissions: '' });
+      } catch (err) {
+        setEditError(err instanceof Error ? err.message : 'Update role failed');
+      }
+    },
+  });
 
   const assignedSet = useMemo(() => new Set(roles), [roles]);
   const rows: AccountRoleEntry[] = useMemo(
@@ -175,50 +236,6 @@ export function AccountRolesSection({
 
   const disabled = busy || pending;
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    if (!onSaveRole) return;
-    const trimmed = newRoleName.trim();
-    if (!trimmed) {
-      setLocalError('Role name required');
-      return;
-    }
-    const perms = parsePermissionsInput(newRolePerms);
-    if (perms.length === 0) {
-      setLocalError('At least one permission is required');
-      return;
-    }
-    setPending(true);
-    setLocalError(null);
-    try {
-      await onSaveRole(trimmed, perms);
-      setCreateOpen(false);
-      setNewRoleName('');
-      setNewRolePerms('');
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Create role failed');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleUpdate(e: FormEvent) {
-    e.preventDefault();
-    if (!editingRole || !onSaveRole) return;
-    const perms = parsePermissionsInput(editPerms);
-    setPending(true);
-    setLocalError(null);
-    try {
-      await onSaveRole(editingRole.role, perms);
-      setEditingRole(null);
-      setEditPerms('');
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Update role failed');
-    } finally {
-      setPending(false);
-    }
-  }
-
   async function handleDelete() {
     if (!deletingRole || !onDeleteRole) return;
     setPending(true);
@@ -251,8 +268,11 @@ export function AccountRolesSection({
             data-slot="create-role-trigger"
             onClick={() => {
               setLocalError(null);
-              setNewRoleName('');
-              setNewRolePerms('auth.session.read, files.read, email.read');
+              setCreateError(null);
+              createForm.reset({
+                name: '',
+                permissions: DEFAULT_NEW_ROLE_PERMS,
+              });
               setCreateOpen(true);
             }}
           >
@@ -444,10 +464,12 @@ export function AccountRolesSection({
                                     <DropdownMenuItem
                                       onClick={() => {
                                         setLocalError(null);
+                                        setEditError(null);
                                         setEditingRole(entry);
-                                        setEditPerms(
-                                          entry.permissions.join(', '),
-                                        );
+                                        editForm.reset({
+                                          permissions:
+                                            entry.permissions.join(', '),
+                                        });
                                       }}
                                     >
                                       Update role
@@ -483,59 +505,124 @@ export function AccountRolesSection({
         )}
       </FieldGroup>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) {
+            setCreateError(null);
+            createForm.reset({ name: '', permissions: DEFAULT_NEW_ROLE_PERMS });
+          }
+        }}
+      >
         <DialogContent>
-          <form onSubmit={handleCreate} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void createForm.handleSubmit();
+            }}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
               <DialogTitle>Create role</DialogTitle>
               <DialogDescription>
                 Define a role name and comma-separated permissions.
               </DialogDescription>
             </DialogHeader>
-            <Field>
-              <FieldLabel htmlFor="account-new-role-name">Role name</FieldLabel>
-              <Input
-                id="account-new-role-name"
-                value={newRoleName}
-                onChange={(e) => {
-                  setNewRoleName(e.target.value);
-                  if (localError) setLocalError(null);
-                }}
-                placeholder="analyst"
-                disabled={disabled}
-                autoFocus
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="account-new-role-perms">
-                Permissions
-              </FieldLabel>
-              <Textarea
-                id="account-new-role-perms"
-                value={newRolePerms}
-                onChange={(e) => setNewRolePerms(e.target.value)}
-                rows={3}
-                placeholder="auth.session.read, files.read, email.read"
-                disabled={disabled}
-              />
-              <FieldDescription>
-                Comma- or newline-separated permission identifiers.
-              </FieldDescription>
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={disabled}>
-                Create
-              </Button>
-            </DialogFooter>
+            <createForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => {
+                const formDisabled = disabled || isSubmitting;
+                return (
+                  <>
+                    <createForm.Field name="name">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-new-role-name">
+                              Role name
+                            </FieldLabel>
+                            <Input
+                              id="account-new-role-name"
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => {
+                                field.handleChange(e.target.value);
+                                if (createError) setCreateError(null);
+                              }}
+                              placeholder="analyst"
+                              disabled={formDisabled}
+                              aria-invalid={invalid || undefined}
+                              autoFocus
+                            />
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </createForm.Field>
+                    <createForm.Field name="permissions">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-new-role-perms">
+                              Permissions
+                            </FieldLabel>
+                            <Textarea
+                              id="account-new-role-perms"
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => {
+                                field.handleChange(e.target.value);
+                                if (createError) setCreateError(null);
+                              }}
+                              rows={3}
+                              placeholder="auth.session.read, files.read, email.read"
+                              disabled={formDisabled}
+                              aria-invalid={invalid || undefined}
+                            />
+                            <FieldDescription>
+                              Comma- or newline-separated permission
+                              identifiers.
+                            </FieldDescription>
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </createForm.Field>
+                    {createError ? (
+                      <FieldError>{createError}</FieldError>
+                    ) : null}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={formDisabled}
+                        onClick={() => setCreateOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={formDisabled}>
+                        {isSubmitting ? 'Creating…' : 'Create'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </createForm.Subscribe>
           </form>
         </DialogContent>
       </Dialog>
@@ -543,46 +630,86 @@ export function AccountRolesSection({
       <Dialog
         open={editingRole !== null}
         onOpenChange={(open) => {
-          if (!open) setEditingRole(null);
+          if (!open) {
+            setEditingRole(null);
+            setEditError(null);
+          }
         }}
       >
         <DialogContent>
-          <form onSubmit={handleUpdate} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void editForm.handleSubmit();
+            }}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
               <DialogTitle>Update role: {editingRole?.role}</DialogTitle>
               <DialogDescription>
                 Edit the permissions granted to this role.
               </DialogDescription>
             </DialogHeader>
-            <Field>
-              <FieldLabel htmlFor="account-edit-role-perms">
-                Permissions
-              </FieldLabel>
-              <Textarea
-                id="account-edit-role-perms"
-                value={editPerms}
-                onChange={(e) => setEditPerms(e.target.value)}
-                rows={4}
-                disabled={disabled}
-              />
-              <FieldDescription>
-                Comma- or newline-separated permission identifiers.
-              </FieldDescription>
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setEditingRole(null)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={disabled}>
-                Save
-              </Button>
-            </DialogFooter>
+            <editForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => {
+                const formDisabled = disabled || isSubmitting;
+                return (
+                  <>
+                    <editForm.Field name="permissions">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-edit-role-perms">
+                              Permissions
+                            </FieldLabel>
+                            <Textarea
+                              id="account-edit-role-perms"
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => {
+                                field.handleChange(e.target.value);
+                                if (editError) setEditError(null);
+                              }}
+                              rows={4}
+                              disabled={formDisabled}
+                              aria-invalid={invalid || undefined}
+                            />
+                            <FieldDescription>
+                              Comma- or newline-separated permission
+                              identifiers.
+                            </FieldDescription>
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </editForm.Field>
+                    {editError ? <FieldError>{editError}</FieldError> : null}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={formDisabled}
+                        onClick={() => setEditingRole(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={formDisabled}>
+                        {isSubmitting ? 'Saving…' : 'Save'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </editForm.Subscribe>
           </form>
         </DialogContent>
       </Dialog>

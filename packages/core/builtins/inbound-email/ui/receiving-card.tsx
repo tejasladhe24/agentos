@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+  useHostApi,
+  useHostNotifications,
+} from '@agentos/core/client';
 import {
   IntegrationCard,
   IntegrationRemoveButton,
@@ -43,6 +50,25 @@ const SECRET_FIELDS = {
   },
 };
 
+function createReceivingSchema(hasSavedApiKey: boolean) {
+  return z
+    .object({
+      receivingDomain: z.string().trim().min(1, 'Receiving domain is required'),
+      apiKey: z.string(),
+      signingSecret: z.string(),
+      useSendingKey: z.boolean(),
+    })
+    .superRefine((draft, ctx) => {
+      if (!draft.useSendingKey && !hasSavedApiKey && !draft.apiKey.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Resend API key is required',
+          path: ['apiKey'],
+        });
+      }
+    });
+}
+
 function errorMessage(body: string, fallback: string): string {
   try {
     const parsed = JSON.parse(body) as { error?: unknown };
@@ -67,10 +93,35 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
   const notifications = useHostNotifications();
   const [data, setData] = useState<IntegrationSectionData | null>(null);
   const [sendingUsesResend, setSendingUsesResend] = useState(false);
-  const [draft, setDraft] = useState<ReceivingDraft>(EMPTY_RECEIVING_DRAFT);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const saved = data?.instances[0];
+  const hasSavedApiKey = saved?.secrets.apiKey?.set === true;
+  const schema = useMemo(
+    () => createReceivingSchema(hasSavedApiKey),
+    [hasSavedApiKey],
+  );
+
+  const form = useForm({
+    defaultValues: EMPTY_RECEIVING_DRAFT as ReceivingDraft,
+    validators: { onSubmit: schema },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const res = await api.fetch(RECEIVE_INTEGRATION_PATH, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(receivingDraftBody(value)),
+      });
+      if (!res.ok) {
+        setError(errorMessage(res.body, 'Could not save email receiving.'));
+        return;
+      }
+      await notifications.show('Email receiving saved', 'info');
+      await load();
+    },
+  });
 
   const load = useCallback(async () => {
     const [receive, send] = await Promise.all([
@@ -85,7 +136,7 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
     try {
       const next = JSON.parse(receive.body) as IntegrationSectionData;
       setData(next);
-      setDraft({
+      form.reset({
         ...EMPTY_RECEIVING_DRAFT,
         receivingDomain: str(next.instances[0]?.settings.receivingDomain),
       });
@@ -96,15 +147,16 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
     if (send.ok) {
       try {
         const sending = JSON.parse(send.body) as IntegrationSectionData;
-        const saved = sending.instances[0];
+        const savedSending = sending.instances[0];
         setSendingUsesResend(
-          saved?.provider === 'resend' && saved.secrets.apiKey?.set === true,
+          savedSending?.provider === 'resend' &&
+            savedSending.secrets.apiKey?.set === true,
         );
       } catch {
         setSendingUsesResend(false);
       }
     }
-  }, [api]);
+  }, [api, form]);
 
   useEffect(() => {
     void load();
@@ -113,9 +165,7 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
   if (loading) return <LoadingState size="sm">Loading…</LoadingState>;
   if (!data) return <FieldError>{error}</FieldError>;
 
-  const saved = data.instances[0];
   const readOnly = !data.canManage;
-  const disabled = readOnly || busy;
   const status = parseWebhookStatus(saved?.settings.webhookStatus);
   const connectionId = str(saved?.settings.connectionId);
   const webhookError = str(saved?.settings.webhookError);
@@ -123,22 +173,6 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
     ? receivingWebhookUrl(connectionId, window.location.origin)
     : '';
   const showManual = status === 'manual' || status === 'failing';
-
-  const save = async () => {
-    setBusy(true);
-    const res = await api.fetch(RECEIVE_INTEGRATION_PATH, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(receivingDraftBody(draft)),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError(errorMessage(res.body, 'Could not save email receiving.'));
-      return;
-    }
-    await notifications.show('Email receiving saved', 'info');
-    await load();
-  };
 
   const remove = async () => {
     setBusy(true);
@@ -167,140 +201,222 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
   };
 
   return (
-    <IntegrationCard
-      title="Email receiving"
-      description="Receive email for your domain through your own Resend account."
-      source={saved ? 'tenant' : 'platform'}
-      platformConfigured={data.platformDefault?.configured ?? true}
-      entryId={entryId}
-      footer={
-        readOnly ? (
-          <span className="text-xs text-muted-foreground">
-            Only admins can change this integration.
-          </span>
-        ) : (
-          <>
-            <Button type="button" size="sm" disabled={busy} onClick={save}>
-              Save
-            </Button>
-            {saved ? (
-              <IntegrationTestButton onTest={test} disabled={busy} />
-            ) : null}
-            {saved ? (
-              <span className="ml-auto">
-                <IntegrationRemoveButton
-                  name="Email receiving"
-                  onConfirm={remove}
-                  disabled={busy}
-                />
-              </span>
-            ) : null}
-          </>
-        )
-      }
+    <form
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void form.handleSubmit();
+      }}
     >
-      {!saved ? (
-        <p className="text-xs text-muted-foreground">
-          {data.platformDefault?.configured
-            ? 'Mail sent to your provisioned addresses arrives through the platform default until you connect your own Resend account.'
-            : 'No platform default is configured. Connect your Resend account to receive email.'}
-        </p>
-      ) : null}
-      {status ? (
-        <div className="flex items-center gap-2" data-slot="webhook-status">
-          <Badge variant={status === 'failing' ? 'destructive' : 'outline'}>
-            {WEBHOOK_STATUS_LABELS[status]}
-          </Badge>
-          {webhookError ? (
-            <span className="text-xs text-muted-foreground">
-              {webhookError}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-      <IntegrationTextField
-        id="email-receive-domain"
-        field={{
-          name: 'receivingDomain',
-          label: 'Receiving domain',
-          placeholder: 'inbound.example.com',
-          description:
-            'In Resend → Domains, enable receiving for this domain and add the MX record Resend shows to your DNS.',
-        }}
-        value={draft.receivingDomain}
-        disabled={disabled}
-        onValueChange={(receivingDomain) =>
-          setDraft({ ...draft, receivingDomain })
-        }
-      />
-      {sendingUsesResend ? (
-        <Field orientation="horizontal" data-slot="use-sending-key">
-          <Checkbox
-            id="email-receive-same-key"
-            checked={draft.useSendingKey}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              setDraft({ ...draft, useSendingKey: checked === true })
-            }
-          />
-          <FieldLabel htmlFor="email-receive-same-key">
-            Use the same Resend key as Email sending
-          </FieldLabel>
-        </Field>
-      ) : null}
-      {draft.useSendingKey ? null : (
-        <IntegrationSecretField
-          id="email-receive-api-key"
-          field={SECRET_FIELDS.apiKey}
-          status={saved?.secrets.apiKey}
-          value={draft.apiKey}
-          disabled={disabled}
-          onValueChange={(apiKey) => setDraft({ ...draft, apiKey })}
-        />
-      )}
-      {webhookUrl ? (
-        <Field data-slot="webhook-url">
-          <FieldLabel htmlFor="email-receive-webhook-url">
-            Webhook URL
-          </FieldLabel>
-          <div className="flex gap-2">
-            <Input
-              id="email-receive-webhook-url"
-              readOnly
-              value={webhookUrl}
-              className="font-mono text-xs"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void navigator.clipboard?.writeText(webhookUrl);
-              }}
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => {
+          const disabled = readOnly || busy || isSubmitting;
+          return (
+            <IntegrationCard
+              title="Email receiving"
+              description="Receive email for your domain through your own Resend account."
+              source={saved ? 'tenant' : 'platform'}
+              platformConfigured={data.platformDefault?.configured ?? true}
+              entryId={entryId}
+              footer={
+                readOnly ? (
+                  <span className="text-xs text-muted-foreground">
+                    Only admins can change this integration.
+                  </span>
+                ) : (
+                  <>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={busy || isSubmitting}
+                    >
+                      {isSubmitting ? 'Saving…' : 'Save'}
+                    </Button>
+                    {saved ? (
+                      <IntegrationTestButton
+                        onTest={test}
+                        disabled={busy || isSubmitting}
+                      />
+                    ) : null}
+                    {saved ? (
+                      <span className="ml-auto">
+                        <IntegrationRemoveButton
+                          name="Email receiving"
+                          onConfirm={remove}
+                          disabled={busy || isSubmitting}
+                        />
+                      </span>
+                    ) : null}
+                  </>
+                )
+              }
             >
-              Copy
-            </Button>
-          </div>
-          <FieldDescription>
-            {showManual
-              ? 'In Resend → Webhooks, add this URL for the email.received event, then paste the signing secret below.'
-              : 'Registered in your Resend account for the email.received event.'}
-          </FieldDescription>
-        </Field>
-      ) : null}
-      {showManual ? (
-        <IntegrationSecretField
-          id="email-receive-signing-secret"
-          field={SECRET_FIELDS.signingSecret}
-          status={saved?.secrets.signingSecret}
-          value={draft.signingSecret}
-          disabled={disabled}
-          onValueChange={(signingSecret) =>
-            setDraft({ ...draft, signingSecret })
-          }
-        />
-      ) : null}
-      {error ? <FieldError>{error}</FieldError> : null}
-    </IntegrationCard>
+              {!saved ? (
+                <p className="text-xs text-muted-foreground">
+                  {data.platformDefault?.configured
+                    ? 'Mail sent to your provisioned addresses arrives through the platform default until you connect your own Resend account.'
+                    : 'No platform default is configured. Connect your Resend account to receive email.'}
+                </p>
+              ) : null}
+              {status ? (
+                <div
+                  className="flex items-center gap-2"
+                  data-slot="webhook-status"
+                >
+                  <Badge
+                    variant={status === 'failing' ? 'destructive' : 'outline'}
+                  >
+                    {WEBHOOK_STATUS_LABELS[status]}
+                  </Badge>
+                  {webhookError ? (
+                    <span className="text-xs text-muted-foreground">
+                      {webhookError}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              <form.Field name="receivingDomain">
+                {(field) => {
+                  const invalid = isFieldInvalid(field.state.meta);
+                  return (
+                    <IntegrationTextField
+                      id="email-receive-domain"
+                      field={{
+                        name: 'receivingDomain',
+                        label: 'Receiving domain',
+                        required: true,
+                        placeholder: 'inbound.example.com',
+                        description:
+                          'In Resend → Domains, enable receiving for this domain and add the MX record Resend shows to your DNS.',
+                      }}
+                      value={field.state.value}
+                      disabled={disabled}
+                      errors={
+                        invalid
+                          ? toFieldErrors(field.state.meta.errors)
+                          : undefined
+                      }
+                      onBlur={field.handleBlur}
+                      onValueChange={(receivingDomain) => {
+                        field.handleChange(receivingDomain);
+                        if (error) setError(null);
+                      }}
+                    />
+                  );
+                }}
+              </form.Field>
+              {sendingUsesResend ? (
+                <form.Field name="useSendingKey">
+                  {(field) => (
+                    <Field orientation="horizontal" data-slot="use-sending-key">
+                      <Checkbox
+                        id="email-receive-same-key"
+                        checked={field.state.value}
+                        disabled={disabled}
+                        onCheckedChange={(checked) => {
+                          field.handleChange(checked === true);
+                          if (error) setError(null);
+                        }}
+                      />
+                      <FieldLabel htmlFor="email-receive-same-key">
+                        Use the same Resend key as Email sending
+                      </FieldLabel>
+                    </Field>
+                  )}
+                </form.Field>
+              ) : null}
+              <form.Subscribe selector={(state) => state.values.useSendingKey}>
+                {(useSendingKey) =>
+                  useSendingKey ? null : (
+                    <form.Field name="apiKey">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <IntegrationSecretField
+                            id="email-receive-api-key"
+                            field={SECRET_FIELDS.apiKey}
+                            status={saved?.secrets.apiKey}
+                            value={field.state.value}
+                            disabled={disabled}
+                            errors={
+                              invalid
+                                ? toFieldErrors(field.state.meta.errors)
+                                : undefined
+                            }
+                            onBlur={field.handleBlur}
+                            onValueChange={(apiKey) => {
+                              field.handleChange(apiKey);
+                              if (error) setError(null);
+                            }}
+                          />
+                        );
+                      }}
+                    </form.Field>
+                  )
+                }
+              </form.Subscribe>
+              {webhookUrl ? (
+                <Field data-slot="webhook-url">
+                  <FieldLabel htmlFor="email-receive-webhook-url">
+                    Webhook URL
+                  </FieldLabel>
+                  <div className="flex gap-2">
+                    <Input
+                      id="email-receive-webhook-url"
+                      readOnly
+                      value={webhookUrl}
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(webhookUrl);
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <FieldDescription>
+                    {showManual
+                      ? 'In Resend → Webhooks, add this URL for the email.received event, then paste the signing secret below.'
+                      : 'Registered in your Resend account for the email.received event.'}
+                  </FieldDescription>
+                </Field>
+              ) : null}
+              {showManual ? (
+                <form.Field name="signingSecret">
+                  {(field) => {
+                    const invalid = isFieldInvalid(field.state.meta);
+                    return (
+                      <IntegrationSecretField
+                        id="email-receive-signing-secret"
+                        field={SECRET_FIELDS.signingSecret}
+                        status={saved?.secrets.signingSecret}
+                        value={field.state.value}
+                        disabled={disabled}
+                        errors={
+                          invalid
+                            ? toFieldErrors(field.state.meta.errors)
+                            : undefined
+                        }
+                        onBlur={field.handleBlur}
+                        onValueChange={(signingSecret) => {
+                          field.handleChange(signingSecret);
+                          if (error) setError(null);
+                        }}
+                      />
+                    );
+                  }}
+                </form.Field>
+              ) : null}
+              {error ? <FieldError>{error}</FieldError> : null}
+            </IntegrationCard>
+          );
+        }}
+      </form.Subscribe>
+    </form>
   );
 }

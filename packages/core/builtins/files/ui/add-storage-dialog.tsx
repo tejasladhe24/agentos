@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+  useHostApi,
+  useHostNotifications,
+} from '@agentos/core/client';
 import { CheckCircleIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
 import { Checkbox } from '@agentos/ui/components/checkbox';
@@ -41,6 +48,12 @@ type TestState =
   | { status: 'ok' }
   | { status: 'failed'; message: string };
 
+type AddStorageFormValues = {
+  name: string;
+  values: Record<string, string>;
+  makeDefault: boolean;
+};
+
 export type AddStorageDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,6 +79,29 @@ export function visibleFields(
   return fields.filter((f) => f.type === 'secret' || allowed.has(f.id));
 }
 
+function createAddStorageSchema(
+  fields: StorageProviderField[],
+  required: Set<string>,
+) {
+  return z
+    .object({
+      name: z.string().trim().min(1, 'Name is required'),
+      values: z.record(z.string(), z.string()),
+      makeDefault: z.boolean(),
+    })
+    .superRefine((data, ctx) => {
+      for (const field of fields) {
+        if (required.has(field.id) && !(data.values[field.id] ?? '').trim()) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `${field.label} is required`,
+            path: ['values', field.id],
+          });
+        }
+      }
+    });
+}
+
 /** Settings › Files › Add storage: pick provider / preset → form → test → add. */
 export function AddStorageDialog({
   open,
@@ -86,53 +122,40 @@ export function AddStorageDialog({
   );
   const [step, setStep] = useState<Step>('provider');
   const [choice, setChoice] = useState('');
-  const [name, setName] = useState('');
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [makeDefault, setMakeDefault] = useState(false);
   const [test, setTest] = useState<TestState>({ status: 'idle' });
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    setStep('provider');
-    setChoice(
-      choices[0] ? choiceId(choices[0].provider, choices[0].preset) : '',
-    );
-    setName('');
-    setValues({});
-    setMakeDefault(false);
-    setTest({ status: 'idle' });
-    setError(null);
-  }, [open, choices]);
 
   const selected = choices.find(
     (c) => choiceId(c.provider, c.preset) === choice,
   );
-  const fields = selected
-    ? visibleFields(selected.provider, selected.preset)
-    : [];
-  const required = new Set(
-    selected?.preset?.required ??
-      fields.filter((f) => f.required).map((f) => f.id),
+  const fields = useMemo(
+    () => (selected ? visibleFields(selected.provider, selected.preset) : []),
+    [selected],
+  );
+  const required = useMemo(
+    () =>
+      new Set(
+        selected?.preset?.required ??
+          fields.filter((f) => f.required).map((f) => f.id),
+      ),
+    [selected, fields],
+  );
+  const schema = useMemo(
+    () => createAddStorageSchema(fields, required),
+    [fields, required],
   );
 
-  function valueOf(field: StorageProviderField): string {
-    return values[field.id] ?? field.options?.[0]?.value ?? '';
-  }
-
-  function setField(id: string, next: string) {
-    setValues((prev) => ({ ...prev, [id]: next }));
-    setTest({ status: 'idle' });
-  }
-
-  function payload() {
+  function buildPayload(values: Record<string, string>) {
     if (!selected) return null;
     const config: Record<string, string> = {};
     const secrets: Record<string, string> = {};
     if (selected.preset) config.preset = selected.preset.id;
     for (const field of fields) {
-      const value = valueOf(field).trim();
+      const value = (
+        values[field.id] ??
+        field.options?.[0]?.value ??
+        ''
+      ).trim();
       if (!value) continue;
       if (field.type === 'secret') secrets[field.id] = value;
       else config[field.id] = value;
@@ -140,8 +163,49 @@ export function AddStorageDialog({
     return { provider: selected.provider.id, config, secrets };
   }
 
+  const form = useForm({
+    defaultValues: {
+      name: '',
+      values: {},
+      makeDefault: false,
+    } as AddStorageFormValues,
+    validators: { onSubmit: schema },
+    onSubmit: async ({ value }) => {
+      const body = buildPayload(value.values);
+      if (!body) return;
+      setError(null);
+      const res = await api.fetch('/mounts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...body,
+          name: value.name.trim(),
+          isDefault: value.makeDefault,
+        }),
+      });
+      if (!res.ok) {
+        setError(parseErrorBody(res.body, 'Could not add storage'));
+        return;
+      }
+      await notifications.show(`${value.name.trim()} connected`, 'info');
+      onOpenChange(false);
+      await onAdded();
+    },
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setStep('provider');
+    setChoice(
+      choices[0] ? choiceId(choices[0].provider, choices[0].preset) : '',
+    );
+    form.reset({ name: '', values: {}, makeDefault: false });
+    setTest({ status: 'idle' });
+    setError(null);
+  }, [open, choices, form]);
+
   async function runTest() {
-    const body = payload();
+    const body = buildPayload(form.state.values.values);
     if (!body) return;
     setTest({ status: 'running' });
     const res = await api.fetch('/mounts/test', {
@@ -164,34 +228,6 @@ export function AddStorageDialog({
     );
   }
 
-  async function submit() {
-    const body = payload();
-    if (!body || !name.trim()) return;
-    setSaving(true);
-    setError(null);
-    const res = await api.fetch('/mounts', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        ...body,
-        name: name.trim(),
-        isDefault: makeDefault,
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Could not add storage'));
-      return;
-    }
-    await notifications.show(`${name.trim()} connected`, 'info');
-    onOpenChange(false);
-    await onAdded();
-  }
-
-  const missingRequired = fields.some(
-    (f) => required.has(f.id) && !values[f.id]?.trim(),
-  );
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -208,152 +244,12 @@ export function AddStorageDialog({
         </DialogHeader>
 
         {choices.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No storage providers are available to connect yet. Platform storage
-            is configured by the deployment.
-          </p>
-        ) : step === 'provider' ? (
-          <RadioGroup
-            value={choice}
-            onValueChange={(v) => setChoice(String(v))}
-            aria-label="Storage service"
-            className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-            data-slot="files-storage-presets"
-          >
-            {choices.map(({ provider, preset }) => {
-              const id = choiceId(provider, preset);
-              return (
-                <FieldLabel key={id} htmlFor={`files-add-${id}`}>
-                  <Field orientation="horizontal">
-                    <MountIcon
-                      provider={provider.id}
-                      className="size-4 shrink-0"
-                    />
-                    <FieldContent>
-                      <FieldTitle>{preset?.label ?? provider.label}</FieldTitle>
-                    </FieldContent>
-                    <RadioGroupItem value={id} id={`files-add-${id}`} />
-                  </Field>
-                </FieldLabel>
-              );
-            })}
-          </RadioGroup>
-        ) : (
-          <FieldGroup className="gap-3">
-            <Field>
-              <FieldLabel htmlFor="files-add-name">Name</FieldLabel>
-              <Input
-                id="files-add-name"
-                value={name}
-                placeholder={selected?.preset?.label ?? 'Storage name'}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Field>
-            {fields.map((field) =>
-              field.type === 'choice' ? (
-                <Field key={field.id}>
-                  <FieldLabel>{field.label}</FieldLabel>
-                  <RadioGroup
-                    value={valueOf(field)}
-                    onValueChange={(v) => setField(field.id, String(v))}
-                    aria-label={field.label}
-                  >
-                    {(field.options ?? []).map((option) => (
-                      <Field key={option.value} orientation="horizontal">
-                        <RadioGroupItem
-                          value={option.value}
-                          id={`files-add-field-${field.id}-${option.value}`}
-                        />
-                        <FieldLabel
-                          htmlFor={`files-add-field-${field.id}-${option.value}`}
-                        >
-                          {option.label}
-                        </FieldLabel>
-                      </Field>
-                    ))}
-                  </RadioGroup>
-                  {field.help ? (
-                    <FieldDescription>{field.help}</FieldDescription>
-                  ) : null}
-                </Field>
-              ) : (
-                <Field key={field.id}>
-                  <FieldLabel htmlFor={`files-add-field-${field.id}`}>
-                    {field.label}
-                    {required.has(field.id) ? ' *' : ''}
-                  </FieldLabel>
-                  <Input
-                    id={`files-add-field-${field.id}`}
-                    type={field.type === 'secret' ? 'password' : 'text'}
-                    autoComplete="off"
-                    placeholder={field.placeholder}
-                    value={values[field.id] ?? ''}
-                    onChange={(e) => setField(field.id, e.target.value)}
-                  />
-                  {field.help ? (
-                    <FieldDescription>{field.help}</FieldDescription>
-                  ) : null}
-                </Field>
-              ),
-            )}
-            <Field orientation="horizontal">
-              <Checkbox
-                id="files-add-default"
-                checked={makeDefault}
-                onCheckedChange={(checked) => setMakeDefault(checked === true)}
-              />
-              <FieldLabel htmlFor="files-add-default">
-                Use as default storage for new uploads
-              </FieldLabel>
-            </Field>
-            {test.status === 'ok' ? (
-              <p
-                className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400"
-                data-slot="files-add-test-ok"
-              >
-                <CheckCircleIcon className="size-4" aria-hidden />
-                Connection works: list, upload, and delete succeeded.
-              </p>
-            ) : test.status === 'failed' ? (
-              <FieldError data-slot="files-add-test-error">
-                <span className="flex items-center gap-1.5">
-                  <WarningCircleIcon className="size-4 shrink-0" aria-hidden />
-                  {test.message}
-                </span>
-              </FieldError>
-            ) : null}
-            {error ? <FieldError>{error}</FieldError> : null}
-          </FieldGroup>
-        )}
-
-        <DialogFooter>
-          {step === 'form' ? (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setStep('provider')}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={missingRequired || test.status === 'running'}
-                onClick={() => void runTest()}
-              >
-                {test.status === 'running' ? 'Testing…' : 'Test connection'}
-              </Button>
-              <Button
-                type="button"
-                disabled={saving || missingRequired || !name.trim()}
-                onClick={() => void submit()}
-              >
-                {saving ? 'Adding…' : 'Add storage'}
-              </Button>
-            </>
-          ) : (
-            <>
+          <>
+            <p className="text-sm text-muted-foreground">
+              No storage providers are available to connect yet. Platform
+              storage is configured by the deployment.
+            </p>
+            <DialogFooter>
               <Button
                 type="button"
                 variant="ghost"
@@ -361,21 +257,293 @@ export function AddStorageDialog({
               >
                 Cancel
               </Button>
-              {choices.length ? (
-                <Button
-                  type="button"
-                  disabled={!selected}
-                  onClick={() => {
-                    setName(selected?.preset?.label ?? '');
-                    setStep('form');
-                  }}
-                >
-                  Continue
-                </Button>
-              ) : null}
-            </>
-          )}
-        </DialogFooter>
+            </DialogFooter>
+          </>
+        ) : step === 'provider' ? (
+          <>
+            <RadioGroup
+              value={choice}
+              onValueChange={(v) => setChoice(String(v))}
+              aria-label="Storage service"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+              data-slot="files-storage-presets"
+            >
+              {choices.map(({ provider, preset }) => {
+                const id = choiceId(provider, preset);
+                return (
+                  <FieldLabel key={id} htmlFor={`files-add-${id}`}>
+                    <Field orientation="horizontal">
+                      <MountIcon
+                        provider={provider.id}
+                        className="size-4 shrink-0"
+                      />
+                      <FieldContent>
+                        <FieldTitle>
+                          {preset?.label ?? provider.label}
+                        </FieldTitle>
+                      </FieldContent>
+                      <RadioGroupItem value={id} id={`files-add-${id}`} />
+                    </Field>
+                  </FieldLabel>
+                );
+              })}
+            </RadioGroup>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={!selected}
+                onClick={() => {
+                  form.reset({
+                    name: selected?.preset?.label ?? '',
+                    values: {},
+                    makeDefault: false,
+                  });
+                  setTest({ status: 'idle' });
+                  setError(null);
+                  setStep('form');
+                }}
+              >
+                Continue
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <form
+            noValidate
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
+          >
+            <form.Subscribe
+              selector={(state) => ({
+                isSubmitting: state.isSubmitting,
+                values: state.values.values,
+              })}
+            >
+              {({ isSubmitting, values }) => {
+                const missingRequired = fields.some(
+                  (f) => required.has(f.id) && !values[f.id]?.trim(),
+                );
+                return (
+                  <>
+                    <FieldGroup className="gap-3">
+                      <form.Field name="name">
+                        {(field) => {
+                          const invalid = isFieldInvalid(field.state.meta);
+                          return (
+                            <Field data-invalid={invalid || undefined}>
+                              <FieldLabel htmlFor="files-add-name">
+                                Name
+                              </FieldLabel>
+                              <Input
+                                id="files-add-name"
+                                name={field.name}
+                                value={field.state.value}
+                                placeholder={
+                                  selected?.preset?.label ?? 'Storage name'
+                                }
+                                onBlur={field.handleBlur}
+                                onChange={(e) => {
+                                  field.handleChange(e.target.value);
+                                  if (error) setError(null);
+                                }}
+                                disabled={isSubmitting}
+                                aria-invalid={invalid || undefined}
+                              />
+                              {invalid ? (
+                                <FieldError
+                                  errors={toFieldErrors(
+                                    field.state.meta.errors,
+                                  )}
+                                />
+                              ) : null}
+                            </Field>
+                          );
+                        }}
+                      </form.Field>
+                      {fields.map((fieldSpec) => (
+                        <form.Field
+                          key={fieldSpec.id}
+                          name={`values.${fieldSpec.id}` as never}
+                        >
+                          {(field) => {
+                            const invalid = isFieldInvalid(field.state.meta);
+                            const currentVal =
+                              (field.state.value as string | undefined) ??
+                              fieldSpec.options?.[0]?.value ??
+                              '';
+                            return fieldSpec.type === 'choice' ? (
+                              <Field data-invalid={invalid || undefined}>
+                                <FieldLabel>{fieldSpec.label}</FieldLabel>
+                                <RadioGroup
+                                  value={currentVal}
+                                  onValueChange={(v) => {
+                                    field.handleChange(String(v) as never);
+                                    setTest({ status: 'idle' });
+                                    if (error) setError(null);
+                                  }}
+                                  aria-label={fieldSpec.label}
+                                >
+                                  {(fieldSpec.options ?? []).map((option) => (
+                                    <Field
+                                      key={option.value}
+                                      orientation="horizontal"
+                                    >
+                                      <RadioGroupItem
+                                        value={option.value}
+                                        id={`files-add-field-${fieldSpec.id}-${option.value}`}
+                                      />
+                                      <FieldLabel
+                                        htmlFor={`files-add-field-${fieldSpec.id}-${option.value}`}
+                                      >
+                                        {option.label}
+                                      </FieldLabel>
+                                    </Field>
+                                  ))}
+                                </RadioGroup>
+                                {fieldSpec.help ? (
+                                  <FieldDescription>
+                                    {fieldSpec.help}
+                                  </FieldDescription>
+                                ) : null}
+                                {invalid ? (
+                                  <FieldError
+                                    errors={toFieldErrors(
+                                      field.state.meta.errors,
+                                    )}
+                                  />
+                                ) : null}
+                              </Field>
+                            ) : (
+                              <Field data-invalid={invalid || undefined}>
+                                <FieldLabel
+                                  htmlFor={`files-add-field-${fieldSpec.id}`}
+                                >
+                                  {fieldSpec.label}
+                                  {required.has(fieldSpec.id) ? ' *' : ''}
+                                </FieldLabel>
+                                <Input
+                                  id={`files-add-field-${fieldSpec.id}`}
+                                  name={field.name}
+                                  type={
+                                    fieldSpec.type === 'secret'
+                                      ? 'password'
+                                      : 'text'
+                                  }
+                                  autoComplete="off"
+                                  placeholder={fieldSpec.placeholder}
+                                  value={
+                                    (field.state.value as string | undefined) ??
+                                    ''
+                                  }
+                                  onBlur={field.handleBlur}
+                                  onChange={(e) => {
+                                    field.handleChange(e.target.value as never);
+                                    setTest({ status: 'idle' });
+                                    if (error) setError(null);
+                                  }}
+                                  disabled={isSubmitting}
+                                  aria-invalid={invalid || undefined}
+                                />
+                                {fieldSpec.help ? (
+                                  <FieldDescription>
+                                    {fieldSpec.help}
+                                  </FieldDescription>
+                                ) : null}
+                                {invalid ? (
+                                  <FieldError
+                                    errors={toFieldErrors(
+                                      field.state.meta.errors,
+                                    )}
+                                  />
+                                ) : null}
+                              </Field>
+                            );
+                          }}
+                        </form.Field>
+                      ))}
+                      <form.Field name="makeDefault">
+                        {(field) => (
+                          <Field orientation="horizontal">
+                            <Checkbox
+                              id="files-add-default"
+                              checked={field.state.value}
+                              disabled={isSubmitting}
+                              onCheckedChange={(checked) =>
+                                field.handleChange(checked === true)
+                              }
+                            />
+                            <FieldLabel htmlFor="files-add-default">
+                              Use as default storage for new uploads
+                            </FieldLabel>
+                          </Field>
+                        )}
+                      </form.Field>
+                      {test.status === 'ok' ? (
+                        <p
+                          className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400"
+                          data-slot="files-add-test-ok"
+                        >
+                          <CheckCircleIcon className="size-4" aria-hidden />
+                          Connection works: list, upload, and delete succeeded.
+                        </p>
+                      ) : test.status === 'failed' ? (
+                        <FieldError data-slot="files-add-test-error">
+                          <span className="flex items-center gap-1.5">
+                            <WarningCircleIcon
+                              className="size-4 shrink-0"
+                              aria-hidden
+                            />
+                            {test.message}
+                          </span>
+                        </FieldError>
+                      ) : null}
+                      {error ? <FieldError>{error}</FieldError> : null}
+                    </FieldGroup>
+
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={isSubmitting}
+                        onClick={() => setStep('provider')}
+                      >
+                        Back
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={
+                          isSubmitting ||
+                          missingRequired ||
+                          test.status === 'running'
+                        }
+                        onClick={() => void runTest()}
+                      >
+                        {test.status === 'running'
+                          ? 'Testing…'
+                          : 'Test connection'}
+                      </Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? 'Adding…' : 'Add storage'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </form.Subscribe>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

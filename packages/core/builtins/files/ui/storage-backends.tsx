@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import {
+  isFieldInvalid,
+  toFieldErrors,
   useHostApi,
   useHostNavigation,
   useHostNotifications,
@@ -36,8 +40,10 @@ import {
   DropdownMenuTrigger,
 } from '@agentos/ui/components/dropdown-menu';
 import {
+  Field,
   FieldDescription,
   FieldError,
+  FieldLabel,
   FieldLegend,
   FieldSet,
 } from '@agentos/ui/components/field';
@@ -73,6 +79,10 @@ function statusBadge(mount: FilesMount) {
   );
 }
 
+const renameStorageSchema = z.object({
+  name: z.string().trim().min(1, 'Storage name is required'),
+});
+
 /** Settings › Files › Storage backends — org mounts list and management. */
 export function StorageBackends({
   data,
@@ -84,10 +94,29 @@ export function StorageBackends({
   const notifications = useHostNotifications();
   const [busy, setBusy] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FilesMount | null>(null);
-  const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<FilesMount | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+
+  const renameForm = useForm({
+    defaultValues: { name: '' },
+    validators: { onSubmit: renameStorageSchema },
+    onSubmit: async ({ value }) => {
+      if (!renameTarget) return;
+      setRenameError(null);
+      const res = await mutate(
+        `/mounts/${encodeURIComponent(renameTarget.id)}`,
+        { method: 'PATCH', body: { name: value.name.trim() } },
+        'Storage renamed',
+      );
+      if (!res.ok) {
+        setRenameError(parseErrorBody(res.body, 'Could not rename storage'));
+        return;
+      }
+      setRenameTarget(null);
+    },
+  });
 
   const orgMounts = data.mounts.filter((m) => m.kind === 'org');
   const addable = data.providers.filter((p) => p.orgAddable);
@@ -141,25 +170,6 @@ export function StorageBackends({
         'error',
       );
     }
-  }
-
-  async function submitRename() {
-    if (!renameTarget) return;
-    const name = renameValue.trim();
-    if (!name) return;
-    const res = await mutate(
-      `/mounts/${encodeURIComponent(renameTarget.id)}`,
-      { method: 'PATCH', body: { name } },
-      'Storage renamed',
-    );
-    if (!res.ok) {
-      await notifications.show(
-        parseErrorBody(res.body, 'Could not rename storage'),
-        'error',
-      );
-      return;
-    }
-    setRenameTarget(null);
   }
 
   async function submitRemove() {
@@ -250,7 +260,8 @@ export function StorageBackends({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => {
-                        setRenameValue(mount.name);
+                        setRenameError(null);
+                        renameForm.reset({ name: mount.name });
                         setRenameTarget(mount);
                       }}
                     >
@@ -304,37 +315,82 @@ export function StorageBackends({
       <Dialog
         open={renameTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setRenameTarget(null);
+          if (!open) {
+            setRenameTarget(null);
+            setRenameError(null);
+          }
         }}
       >
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename storage</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            aria-label="Storage name"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void submitRename();
+          <form
+            noValidate
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void renameForm.handleSubmit();
             }}
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setRenameTarget(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={busy || !renameValue.trim()}
-              onClick={() => void submitRename()}
-            >
-              Save
-            </Button>
-          </DialogFooter>
+          >
+            <DialogHeader>
+              <DialogTitle>Rename storage</DialogTitle>
+            </DialogHeader>
+            <renameForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => {
+                const formDisabled = busy || isSubmitting;
+                return (
+                  <>
+                    <renameForm.Field name="name">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="storage-rename-input">
+                              Storage name
+                            </FieldLabel>
+                            <Input
+                              id="storage-rename-input"
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => {
+                                field.handleChange(e.target.value);
+                                if (renameError) setRenameError(null);
+                              }}
+                              aria-label="Storage name"
+                              aria-invalid={invalid || undefined}
+                              disabled={formDisabled}
+                              autoFocus
+                            />
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </renameForm.Field>
+                    {renameError ? (
+                      <FieldError>{renameError}</FieldError>
+                    ) : null}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={formDisabled}
+                        onClick={() => setRenameTarget(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={formDisabled}>
+                        {isSubmitting ? 'Saving…' : 'Save'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </renameForm.Subscribe>
+          </form>
         </DialogContent>
       </Dialog>
 

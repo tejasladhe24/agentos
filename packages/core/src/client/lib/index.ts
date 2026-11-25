@@ -29,6 +29,12 @@ export {
   type SettingsTarget,
 } from './use-settings-target';
 
+export {
+  isFieldInvalid,
+  toFieldErrors,
+  type UiFieldError,
+} from './form-errors';
+
 export type {
   AiGenerateOptions,
   AiGenerateResult,
