@@ -21,6 +21,7 @@ Share the Turborepo task cache between laptops and GitHub Actions (Vercel Remote
 
 ## Notes
 
+- PR CI (`ci.yml`) runs one `ci` job that calls `bun run ci`, so lint, format, typecheck, build, and test all go through Turbo and the remote cache. The former separate jobs bypassed Turbo. Rulesets require no named status checks, so renaming jobs is safe.
 - `.turbo/config.json` (from `turbo link`) is gitignored. CI relies only on the `TURBO_*` env vars.
 - Without the secrets, Turbo falls back to the local cache and does not fail. Fork PRs do not receive secrets and simply get cache misses.
 - Turbo deprecates `--remote-only`. Use `--cache=remote:rw,local:` to test remote-only behavior.
