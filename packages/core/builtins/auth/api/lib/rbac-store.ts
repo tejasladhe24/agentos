@@ -87,15 +87,15 @@ export async function seedRolePermissions(db: AuthDb): Promise<void> {
     ['owner', PERMISSION_INTEGRATIONS_MANAGE],
     ['viewer', 'auth.session.read'],
     ['viewer', PERMISSION_FILES_READ],
+    ['viewer', PERMISSION_AUDIT_READ],
     ['viewer', PERMISSION_EMAIL_READ],
+    ['viewer', PERMISSION_EMAIL_SEND],
     ['reviewer', 'auth.session.read'],
-    ['reviewer', PERMISSION_SECRETS_READ],
     ['reviewer', PERMISSION_FILES_READ],
     ['reviewer', PERMISSION_AUDIT_READ],
     ['reviewer', PERMISSION_EMAIL_READ],
     ['reviewer', PERMISSION_EMAIL_SEND],
     ['sales', 'auth.session.read'],
-    ['sales', PERMISSION_SECRETS_READ],
     ['sales', PERMISSION_FILES_READ],
     ['sales', PERMISSION_AUDIT_READ],
     ['sales', PERMISSION_EMAIL_READ],
@@ -296,4 +296,23 @@ export async function setRolePermissions(
       [trimmed, permission],
     );
   }
+}
+
+/** Delete all permission grants for a role (removes the role from the catalog). */
+export async function deleteRole(db: AuthDb, role: string): Promise<boolean> {
+  const trimmed = role.trim();
+  if (!trimmed) return false;
+
+  if (db.dialect === 'sqlite') {
+    const result = db.client
+      .prepare(`DELETE FROM role_permissions WHERE role = ?`)
+      .run(trimmed);
+    return result.changes > 0;
+  }
+
+  const result = await db.client.query(
+    `DELETE FROM role_permissions WHERE role = $1`,
+    [trimmed],
+  );
+  return (result.rowCount ?? 0) > 0;
 }

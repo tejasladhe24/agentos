@@ -1,6 +1,7 @@
 import { useShellActiveView } from '@agentos/core/shell/hooks';
 import {
   buildActivityBarSections,
+  isAdminRoles,
   useShellStore,
   writeStoredActivity,
   type ActivityBarItem,
@@ -59,9 +60,16 @@ export function ActivityBar() {
   const extensions = useShellStore((s) => s.extensions);
   const enabledById = useShellStore((s) => s.enabledById);
   const contributions = useShellStore((s) => s.contributions);
+  const sessionRoles = useShellStore((s) => s.sessionRoles);
+  const isAdmin = isAdminRoles(sessionRoles);
 
   const { primary: primaryItems, secondary: secondaryItems } =
-    buildActivityBarSections({ extensions, enabledById, contributions });
+    buildActivityBarSections({
+      extensions,
+      enabledById,
+      contributions,
+      isAdmin,
+    });
 
   function currentFor(item: ActivityBarItem): boolean {
     if (item.panel) return sidebarPanel === item.panel;

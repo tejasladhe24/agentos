@@ -13,6 +13,7 @@ import { handleNotificationsRequest } from '@agentos/core/builtins/notifications
 import { notificationIntegrationDefinitions } from '@agentos/core/builtins/notifications/api/lib/integrations';
 import { createNotifyStore } from '@agentos/core/builtins/notifications/api/lib/notify-store';
 import { createProviders } from '@agentos/core/builtins/notifications/api/lib/providers/create-providers';
+import { createMemoryUserEmailPrefsStore } from '@agentos/core/builtins/notifications/api/lib/user-email-prefs';
 
 function memoryDb(): DbStoreClient {
   const rows: NotificationEntry[] = [];
@@ -275,5 +276,176 @@ describe('notifications BYOK (ticket 105)', () => {
       ok: true,
       source: 'platform',
     });
+  });
+
+  test('per-user email from preference overrides org default on send', async () => {
+    const backend = createMemoryIntegrationsBackend();
+    const kit = createIntegrationsKit(backend);
+    const store = createNotifyStore(memoryDb());
+    const userPrefs = createMemoryUserEmailPrefsStore();
+    const platform = createProviders();
+    const http = mockFetch(200);
+
+    await kit.putIntegration('org_a', {
+      integration: 'email.send',
+      provider: 'resend',
+      settings: { from: 'org@acme.test' },
+      secrets: { apiKey: 're_org_key' },
+    });
+
+    const opts = {
+      integrations: kit,
+      userPrefs,
+      fetchImpl: http.impl,
+      resolveOrg: async () => ({
+        ok: true as const,
+        orgId: 'org_a',
+        via: 'session' as const,
+        userId: 'user_1',
+      }),
+      checkPermission: async () => 'ok' as const,
+    };
+
+    const getInitial = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/preferences/email'),
+      platform,
+      opts,
+    );
+    expect(getInitial.status).toBe(200);
+    expect(await getInitial.json()).toEqual({
+      from: null,
+      orgFrom: 'org@acme.test',
+    });
+
+    const invalid = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/preferences/email', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ from: 'not-an-email' }),
+      }),
+      platform,
+      opts,
+    );
+    expect(invalid.status).toBe(400);
+
+    const saved = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/preferences/email', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ from: 'Jane <jane@acme.test>' }),
+      }),
+      platform,
+      opts,
+    );
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toEqual({
+      from: 'Jane <jane@acme.test>',
+      orgFrom: 'org@acme.test',
+    });
+
+    const sent = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'email',
+          to: 'client@example.com',
+          subject: 'Hello',
+          message: 'Body',
+        }),
+      }),
+      platform,
+      opts,
+    );
+    expect(sent.status).toBe(200);
+    expect(JSON.parse(http.calls[0]!.body).from).toBe('Jane <jane@acme.test>');
+
+    // Clearing reverts to org default
+    const cleared = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/preferences/email', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ from: '' }),
+      }),
+      platform,
+      opts,
+    );
+    expect(cleared.status).toBe(200);
+    expect(await cleared.json()).toEqual({
+      from: null,
+      orgFrom: 'org@acme.test',
+    });
+
+    await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'email',
+          to: 'client@example.com',
+          subject: 'Hello 2',
+          message: 'Body 2',
+        }),
+      }),
+      platform,
+      opts,
+    );
+    expect(JSON.parse(http.calls[1]!.body).from).toBe('org@acme.test');
+  });
+
+  test('Cloudflare email.send auto-pulls accountId from API token when omitted', async () => {
+    const backend = createMemoryIntegrationsBackend();
+    const kit = createIntegrationsKit(backend);
+    const store = createNotifyStore(memoryDb());
+    const platform = createProviders();
+
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith('https://api.cloudflare.com/client/v4/accounts?')) {
+        return Response.json({
+          success: true,
+          result: [{ id: 'cf_auto_acc_99', name: 'Acme CF' }],
+        });
+      }
+      return Response.json({ success: true });
+    }) as typeof fetch;
+
+    const integrationRoutes: IntegrationRoutesContext = {
+      kit,
+      definitions: notificationIntegrationDefinitions({ platform, fetchImpl }),
+      resolveOrg: async () => ({
+        ok: true,
+        orgId: 'org_cf',
+        via: 'session',
+        actor: 'admin@example.com',
+      }),
+      checkPermission: async () => 'ok',
+    };
+
+    const res = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/integrations/email.send', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'cloudflare',
+          settings: { from: 'noreply@acme.test' },
+          secrets: { apiToken: 'cf_token_abc' },
+        }),
+      }),
+      platform,
+      { integrations: kit, integrationRoutes, fetchImpl },
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      instance: { settings: Record<string, unknown> };
+    };
+    expect(body.instance.settings.accountId).toBe('cf_auto_acc_99');
   });
 });

@@ -2,7 +2,14 @@ import type { AuthContext } from './create-auth';
 import { json } from './http';
 import {
   AUTH_EXACT_ROUTES,
+  handleDeleteOrg,
+  handleDeleteRole,
+  handleRevokeOrgInvite,
   handleSetRolePermissions,
+  handleUpdateOrg,
+  matchOrgIdPath,
+  matchOrgInvitePath,
+  matchRolePath,
   matchRolePermissionsPath,
 } from './routes';
 import { isBetterAuthForwardPath } from './sso-config';
@@ -34,6 +41,22 @@ export async function handleAuthRequest(
 
   if (method === 'PUT' && matchRolePermissionsPath(path)) {
     return handleSetRolePermissions(ctx, request, path);
+  }
+
+  if (method === 'DELETE' && matchRolePath(path)) {
+    return handleDeleteRole(ctx, request, path);
+  }
+
+  if (method === 'PATCH' && matchOrgIdPath(path)) {
+    return handleUpdateOrg(ctx, request, path);
+  }
+
+  if (method === 'DELETE' && matchOrgIdPath(path)) {
+    return handleDeleteOrg(ctx, request, path);
+  }
+
+  if (method === 'DELETE' && matchOrgInvitePath(path)) {
+    return handleRevokeOrgInvite(ctx, request, path);
   }
 
   if (isBetterAuthForwardPath(path)) {

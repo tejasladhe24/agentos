@@ -13,6 +13,18 @@ export type ShellView = 'home' | (string & {});
 /** What the left SidebarSlot hosts (ticket 39 — no right Sheets). */
 export type SidebarPanel = 'contribution' | 'extensions' | 'hitl';
 
+/** Roles considered workspace admins for Shell chrome gating (ticket 128). */
+const ADMIN_ROLE_NAMES = new Set(['admin', 'owner']);
+
+/**
+ * True when the session holds an admin role (`admin` / `owner`).
+ * `null` (no session loaded yet, e.g. standalone shell unit tests) defaults to `true`.
+ */
+export function isAdminRoles(roles: readonly string[] | null): boolean {
+  if (roles === null) return true;
+  return roles.some((r) => ADMIN_ROLE_NAMES.has(r));
+}
+
 function filterContributions(
   desired: UiContribution[],
   enabledById: Record<string, boolean>,
@@ -76,6 +88,8 @@ export type ShellUiState = {
   /** Latest notification / status line for the status bar. */
   statusText: string | null;
   statusTone: NotificationType | null;
+  /** Authenticated session roles (`null` before AuthGate loads a session). */
+  sessionRoles: string[] | null;
   setActiveView: (view: ShellView) => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarPanel: (panel: SidebarPanel) => void;
@@ -101,6 +115,7 @@ export type ShellUiState = {
    */
   hydrateEnabledById: (overrides: Record<string, boolean>) => void;
   setStatusText: (text: string | null, tone?: NotificationType | null) => void;
+  setSessionRoles: (roles: string[] | null) => void;
 };
 
 export const useShellStore = create<ShellUiState>((set, get) => ({
@@ -121,6 +136,7 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
   skillsByExtension: {},
   statusText: null,
   statusTone: null,
+  sessionRoles: null,
   setActiveView: (view) =>
     set({
       activeView: view,
@@ -196,6 +212,17 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
     set({
       statusText: text,
       statusTone: text == null ? null : (tone ?? null),
+    }),
+  setSessionRoles: (roles) =>
+    set((s) => {
+      const admin = isAdminRoles(roles);
+      return {
+        sessionRoles: roles,
+        ...(!admin && s.activeView === 'secrets' ? { activeView: 'home' } : {}),
+        ...(!admin && s.sidebarPanel === 'extensions'
+          ? { sidebarPanel: 'contribution' as const }
+          : {}),
+      };
     }),
   setExtensionEnabled: (extensionId, enabled) => {
     const entry = get().extensions.find((e) => e.id === extensionId);

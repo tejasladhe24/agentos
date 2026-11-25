@@ -48,6 +48,9 @@ const BUILTIN_ACTIVITY_CHROME: Record<string, Omit<ActivityBarItem, 'id'>> = {
   },
 };
 
+/** Secondary Activity Bar items restricted to admin / owner roles (ticket 128). */
+const ADMIN_ONLY_SECONDARY_IDS = new Set<string>(['secrets', 'extensions']);
+
 function isSecondary(ext: ExtensionEntry): boolean {
   return (
     resolveActivityBarSection(ext.activityBarSection, ext.kind, ext.id) ===
@@ -60,8 +63,9 @@ export type ActivityBarSections = {
   primary: ActivityBarItem[];
   /**
    * Bottom cluster for `flex-col-reverse`: index 0 is nearest the bottom edge.
-   * Array order (bottom → top): Extensions manager, secondary page builtins
-   * (e.g. auth, settings), Approvals (HITL chrome) at the top of the cluster.
+   * Array order (bottom → top): Extensions manager (admin only), secondary page
+   * builtins (e.g. settings, files, email, activity; secrets is admin only),
+   * Approvals (HITL chrome) at the top of the cluster.
    */
   secondary: ActivityBarItem[];
 };
@@ -71,8 +75,10 @@ export function buildActivityBarSections(input: {
   extensions: ExtensionEntry[];
   enabledById: Record<string, boolean>;
   contributions: UiContribution[];
+  /** When false, admin-only secondary items (`secrets`, `extensions`) are omitted. */
+  isAdmin?: boolean;
 }): ActivityBarSections {
-  const { extensions, enabledById, contributions } = input;
+  const { extensions, enabledById, contributions, isAdmin = true } = input;
 
   const pageExtensionIds = new Set(
     contributions.filter((c) => c.view === 'page').map((c) => c.extensionId),
@@ -95,6 +101,7 @@ export function buildActivityBarSections(input: {
   const secondaryPages: ActivityBarItem[] = [];
   for (const ext of extensions) {
     if (enabledById[ext.id] === false || !isSecondary(ext)) continue;
+    if (!isAdmin && ADMIN_ONLY_SECONDARY_IDS.has(ext.id)) continue;
     const chrome = BUILTIN_ACTIVITY_CHROME[ext.id];
     if (chrome) {
       secondaryChrome.push({ id: ext.id, ...chrome });
@@ -109,9 +116,11 @@ export function buildActivityBarSections(input: {
     }
   }
 
+  const managerItems = isAdmin ? [MANAGER_ITEM] : [];
+
   return {
     primary: [HOME_ITEM, ...primaryPages],
     // flex-col-reverse: last item renders at the top of the secondary cluster.
-    secondary: [MANAGER_ITEM, ...secondaryPages, ...secondaryChrome],
+    secondary: [...managerItems, ...secondaryPages, ...secondaryChrome],
   };
 }

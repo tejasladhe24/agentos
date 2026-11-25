@@ -64,19 +64,19 @@
       ],
       "entries": [
         {
-          "id": "active-org",
-          "label": "Active organization",
-          "hint": "switch change current tenant workspace team org"
-        },
-        {
-          "id": "create-org",
-          "label": "Create organization",
-          "hint": "new add tenant team workspace org company"
+          "id": "organizations",
+          "label": "Organizations",
+          "hint": "switch change create update delete tenant workspace team org company"
         },
         {
           "id": "roles",
           "label": "Roles",
           "hint": "rbac permissions assigned access admin member privileges"
+        },
+        {
+          "id": "members",
+          "label": "Members",
+          "hint": "users team staff org members role remove invite"
         }
       ]
     }

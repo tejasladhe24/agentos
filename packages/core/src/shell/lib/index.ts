@@ -115,6 +115,7 @@ export {
   type ExtensionIconName,
 } from './chrome/resolve-extension-icon';
 export {
+  isAdminRoles,
   useShellStore,
   type ChatMessage,
   type ShellUiState,

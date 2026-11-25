@@ -33,6 +33,11 @@
       ],
       "entries": [
         {
+          "id": "email-from",
+          "label": "Your sender address",
+          "hint": "from address personal sender email identity override"
+        },
+        {
           "id": "email-sending",
           "label": "Email sending",
           "hint": "resend cloudflare api key token from address domain own account byok test connection"

@@ -144,6 +144,8 @@ Agents must never promote tickets to `done/` themselves.
 124. Per-org plans and feature toggles
 125. Usage metering, limits, and billing hooks for platform keys
 126. (Later) Per-org white-label
+127. Settings field layout
+128. Role-scoped Activity Bar, per-user email sender, and Organization/Roles/Members tables — **in-progress**
 
 **Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — none.
 

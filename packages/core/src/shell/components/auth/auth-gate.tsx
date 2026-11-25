@@ -10,6 +10,7 @@ import {
   matchPublicAuthRoute,
   matchPublicExtensionRoute,
   navigateApp,
+  useShellStore,
   type PublicAuthRoute,
   type PublicExtensionRoute,
 } from '@agentos/core/shell/lib';
@@ -196,15 +197,18 @@ export function AuthGate({
         const session = await fetchAuthSession();
         if (cancelled) return;
         if (!session) {
+          useShellStore.getState().setSessionRoles(null);
           navigateApp(loginPathWithNext(pathname));
           setAuthed(false);
           setReady(true);
           return;
         }
+        useShellStore.getState().setSessionRoles(session.roles);
         setAuthed(true);
         setReady(true);
       } catch {
         if (cancelled) return;
+        useShellStore.getState().setSessionRoles(null);
         navigateApp(loginPathWithNext(pathname));
         setAuthed(false);
         setReady(true);
