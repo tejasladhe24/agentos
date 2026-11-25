@@ -15,6 +15,65 @@ export type CloudflareEmailConfig = {
   missingConfigError?: string;
 };
 
+export type CloudflareAccountLookupResult =
+  { ok: true; accountId: string } | { ok: false; error: string };
+
+/**
+ * Auto-resolve the Cloudflare account id from an API token via
+ * `GET /client/v4/accounts`. Succeeds when the token maps to a single account.
+ */
+export async function resolveCloudflareAccountId(
+  apiToken: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<CloudflareAccountLookupResult> {
+  if (!apiToken.trim()) {
+    return { ok: false, error: 'Cloudflare API token is required.' };
+  }
+  try {
+    const res = await fetchImpl(
+      'https://api.cloudflare.com/client/v4/accounts?per_page=2',
+      {
+        headers: { authorization: `Bearer ${apiToken}` },
+      },
+    );
+    if (!res.ok) {
+      return {
+        ok: false,
+        error:
+          'Could not auto-detect Cloudflare Account ID from this token — enter Account ID manually.',
+      };
+    }
+    const body = (await res.json()) as {
+      success?: boolean;
+      result?: Array<{ id?: string }>;
+    };
+    const accounts = (body.result ?? []).filter(
+      (a): a is { id: string } => typeof a?.id === 'string' && a.id.length > 0,
+    );
+    if (accounts.length === 1) {
+      return { ok: true, accountId: accounts[0]!.id };
+    }
+    if (accounts.length > 1) {
+      return {
+        ok: false,
+        error:
+          'Multiple Cloudflare accounts found for this token — enter Account ID manually.',
+      };
+    }
+    return {
+      ok: false,
+      error:
+        'Could not auto-detect Cloudflare Account ID from this token — enter Account ID manually.',
+    };
+  } catch {
+    return {
+      ok: false,
+      error:
+        'Could not reach Cloudflare API to auto-detect Account ID — enter Account ID manually.',
+    };
+  }
+}
+
 /**
  * Cloudflare Email Sending REST adapter.
  * POST /accounts/{account_id}/email/sending/send
@@ -27,7 +86,8 @@ export function createCloudflareEmailProvider(
   return {
     name: 'cloudflare',
     async send(payload: SendPayload): Promise<SendResult> {
-      if (!config.accountId || !config.apiToken || !config.from) {
+      const from = payload.from?.trim() || config.from;
+      if (!config.accountId || !config.apiToken || !from) {
         return {
           ok: false,
           provider: 'cloudflare',
@@ -45,7 +105,7 @@ export function createCloudflareEmailProvider(
             'content-type': 'application/json',
           },
           body: JSON.stringify({
-            from: config.from,
+            from,
             to: payload.to,
             subject: payload.subject ?? '(no subject)',
             text: payload.body,

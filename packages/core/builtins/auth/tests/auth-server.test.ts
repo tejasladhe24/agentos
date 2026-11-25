@@ -643,6 +643,200 @@ describe('builtin auth server', () => {
     ctx.onMemberRemoved = undefined;
   });
 
+  test('org/role CRUD and non-admin read access (ticket 128)', async () => {
+    const viewerSignIn = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-in', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: DEMO_VIEWER.email,
+          password: DEMO_VIEWER.password,
+        }),
+      }),
+    );
+    expect(viewerSignIn.status).toBe(200);
+    const viewerCookie = cookieHeaderFrom(viewerSignIn);
+
+    const viewerRoles = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/roles', {
+        headers: { cookie: viewerCookie },
+      }),
+    );
+    expect(viewerRoles.status).toBe(200);
+    const viewerMembers = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/members', {
+        headers: { cookie: viewerCookie },
+      }),
+    );
+    expect(viewerMembers.status).toBe(200);
+
+    const viewerCreateOrg = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: viewerCookie },
+        body: JSON.stringify({ name: 'Denied Org' }),
+      }),
+    );
+    expect(viewerCreateOrg.status).toBe(403);
+
+    const adminSignIn = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-in', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: DEMO_ADMIN.email,
+          password: DEMO_ADMIN.password,
+        }),
+      }),
+    );
+    const adminCookie = cookieHeaderFrom(adminSignIn);
+
+    const created = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ name: 'Temp Org' }),
+      }),
+    );
+    expect(created.status).toBe(200);
+    const createdBody = (await created.json()) as { org: { id: string } };
+
+    const renamed = await handleAuthRequest(
+      ctx,
+      new Request(`http://127.0.0.1:6110/orgs/${createdBody.org.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ name: 'Renamed Org' }),
+      }),
+    );
+    expect(renamed.status).toBe(200);
+    expect(((await renamed.json()) as { org: { name: string } }).org.name).toBe(
+      'Renamed Org',
+    );
+
+    const deletedOrg = await handleAuthRequest(
+      ctx,
+      new Request(`http://127.0.0.1:6110/orgs/${createdBody.org.id}`, {
+        method: 'DELETE',
+        headers: { cookie: adminCookie },
+      }),
+    );
+    expect(deletedOrg.status).toBe(200);
+
+    const putRole = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/roles/analyst/permissions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ permissions: ['files.read', 'audit.read'] }),
+      }),
+    );
+    expect(putRole.status).toBe(200);
+
+    const deleteProtected = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/roles/admin', {
+        method: 'DELETE',
+        headers: { cookie: adminCookie },
+      }),
+    );
+    expect(deleteProtected.status).toBe(400);
+
+    const deleteCustom = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/roles/analyst', {
+        method: 'DELETE',
+        headers: { cookie: adminCookie },
+      }),
+    );
+    expect(deleteCustom.status).toBe(200);
+    const deleteCustomBody = (await deleteCustom.json()) as {
+      deleted: string;
+      roles: string[];
+    };
+    expect(deleteCustomBody.deleted).toBe('analyst');
+    expect(deleteCustomBody.roles).not.toContain('analyst');
+
+    // Invite member: non-admin denied; admin creates pending invite, sign-up auto-joins
+    const viewerInvite = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/members/invite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: viewerCookie },
+        body: JSON.stringify({ email: 'denied@example.com', role: 'viewer' }),
+      }),
+    );
+    expect(viewerInvite.status).toBe(403);
+
+    const inviteEmail = `invited-${Date.now()}@example.com`;
+    const invited = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/members/invite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ email: inviteEmail, role: 'reviewer' }),
+      }),
+    );
+    expect(invited.status).toBe(200);
+    const invitedBody = (await invited.json()) as {
+      status: string;
+      orgId: string;
+      invite: { id: string; email: string; role: string };
+      invites: Array<{ id: string; email: string }>;
+    };
+    expect(invitedBody.status).toBe('invited');
+    expect(invitedBody.invites.some((i) => i.email === inviteEmail)).toBe(true);
+
+    // Revoke another invite
+    const revokeEmail = `revoke-${Date.now()}@example.com`;
+    const invited2 = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/orgs/members/invite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ email: revokeEmail, role: 'viewer' }),
+      }),
+    );
+    const invited2Body = (await invited2.json()) as { invite: { id: string } };
+    const revoked = await handleAuthRequest(
+      ctx,
+      new Request(
+        `http://127.0.0.1:6110/orgs/invites/${invited2Body.invite.id}`,
+        { method: 'DELETE', headers: { cookie: adminCookie } },
+      ),
+    );
+    expect(revoked.status).toBe(200);
+
+    // Invited user signs up → automatically joins org with invited role
+    const invitedSignUp = await handleAuthRequest(
+      ctx,
+      new Request('http://127.0.0.1:6110/sign-up', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          password: 'password123',
+          name: 'Invited User',
+        }),
+      }),
+    );
+    expect(invitedSignUp.status).toBe(200);
+    const invitedSession = (await invitedSignUp.json()) as {
+      orgId: string | null;
+      orgs: Array<{ id: string; role: string }>;
+    };
+    expect(invitedSession.orgId).toBe(invitedBody.orgId);
+    expect(
+      invitedSession.orgs.find((o) => o.id === invitedBody.orgId)?.role,
+    ).toBe('reviewer');
+  });
+
   afterAll(async () => {
     await ctx?.close();
     rmSync(dir, { recursive: true, force: true });

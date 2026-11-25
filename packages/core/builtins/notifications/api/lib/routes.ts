@@ -12,7 +12,7 @@ import {
 } from './http';
 import type { IntegrationsKit } from '@agentos/core/api/integrations';
 
-import { resolveChannelProvider } from './integrations';
+import { EMAIL_SEND_INTEGRATION, resolveChannelProvider } from './integrations';
 import type { NotificationProviders } from './providers/create-providers';
 import type {
   DeliveryChannel,
@@ -24,12 +24,15 @@ import {
   type ResolveOrgResult,
 } from './resolve-org';
 import { renderNotificationContent } from './templates/render';
+import type { UserEmailPrefsStore } from './user-email-prefs';
 
 export type NotifyRouteDeps = {
   store: NotifyStore;
   providers?: NotificationProviders;
   /** Per-org BYOK resolution (ticket 105); omit for env-only providers. */
   integrations?: IntegrationsKit;
+  /** Per-user email sender preferences (ticket 128). */
+  userPrefs?: UserEmailPrefsStore;
   fetchImpl?: typeof fetch;
   runtimeEnv?: Record<string, string | undefined>;
   resolveOrg?: (
@@ -195,10 +198,15 @@ export async function handleNotify(
     typeof body?.message === 'string' ? body.message : undefined;
   const vars = parseVars(body?.vars);
   const to = typeof body?.to === 'string' ? body.to.trim() : '';
+  const bodyFrom =
+    typeof body?.from === 'string' && body.from.trim()
+      ? body.from.trim()
+      : undefined;
   let orgId =
     typeof body?.orgId === 'string'
       ? body.orgId.trim()
       : (request.headers.get('x-agentos-org-id')?.trim() ?? undefined);
+  let sessionUserId: string | undefined;
 
   // Session path: bind email/SMS sends to active org + email.send.
   if (channel === 'email' || channel === 'sms') {
@@ -212,6 +220,7 @@ export async function handleNotify(
       );
       if (denied) return denied;
       orgId = org.orgId;
+      sessionUserId = org.userId;
     }
   }
 
@@ -260,10 +269,25 @@ export async function handleNotify(
       return json({ ok: true, notification: entry });
     }
 
+    let fromOverride = bodyFrom;
+    if (
+      channel === 'email' &&
+      !fromOverride &&
+      orgId &&
+      sessionUserId &&
+      deps.userPrefs
+    ) {
+      const pref = await deps.userPrefs
+        .get(orgId, sessionUserId)
+        .catch(() => null);
+      if (pref?.from) fromOverride = pref.from;
+    }
+
     const result = await provider.send({
       to,
       subject: rendered.value.subject,
       body: rendered.value.body,
+      ...(fromOverride ? { from: fromOverride } : {}),
     });
 
     entry = await deps.store.markStatus(
@@ -274,6 +298,110 @@ export async function handleNotify(
         : { provider: result.provider, source, error: result.error },
     );
     return json({ ok: true, notification: entry });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+function isPlausibleFromAddress(value: string): boolean {
+  // Accepts `user@domain.tld` or `Display Name <user@domain.tld>`.
+  const trimmed = value.trim();
+  const angleMatch = trimmed.match(/<([^<>]+)>$/);
+  const email = (angleMatch ? angleMatch[1] : trimmed) ?? '';
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+async function resolveOrgDefaultFrom(
+  deps: NotifyRouteDeps,
+  orgId: string,
+): Promise<string | null> {
+  if (deps.integrations) {
+    try {
+      const view = await deps.integrations.describeIntegration(
+        orgId,
+        EMAIL_SEND_INTEGRATION,
+      );
+      const from = view?.settings.from;
+      if (typeof from === 'string' && from.trim()) return from.trim();
+    } catch {
+      // ignore — hint only
+    }
+  }
+  const envFrom = (deps.runtimeEnv ?? Bun.env)
+    .AGENT_OS_EXT_NOTIFICATIONS_EMAIL_FROM;
+  return typeof envFrom === 'string' && envFrom.trim() ? envFrom.trim() : null;
+}
+
+export async function handleGetEmailPreference(
+  deps: NotifyRouteDeps,
+  request: Request,
+): Promise<Response> {
+  const org = await ensureOrg(deps, request);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+  if (!org.userId) {
+    return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  try {
+    const pref = deps.userPrefs
+      ? await deps.userPrefs.get(org.orgId, org.userId)
+      : null;
+    const orgFrom = await resolveOrgDefaultFrom(deps, org.orgId);
+    return json({
+      from: pref?.from ?? null,
+      orgFrom,
+    });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+export async function handleSetEmailPreference(
+  deps: NotifyRouteDeps,
+  request: Request,
+): Promise<Response> {
+  const org = await ensureOrg(deps, request);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+  if (!org.userId) {
+    return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  if (!deps.userPrefs) {
+    return json(
+      { error: 'user email preferences unavailable' },
+      { status: 503 },
+    );
+  }
+  const body = await readJsonBody(request);
+  const rawFrom = body?.from;
+  if (
+    rawFrom !== null &&
+    rawFrom !== undefined &&
+    typeof rawFrom !== 'string'
+  ) {
+    return json({ error: 'from must be a string or null' }, { status: 400 });
+  }
+  const trimmed = typeof rawFrom === 'string' ? rawFrom.trim() : '';
+  try {
+    if (!trimmed) {
+      await deps.userPrefs.clear(org.orgId, org.userId);
+      const orgFrom = await resolveOrgDefaultFrom(deps, org.orgId);
+      return json({ from: null, orgFrom });
+    }
+    if (!isPlausibleFromAddress(trimmed)) {
+      return json(
+        {
+          error:
+            'Enter a valid sender address (e.g. jane@acme.com or Jane <jane@acme.com>).',
+        },
+        { status: 400 },
+      );
+    }
+    const saved = await deps.userPrefs.set(org.orgId, org.userId, trimmed);
+    const orgFrom = await resolveOrgDefaultFrom(deps, org.orgId);
+    return json({ from: saved.from, orgFrom });
   } catch (error) {
     return unavailable(error);
   }
@@ -292,4 +420,14 @@ export const NOTIFY_EXACT_ROUTES: ReadonlyArray<{
     handle: (d, r) => handleListDeliveries(d, r),
   },
   { method: 'POST', path: '/notify', handle: (d, r) => handleNotify(d, r) },
+  {
+    method: 'GET',
+    path: '/preferences/email',
+    handle: (d, r) => handleGetEmailPreference(d, r),
+  },
+  {
+    method: 'PUT',
+    path: '/preferences/email',
+    handle: (d, r) => handleSetEmailPreference(d, r),
+  },
 ];

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { ActivityBar } from '../components/chrome/activity-bar';
 import { buildActivityBarSections } from '../lib/chrome/build-activity-bar-items';
 import type { ExtensionEntry } from '../lib/chrome/extension-catalog';
+import { isAdminRoles, useShellStore } from '../lib/chrome/store';
 import type { UiContribution } from '../lib/ui-contribs/contribution';
 
 const catalog: ExtensionEntry[] = [
@@ -102,6 +103,122 @@ describe('buildActivityBarSections', () => {
     });
     expect(primary.map((i) => i.id)).toEqual(['home', 'demo']);
     expect(secondary.map((i) => i.id)).toEqual(['extensions', 'auth', 'hitl']);
+  });
+
+  test('non-admin sees tenant-scoped secondary items but not secrets or extensions', () => {
+    const fullCatalog: ExtensionEntry[] = [
+      {
+        id: 'hitl',
+        name: 'HITL',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        activityBarSection: 'secondary',
+      },
+      {
+        id: 'inbound-email',
+        name: 'Email',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        activityBarSection: 'secondary',
+      },
+      {
+        id: 'files',
+        name: 'Files',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        activityBarSection: 'secondary',
+      },
+      {
+        id: 'audit',
+        name: 'Activity',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        activityBarSection: 'secondary',
+      },
+      {
+        id: 'secrets',
+        name: 'Secrets',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        activityBarSection: 'secondary',
+      },
+      {
+        id: 'settings',
+        name: 'Settings',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        activityBarSection: 'secondary',
+      },
+    ];
+    const fullContribs: UiContribution[] = [
+      { extensionId: 'inbound-email', view: 'page', src: '/email' },
+      { extensionId: 'files', view: 'page', src: '/files' },
+      { extensionId: 'audit', view: 'page', src: '/audit' },
+      { extensionId: 'secrets', view: 'page', src: '/secrets' },
+    ];
+    const enabledById = {
+      hitl: true,
+      'inbound-email': true,
+      files: true,
+      audit: true,
+      secrets: true,
+      settings: true,
+    };
+
+    const nonAdmin = buildActivityBarSections({
+      extensions: fullCatalog,
+      enabledById,
+      contributions: fullContribs,
+      isAdmin: false,
+    });
+    expect(nonAdmin.secondary.map((i) => i.id)).toEqual([
+      'inbound-email',
+      'files',
+      'audit',
+      'settings',
+      'hitl',
+    ]);
+    expect(nonAdmin.secondary.some((i) => i.id === 'secrets')).toBe(false);
+    expect(nonAdmin.secondary.some((i) => i.id === 'extensions')).toBe(false);
+
+    const admin = buildActivityBarSections({
+      extensions: fullCatalog,
+      enabledById,
+      contributions: fullContribs,
+      isAdmin: true,
+    });
+    expect(admin.secondary.map((i) => i.id)).toEqual([
+      'extensions',
+      'inbound-email',
+      'files',
+      'audit',
+      'secrets',
+      'settings',
+      'hitl',
+    ]);
+  });
+
+  test('isAdminRoles and setSessionRoles guard admin views for non-admins', () => {
+    expect(isAdminRoles(['admin'])).toBe(true);
+    expect(isAdminRoles(['owner'])).toBe(true);
+    expect(isAdminRoles(['viewer'])).toBe(false);
+    expect(isAdminRoles(['reviewer'])).toBe(false);
+    expect(isAdminRoles(null)).toBe(true);
+
+    useShellStore.setState({
+      activeView: 'secrets',
+      sidebarPanel: 'extensions',
+    });
+    useShellStore.getState().setSessionRoles(['viewer']);
+    expect(useShellStore.getState().activeView).toBe('home');
+    expect(useShellStore.getState().sidebarPanel).toBe('contribution');
+    useShellStore.getState().setSessionRoles(null);
   });
 });
 

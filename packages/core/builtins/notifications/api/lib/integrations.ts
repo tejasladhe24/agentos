@@ -1,10 +1,14 @@
-import type {
-  IntegrationDefinition,
-  IntegrationsKit,
-  ResolvedIntegration,
+import {
+  IntegrationError,
+  type IntegrationDefinition,
+  type IntegrationsKit,
+  type ResolvedIntegration,
 } from '@agentos/core/api/integrations';
 
-import { createCloudflareEmailProvider } from './providers/cloudflare';
+import {
+  createCloudflareEmailProvider,
+  resolveCloudflareAccountId,
+} from './providers/cloudflare';
 import type { NotificationProviders } from './providers/create-providers';
 import { createResendProvider } from './providers/resend';
 import { createTwilioProvider } from './providers/twilio';
@@ -145,7 +149,13 @@ export function notificationIntegrationDefinitions(input: {
             description:
               'Domain must be onboarded under Cloudflare Email Service.',
           },
-          { name: 'accountId', label: 'Account ID', required: true },
+          {
+            name: 'accountId',
+            label: 'Account ID',
+            required: false,
+            description:
+              'Optional — auto-detected from your API token when left blank.',
+          },
         ],
         secrets: [
           {
@@ -161,9 +171,53 @@ export function notificationIntegrationDefinitions(input: {
       provider: platformName(platform.email),
       configured: true,
     }),
+    async beforeSave({ existing, draft }) {
+      if (draft.provider !== 'cloudflare') return draft;
+      const existingAccountId =
+        typeof draft.settings.accountId === 'string'
+          ? draft.settings.accountId.trim()
+          : '';
+      if (existingAccountId) return draft;
+      const token =
+        (typeof draft.secrets.apiToken === 'string' &&
+          draft.secrets.apiToken) ||
+        (existing?.provider === 'cloudflare'
+          ? existing.secrets.apiToken
+          : '') ||
+        '';
+      const resolved = await resolveCloudflareAccountId(token, fetchImpl);
+      if (!resolved.ok) {
+        throw new IntegrationError(resolved.error, 400);
+      }
+      return {
+        ...draft,
+        settings: {
+          ...draft.settings,
+          accountId: resolved.accountId,
+        },
+      };
+    },
     async test({ config, actor }) {
-      const provider = config
-        ? buildEmailProviderFromConfig(config, fetchImpl)
+      let resolvedConfig = config;
+      if (
+        config?.provider === 'cloudflare' &&
+        !setting(config, 'accountId') &&
+        config.secrets.apiToken
+      ) {
+        const lookup = await resolveCloudflareAccountId(
+          config.secrets.apiToken,
+          fetchImpl,
+        );
+        if (!lookup.ok) {
+          return { ok: false, message: lookup.error };
+        }
+        resolvedConfig = {
+          ...config,
+          settings: { ...config.settings, accountId: lookup.accountId },
+        };
+      }
+      const provider = resolvedConfig
+        ? buildEmailProviderFromConfig(resolvedConfig, fetchImpl)
         : platform.email;
       if (!actor || !actor.includes('@')) {
         return {

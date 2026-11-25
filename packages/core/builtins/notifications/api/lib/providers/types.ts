@@ -2,6 +2,8 @@ export type SendPayload = {
   to: string;
   subject?: string;
   body: string;
+  /** Optional per-user sender override (falls back to provider's configured `from`). */
+  from?: string;
 };
 
 export type SendResult = {

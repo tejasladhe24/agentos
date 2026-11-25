@@ -11,8 +11,15 @@ import {
   readJsonBody,
 } from './http';
 import {
+  acceptPendingInvitesForUser,
+  addOrgMember,
+  createOrgInvite,
   createOrganization,
+  deleteOrgInvite,
+  deleteOrganization,
+  findUserByEmail,
   isOrgMember,
+  listOrgInvites,
   listOrgMembers,
   listOrgsForUser,
   ORG_ROLE_OWNER,
@@ -20,10 +27,12 @@ import {
   resolveActiveOrgId,
   setActiveOrg,
   setOrgMemberRole,
+  updateOrganization,
 } from './org-store';
 import { cacheGetAllowed, cacheSetAllowed } from './permission-cache';
 import {
   assignUserRole,
+  deleteRole,
   listRolePermissions,
   listRoles,
   listRolesForUser,
@@ -173,6 +182,32 @@ export async function handleListOrgs(
   return json({ orgs, orgId });
 }
 
+const PROTECTED_ROLES = new Set(['admin', 'owner']);
+
+async function requireAuthenticatedOrg(
+  ctx: AuthContext,
+  request: Request,
+): Promise<
+  | { ok: true; session: AuthSession; orgId: string }
+  | { ok: false; response: Response }
+> {
+  const session = await requireSession(ctx, request);
+  if (!session) {
+    return {
+      ok: false,
+      response: json({ error: 'unauthenticated' }, { status: 401 }),
+    };
+  }
+  const orgId = await resolveActiveOrgId(ctx.db, session.user.id);
+  if (!orgId) {
+    return {
+      ok: false,
+      response: json({ error: 'forbidden' }, { status: 403 }),
+    };
+  }
+  return { ok: true, session, orgId };
+}
+
 export async function handleCreateOrg(
   ctx: AuthContext,
   request: Request,
@@ -180,6 +215,16 @@ export async function handleCreateOrg(
   const session = await requireSession(ctx, request);
   if (!session) {
     return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  const activeOrgId = await resolveActiveOrgId(ctx.db, session.user.id);
+  const allowed = await userHasPermission(
+    ctx.db,
+    session.user.id,
+    PERMISSION_ROLES_MANAGE,
+    activeOrgId,
+  );
+  if (!allowed) {
+    return json({ error: 'forbidden' }, { status: 403 });
   }
   const body = await readJsonBody(request);
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
@@ -200,6 +245,88 @@ export async function handleCreateOrg(
       error instanceof Error ? error.message : 'create organization failed';
     return json({ error: message }, { status: 400 });
   }
+}
+
+export async function handleUpdateOrg(
+  ctx: AuthContext,
+  request: Request,
+  path: string,
+): Promise<Response> {
+  const session = await requireSession(ctx, request);
+  if (!session) {
+    return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  const targetOrgId = decodeURIComponent(path.slice('/orgs/'.length)).trim();
+  if (!targetOrgId) {
+    return json({ error: 'orgId required' }, { status: 400 });
+  }
+  const allowed = await userHasPermission(
+    ctx.db,
+    session.user.id,
+    PERMISSION_ROLES_MANAGE,
+    targetOrgId,
+  );
+  if (!allowed) {
+    return json({ error: 'forbidden' }, { status: 403 });
+  }
+  const body = await readJsonBody(request);
+  const name = typeof body?.name === 'string' ? body.name.trim() : '';
+  if (!name) {
+    return json({ error: 'name required' }, { status: 400 });
+  }
+  try {
+    const org = await updateOrganization(ctx.db, targetOrgId, name);
+    if (!org) {
+      return json({ error: 'organization not found' }, { status: 404 });
+    }
+    return json({
+      org,
+      ...(await sessionPayload(ctx, session)),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'update organization failed';
+    return json({ error: message }, { status: 400 });
+  }
+}
+
+export async function handleDeleteOrg(
+  ctx: AuthContext,
+  request: Request,
+  path: string,
+): Promise<Response> {
+  const session = await requireSession(ctx, request);
+  if (!session) {
+    return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  const targetOrgId = decodeURIComponent(path.slice('/orgs/'.length)).trim();
+  if (!targetOrgId) {
+    return json({ error: 'orgId required' }, { status: 400 });
+  }
+  const allowed = await userHasPermission(
+    ctx.db,
+    session.user.id,
+    PERMISSION_ROLES_MANAGE,
+    targetOrgId,
+  );
+  if (!allowed) {
+    return json({ error: 'forbidden' }, { status: 403 });
+  }
+  const orgs = await listOrgsForUser(ctx.db, session.user.id);
+  if (orgs.length <= 1 && orgs.some((o) => o.id === targetOrgId)) {
+    return json(
+      { error: 'cannot delete the only organization' },
+      { status: 409 },
+    );
+  }
+  const deleted = await deleteOrganization(ctx.db, targetOrgId);
+  if (!deleted) {
+    return json({ error: 'organization not found' }, { status: 404 });
+  }
+  return json({
+    deleted: targetOrgId,
+    ...(await sessionPayload(ctx, session)),
+  });
 }
 
 export async function handleSwitchOrg(
@@ -306,6 +433,11 @@ export async function handleSignUp(
     }
 
     await assignUserRole(ctx.db, session.user.id, DEMO_VIEWER.role);
+    await acceptPendingInvitesForUser(
+      ctx.db,
+      session.user.id,
+      session.user.email,
+    );
 
     return json(await sessionPayload(ctx, session), {
       status: 200,
@@ -496,21 +628,117 @@ export async function handleListRoles(
   ctx: AuthContext,
   request: Request,
 ): Promise<Response> {
-  const gate = await requireManageRoles(ctx, request);
+  const gate = await requireAuthenticatedOrg(ctx, request);
   if (!gate.ok) return gate.response;
   const roles = await listRoles(ctx.db);
   const permissions = await listRolePermissions(ctx.db);
   return json({ roles, permissions });
 }
 
+export async function handleDeleteRole(
+  ctx: AuthContext,
+  request: Request,
+  path: string,
+): Promise<Response> {
+  const gate = await requireManageRoles(ctx, request);
+  if (!gate.ok) return gate.response;
+  const role = decodeURIComponent(path.slice('/roles/'.length)).trim();
+  if (!role) {
+    return json({ error: 'role required' }, { status: 400 });
+  }
+  if (PROTECTED_ROLES.has(role)) {
+    return json({ error: 'cannot delete built-in role' }, { status: 400 });
+  }
+  const deleted = await deleteRole(ctx.db, role);
+  if (!deleted) {
+    return json({ error: 'role not found' }, { status: 404 });
+  }
+  const roles = await listRoles(ctx.db);
+  const permissions = await listRolePermissions(ctx.db);
+  return json({ deleted: role, roles, permissions });
+}
+
 export async function handleListOrgMembers(
+  ctx: AuthContext,
+  request: Request,
+): Promise<Response> {
+  const gate = await requireAuthenticatedOrg(ctx, request);
+  if (!gate.ok) return gate.response;
+  const [members, invites] = await Promise.all([
+    listOrgMembers(ctx.db, gate.orgId),
+    listOrgInvites(ctx.db, gate.orgId),
+  ]);
+  return json({ orgId: gate.orgId, members, invites });
+}
+
+export async function handleInviteOrgMember(
   ctx: AuthContext,
   request: Request,
 ): Promise<Response> {
   const gate = await requireManageRoles(ctx, request);
   if (!gate.ok) return gate.response;
-  const members = await listOrgMembers(ctx.db, gate.orgId);
-  return json({ orgId: gate.orgId, members });
+  const body = await readJsonBody(request);
+  const email =
+    typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const role =
+    typeof body?.role === 'string' && body.role.trim()
+      ? body.role.trim()
+      : DEMO_VIEWER.role;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: 'valid email required' }, { status: 400 });
+  }
+
+  const existingUser = await findUserByEmail(ctx.db, email);
+  if (existingUser) {
+    if (await isOrgMember(ctx.db, existingUser.id, gate.orgId)) {
+      return json({ error: 'user is already a member' }, { status: 409 });
+    }
+    await addOrgMember(ctx.db, gate.orgId, existingUser.id, role);
+    const [members, invites] = await Promise.all([
+      listOrgMembers(ctx.db, gate.orgId),
+      listOrgInvites(ctx.db, gate.orgId),
+    ]);
+    return json({ orgId: gate.orgId, status: 'added', members, invites });
+  }
+
+  const invite = await createOrgInvite(ctx.db, {
+    orgId: gate.orgId,
+    email,
+    role,
+    invitedBy: gate.session.user.email,
+  });
+  const [members, invites] = await Promise.all([
+    listOrgMembers(ctx.db, gate.orgId),
+    listOrgInvites(ctx.db, gate.orgId),
+  ]);
+  return json({
+    orgId: gate.orgId,
+    status: 'invited',
+    invite,
+    members,
+    invites,
+  });
+}
+
+export async function handleRevokeOrgInvite(
+  ctx: AuthContext,
+  request: Request,
+  path: string,
+): Promise<Response> {
+  const gate = await requireManageRoles(ctx, request);
+  if (!gate.ok) return gate.response;
+  const inviteId = decodeURIComponent(
+    path.slice('/orgs/invites/'.length),
+  ).trim();
+  if (!inviteId) {
+    return json({ error: 'inviteId required' }, { status: 400 });
+  }
+  const deleted = await deleteOrgInvite(ctx.db, gate.orgId, inviteId);
+  if (!deleted) {
+    return json({ error: 'invite not found' }, { status: 404 });
+  }
+  const invites = await listOrgInvites(ctx.db, gate.orgId);
+  return json({ orgId: gate.orgId, deleted: inviteId, invites });
 }
 
 export async function handleAssignOrgMemberRole(
@@ -766,6 +994,11 @@ export const AUTH_EXACT_ROUTES: ReadonlyArray<{
   },
   {
     method: 'POST',
+    path: '/orgs/members/invite',
+    handle: (c, r) => handleInviteOrgMember(c, r),
+  },
+  {
+    method: 'POST',
     path: '/sign-in/sso',
     handle: (c, r) => handleSignInSso(c, r),
   },
@@ -773,4 +1006,26 @@ export const AUTH_EXACT_ROUTES: ReadonlyArray<{
 
 export function matchRolePermissionsPath(path: string): boolean {
   return path.startsWith('/roles/') && path.endsWith('/permissions');
+}
+
+export function matchRolePath(path: string): boolean {
+  if (!path.startsWith('/roles/')) return false;
+  const rest = path.slice('/roles/'.length);
+  return rest.length > 0 && !rest.includes('/');
+}
+
+const RESERVED_ORG_SEGMENTS = new Set(['switch', 'members', 'invites']);
+
+export function matchOrgIdPath(path: string): boolean {
+  if (!path.startsWith('/orgs/')) return false;
+  const rest = path.slice('/orgs/'.length);
+  return (
+    rest.length > 0 && !rest.includes('/') && !RESERVED_ORG_SEGMENTS.has(rest)
+  );
+}
+
+export function matchOrgInvitePath(path: string): boolean {
+  if (!path.startsWith('/orgs/invites/')) return false;
+  const rest = path.slice('/orgs/invites/'.length);
+  return rest.length > 0 && !rest.includes('/');
 }

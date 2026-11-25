@@ -19,7 +19,8 @@ export function createResendProvider(config: ResendConfig): ChannelProvider {
   return {
     name: 'resend',
     async send(payload: SendPayload): Promise<SendResult> {
-      if (!config.apiKey || !config.from) {
+      const from = payload.from?.trim() || config.from;
+      if (!config.apiKey || !from) {
         return {
           ok: false,
           provider: 'resend',
@@ -36,7 +37,7 @@ export function createResendProvider(config: ResendConfig): ChannelProvider {
             'content-type': 'application/json',
           },
           body: JSON.stringify({
-            from: config.from,
+            from,
             to: [payload.to],
             subject: payload.subject ?? '(no subject)',
             text: payload.body,

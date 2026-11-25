@@ -37,6 +37,15 @@ export async function ensureOrgSchema(db: AuthDb): Promise<void> {
         user_id TEXT NOT NULL PRIMARY KEY,
         org_id TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS org_invites (
+        id TEXT NOT NULL PRIMARY KEY,
+        org_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL,
+        invited_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (org_id, email)
+      );
     `);
     return;
   }
@@ -60,6 +69,17 @@ export async function ensureOrgSchema(db: AuthDb): Promise<void> {
     CREATE TABLE IF NOT EXISTS user_active_org (
       user_id TEXT NOT NULL PRIMARY KEY,
       org_id TEXT NOT NULL
+    );
+  `);
+  await db.client.query(`
+    CREATE TABLE IF NOT EXISTS org_invites (
+      id TEXT NOT NULL PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      role TEXT NOT NULL,
+      invited_by TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL,
+      UNIQUE (org_id, email)
     );
   `);
 }
@@ -111,6 +131,240 @@ export async function createOrganization(
   return { id, name, createdAt };
 }
 
+export async function updateOrganization(
+  db: AuthDb,
+  orgId: string,
+  name: string,
+): Promise<Organization | null> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('organization name required');
+  }
+
+  if (db.dialect === 'sqlite') {
+    const result = db.client
+      .prepare(`UPDATE organizations SET name = ? WHERE id = ?`)
+      .run(trimmed, orgId);
+    if (result.changes === 0) return null;
+    const row = db.client
+      .prepare(
+        `SELECT id, name, created_at AS createdAt FROM organizations WHERE id = ? LIMIT 1`,
+      )
+      .get(orgId) as Organization | null;
+    return row;
+  }
+
+  const result = await db.client.query<Organization>(
+    `UPDATE organizations SET name = $1 WHERE id = $2
+     RETURNING id, name, created_at::text AS "createdAt"`,
+    [trimmed, orgId],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function deleteOrganization(
+  db: AuthDb,
+  orgId: string,
+): Promise<boolean> {
+  if (db.dialect === 'sqlite') {
+    const result = db.client
+      .prepare(`DELETE FROM organizations WHERE id = ?`)
+      .run(orgId);
+    if (result.changes === 0) return false;
+    db.client.prepare(`DELETE FROM org_members WHERE org_id = ?`).run(orgId);
+    db.client
+      .prepare(`DELETE FROM user_active_org WHERE org_id = ?`)
+      .run(orgId);
+    db.client.prepare(`DELETE FROM org_invites WHERE org_id = ?`).run(orgId);
+    return true;
+  }
+
+  const result = await db.client.query(
+    `DELETE FROM organizations WHERE id = $1`,
+    [orgId],
+  );
+  if ((result.rowCount ?? 0) === 0) return false;
+  await db.client.query(`DELETE FROM org_members WHERE org_id = $1`, [orgId]);
+  await db.client.query(`DELETE FROM user_active_org WHERE org_id = $1`, [
+    orgId,
+  ]);
+  await db.client.query(`DELETE FROM org_invites WHERE org_id = $1`, [orgId]);
+  return true;
+}
+
+export async function findUserByEmail(
+  db: AuthDb,
+  email: string,
+): Promise<{ id: string; email: string; name: string } | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (db.dialect === 'sqlite') {
+    const row = db.client
+      .prepare(
+        `SELECT id, email, name FROM user WHERE LOWER(email) = ? LIMIT 1`,
+      )
+      .get(normalized) as { id: string; email: string; name: string } | null;
+    return row ?? null;
+  }
+
+  const result = await db.client.query<{
+    id: string;
+    email: string;
+    name: string;
+  }>(`SELECT id, email, name FROM "user" WHERE LOWER(email) = $1 LIMIT 1`, [
+    normalized,
+  ]);
+  return result.rows[0] ?? null;
+}
+
+export async function addOrgMember(
+  db: AuthDb,
+  orgId: string,
+  userId: string,
+  role: string,
+): Promise<boolean> {
+  const trimmed = role.trim();
+  if (!trimmed) throw new Error('role required');
+
+  if (db.dialect === 'sqlite') {
+    const result = db.client
+      .prepare(
+        `INSERT OR IGNORE INTO org_members (org_id, user_id, role) VALUES (?, ?, ?)`,
+      )
+      .run(orgId, userId, trimmed);
+    if (result.changes > 0) {
+      const active = await getActiveOrgId(db, userId);
+      if (!active) await setActiveOrg(db, userId, orgId);
+    }
+    return result.changes > 0;
+  }
+
+  const result = await db.client.query(
+    `INSERT INTO org_members (org_id, user_id, role) VALUES ($1, $2, $3)
+     ON CONFLICT DO NOTHING`,
+    [orgId, userId, trimmed],
+  );
+  if ((result.rowCount ?? 0) > 0) {
+    const active = await getActiveOrgId(db, userId);
+    if (!active) await setActiveOrg(db, userId, orgId);
+  }
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function createOrgInvite(
+  db: AuthDb,
+  input: { orgId: string; email: string; role: string; invitedBy: string },
+): Promise<OrgInvite> {
+  const email = input.email.trim().toLowerCase();
+  const role = input.role.trim();
+  if (!email) throw new Error('email required');
+  if (!role) throw new Error('role required');
+  const id = crypto.randomUUID();
+  const createdAt = nowIso();
+
+  if (db.dialect === 'sqlite') {
+    db.client
+      .prepare(
+        `INSERT INTO org_invites (id, org_id, email, role, invited_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(org_id, email) DO UPDATE SET role = excluded.role, invited_by = excluded.invited_by, created_at = excluded.created_at`,
+      )
+      .run(id, input.orgId, email, role, input.invitedBy, createdAt);
+    const row = db.client
+      .prepare(
+        `SELECT id, org_id AS orgId, email, role, invited_by AS invitedBy, created_at AS createdAt
+         FROM org_invites WHERE org_id = ? AND email = ? LIMIT 1`,
+      )
+      .get(input.orgId, email) as OrgInvite;
+    return row;
+  }
+
+  const result = await db.client.query<OrgInvite>(
+    `INSERT INTO org_invites (id, org_id, email, role, invited_by, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (org_id, email) DO UPDATE SET role = EXCLUDED.role, invited_by = EXCLUDED.invited_by, created_at = EXCLUDED.created_at
+     RETURNING id, org_id AS "orgId", email, role, invited_by AS "invitedBy", created_at::text AS "createdAt"`,
+    [id, input.orgId, email, role, input.invitedBy, createdAt],
+  );
+  return result.rows[0]!;
+}
+
+export async function listOrgInvites(
+  db: AuthDb,
+  orgId: string,
+): Promise<OrgInvite[]> {
+  if (db.dialect === 'sqlite') {
+    return db.client
+      .prepare(
+        `SELECT id, org_id AS orgId, email, role, invited_by AS invitedBy, created_at AS createdAt
+         FROM org_invites WHERE org_id = ? ORDER BY email COLLATE NOCASE ASC`,
+      )
+      .all(orgId) as OrgInvite[];
+  }
+
+  const result = await db.client.query<OrgInvite>(
+    `SELECT id, org_id AS "orgId", email, role, invited_by AS "invitedBy", created_at::text AS "createdAt"
+     FROM org_invites WHERE org_id = $1 ORDER BY LOWER(email) ASC`,
+    [orgId],
+  );
+  return result.rows;
+}
+
+export async function deleteOrgInvite(
+  db: AuthDb,
+  orgId: string,
+  inviteId: string,
+): Promise<boolean> {
+  if (db.dialect === 'sqlite') {
+    const result = db.client
+      .prepare(`DELETE FROM org_invites WHERE org_id = ? AND id = ?`)
+      .run(orgId, inviteId);
+    return result.changes > 0;
+  }
+
+  const result = await db.client.query(
+    `DELETE FROM org_invites WHERE org_id = $1 AND id = $2`,
+    [orgId, inviteId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Auto-join any organizations that have a pending invite for this email. */
+export async function acceptPendingInvitesForUser(
+  db: AuthDb,
+  userId: string,
+  email: string,
+): Promise<number> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return 0;
+
+  let pending: Array<{ id: string; orgId: string; role: string }>;
+  if (db.dialect === 'sqlite') {
+    pending = db.client
+      .prepare(
+        `SELECT id, org_id AS orgId, role FROM org_invites WHERE LOWER(email) = ?`,
+      )
+      .all(normalized) as Array<{ id: string; orgId: string; role: string }>;
+  } else {
+    const result = await db.client.query<{
+      id: string;
+      orgId: string;
+      role: string;
+    }>(
+      `SELECT id, org_id AS "orgId", role FROM org_invites WHERE LOWER(email) = $1`,
+      [normalized],
+    );
+    pending = result.rows;
+  }
+
+  for (const invite of pending) {
+    await addOrgMember(db, invite.orgId, userId, invite.role);
+    await deleteOrgInvite(db, invite.orgId, invite.id);
+  }
+  return pending.length;
+}
+
 export async function listOrgsForUser(
   db: AuthDb,
   userId: string,
@@ -148,6 +402,15 @@ export type OrgMember = {
   email: string;
   name: string;
   role: string;
+};
+
+export type OrgInvite = {
+  id: string;
+  orgId: string;
+  email: string;
+  role: string;
+  invitedBy: string;
+  createdAt: string;
 };
 
 /** List members of an org (joined to Better Auth `user` for email/name). */
