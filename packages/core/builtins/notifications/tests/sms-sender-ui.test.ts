@@ -51,7 +51,7 @@ describe('SMS sender UI helpers', () => {
   test('smsNumbersHint explains an empty dropdown per audience', () => {
     const empty = { ...loaded, configured: false, numbers: [] };
     expect(smsNumbersHint(empty, 'member')).toContain('Ask an admin');
-    expect(smsNumbersHint(empty, 'admin')).toContain('Save your API key');
+    expect(smsNumbersHint(empty, 'admin')).toContain('Save your credentials');
     expect(smsNumbersHint({ ...loaded, numbers: [] }, 'member')).toContain(
       'No SMS-capable numbers',
     );

@@ -77,19 +77,18 @@ Builtin **`events`** writes every `POST /publish` to platform collection `events
 
 Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default providers are **log sinks** (print and mark `sent`) so local/dev works without Resend / Cloudflare / Twilio.
 
-| Variable                                        | Role                                                            |
-| ----------------------------------------------- | --------------------------------------------------------------- |
-| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_PROVIDER`     | `log` (default), `resend`, or `cloudflare` (Email Sending REST) |
-| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_API_KEY`      | Resend API key, or Cloudflare API token (`Email Sending Write`) |
-| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_FROM`         | From address (required for `resend` / `cloudflare`)             |
-| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_ACCOUNT_ID`   | Cloudflare account id (required when provider is `cloudflare`)  |
-| `AGENT_OS_EXT_NOTIFICATIONS_SMS_PROVIDER`       | `log` (default) or `twilio`                                     |
-| `AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID`    | Twilio Account SID                                              |
-| `AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SID`    | Twilio API Key SID (`SK…`) — not the master auth token          |
-| `AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SECRET` | Twilio API Key secret                                           |
-| `AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM`           | Default Twilio from number (E.164)                              |
+| Variable                                      | Role                                                            |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_PROVIDER`   | `log` (default), `resend`, or `cloudflare` (Email Sending REST) |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_API_KEY`    | Resend API key, or Cloudflare API token (`Email Sending Write`) |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_FROM`       | From address (required for `resend` / `cloudflare`)             |
+| `AGENT_OS_EXT_NOTIFICATIONS_EMAIL_ACCOUNT_ID` | Cloudflare account id (required when provider is `cloudflare`)  |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_PROVIDER`     | `log` (default) or `twilio`                                     |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID`  | Twilio Account SID                                              |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_AUTH_TOKEN`   | Twilio Auth Token                                               |
+| `AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM`         | Default Twilio from number (E.164)                              |
 
-**Per-org override (BYOK, ticket 105):** the env vars above are the **platform default**. An org admin can configure its own provider in **Settings → Email** (`email.send`: Resend `apiKey` + `from`, or Cloudflare `apiToken` + `from` + `accountId`) and **Settings → SMS** (`sms`: Twilio `apiKeySecret` + `apiKeySid` + `accountSid`, optional default `from`; Twilio **API Key** auth only — the account auth token is never stored). Provider/API-key cards are admin-only (`integrations.manage`) and hidden from members, who instead pick a personal **From number** from a dropdown (`GET /api/ext/notifications/sms/numbers` lists the account's SMS-capable numbers; `GET`/`PUT /api/ext/notifications/preferences/sms` stores the choice per user + org and is applied on `POST /notify`; precedence: body `from` → user number → org default). Settings `meta.json` sections/entries can set `"adminOnly": true` to hide them from the sidebar and search for non-admins. Each email/SMS delivery resolves the org's integration per request (tenants kit, cache + `integration.changed`), falling back to the env providers when the org has none. Delivery records carry `source: "org" | "platform"` plus the provider id; the Email manager **Deliveries** detail shows **Sent via**. Settings routes live at `/api/ext/notifications/integrations/*`; **Test connection** sends a test email to the signed-in admin (email) or verifies Twilio credentials via the Account resource (SMS). Provider 401/403s surface as "credentials rejected" delivery errors.
+**Per-org override (BYOK, ticket 105):** the env vars above are the **platform default**. An org admin can configure its own provider in **Settings → Email** (`email.send`: Resend `apiKey` + `from`, or Cloudflare `apiToken` + `from` + `accountId`) and **Settings → SMS** (`sms`: Twilio `authToken` + `accountSid`, optional default `from`). Provider/API-key cards are admin-only (`integrations.manage`) and hidden from members, who instead pick a personal **From number** from a dropdown (`GET /api/ext/notifications/sms/numbers` lists the account's SMS-capable numbers; `GET`/`PUT /api/ext/notifications/preferences/sms` stores the choice per user + org and is applied on `POST /notify`; precedence: body `from` → user number → org default). Settings `meta.json` sections/entries can set `"adminOnly": true` to hide them from the sidebar and search for non-admins. Each email/SMS delivery resolves the org's integration per request (tenants kit, cache + `integration.changed`), falling back to the env providers when the org has none. Delivery records carry `source: "org" | "platform"` plus the provider id; the Email manager **Deliveries** detail shows **Sent via**. Settings routes live at `/api/ext/notifications/integrations/*`; **Test connection** sends a test email to the signed-in admin (email) or verifies Twilio credentials via the Account resource (SMS). Provider 401/403s surface as "credentials rejected" delivery errors.
 
 **Cloudflare Email Sending** uses the public REST API (`POST /accounts/{account_id}/email/sending/send`) — no Workers binding inside the Bun builtin. Domain must be onboarded under Email Service; token needs **Email Sending Write**.
 

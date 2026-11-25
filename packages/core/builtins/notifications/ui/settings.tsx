@@ -14,7 +14,7 @@ const SMS_INTEGRATION_PATH = '/integrations/sms';
 
 /**
  * Notifications Settings — personal SMS sender number for every member; the
- * org's Twilio API key (BYOK) is shown only to admins (`canManage`). Mounted by
+ * org's Twilio credentials (BYOK) is shown only to admins (`canManage`). Mounted by
  * the Shell Settings host for section `sms`.
  */
 export default function NotificationsSettings() {

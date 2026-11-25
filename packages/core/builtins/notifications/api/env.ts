@@ -38,12 +38,7 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         .enum(['log', 'twilio'])
         .default('log'),
       AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID: z.string().min(1).optional(),
-      /** Twilio API Key SID (`SK…`) — preferred over the master auth token. */
-      AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SID: z.string().min(1).optional(),
-      AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SECRET: z
-        .string()
-        .min(1)
-        .optional(),
+      AGENT_OS_EXT_NOTIFICATIONS_SMS_AUTH_TOKEN: z.string().min(1).optional(),
       AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM: z.string().min(1).optional(),
     },
     clientPrefix: 'AGENT_OS_EXT_NOTIFICATIONS_CLIENT',
@@ -68,10 +63,8 @@ export const keys = (runtimeEnv: RuntimeEnv = Bun.env) =>
         runtimeEnv.AGENT_OS_EXT_NOTIFICATIONS_SMS_PROVIDER,
       AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID:
         runtimeEnv.AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID,
-      AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SID:
-        runtimeEnv.AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SID,
-      AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SECRET:
-        runtimeEnv.AGENT_OS_EXT_NOTIFICATIONS_SMS_API_KEY_SECRET,
+      AGENT_OS_EXT_NOTIFICATIONS_SMS_AUTH_TOKEN:
+        runtimeEnv.AGENT_OS_EXT_NOTIFICATIONS_SMS_AUTH_TOKEN,
       AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM:
         runtimeEnv.AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM,
     },

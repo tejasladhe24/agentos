@@ -32,7 +32,7 @@
           "id": "sms-provider",
           "label": "SMS provider",
           "adminOnly": true,
-          "hint": "twilio account sid api key secret byok own account test connection"
+          "hint": "twilio account sid auth token byok own account test connection"
         }
       ]
     }

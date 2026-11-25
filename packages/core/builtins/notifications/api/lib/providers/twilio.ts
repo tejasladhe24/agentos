@@ -10,10 +10,8 @@ import {
 export type TwilioConfig = {
   /** Account SID (`AC…`) — identifies the account in every request URL. */
   accountSid: string;
-  /** API Key SID (`SK…`) — HTTP basic-auth username. */
-  apiKeySid: string;
-  /** API Key secret — HTTP basic-auth password. Shown once by Twilio. */
-  apiKeySecret: string;
+  /** Account auth token — HTTP basic-auth password (username is the SID). */
+  authToken: string;
   /** Default `From` number; a per-send `payload.from` takes precedence. */
   from?: string;
   fetchImpl?: typeof fetch;
@@ -48,17 +46,15 @@ function parseNumbers(payload: unknown): SenderNumber[] {
   return numbers.sort((a, b) => a.phoneNumber.localeCompare(b.phoneNumber));
 }
 
-/** Twilio Messages API SMS adapter, authenticated with an API Key + secret. */
+/** Twilio Messages API SMS adapter (Account SID + auth token). */
 export function createTwilioProvider(config: TwilioConfig): ChannelProvider {
   const fetchImpl = config.fetchImpl ?? fetch;
-  const hasCredentials = Boolean(
-    config.accountSid && config.apiKeySid && config.apiKeySecret,
-  );
-  const authorization = `Basic ${btoa(`${config.apiKeySid}:${config.apiKeySecret}`)}`;
+  const hasCredentials = Boolean(config.accountSid && config.authToken);
+  const authorization = `Basic ${btoa(`${config.accountSid}:${config.authToken}`)}`;
   const account = encodeURIComponent(config.accountSid);
   const credentialsError =
     config.missingConfigError ??
-    'Twilio requires AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID, SMS_API_KEY_SID, and SMS_API_KEY_SECRET';
+    'Twilio requires AGENT_OS_EXT_NOTIFICATIONS_SMS_ACCOUNT_SID and SMS_AUTH_TOKEN';
 
   async function fetchNumbers(pageSize: number): Promise<ListSendersResult> {
     if (!hasCredentials) return { ok: false, error: credentialsError };
@@ -138,7 +134,7 @@ export function createTwilioProvider(config: TwilioConfig): ChannelProvider {
         };
       }
     },
-    /** List one incoming number — validates the key, secret, and account SID. */
+    /** List one incoming number — validates the account SID and auth token. */
     async verify(): Promise<SendResult> {
       const result = await fetchNumbers(1);
       return result.ok

@@ -101,8 +101,8 @@ export function smsNumbersHint(
   if (state.error) return null;
   if (!state.configured) {
     return audience === 'admin'
-      ? 'No Twilio account is connected yet. Save your API key to load its numbers.'
-      : 'No Twilio account is connected yet. Ask an admin to add an API key in Settings → SMS.';
+      ? 'No Twilio account is connected yet. Save your credentials to load its numbers.'
+      : 'No Twilio account is connected yet. Ask an admin to add Twilio credentials in Settings → SMS.';
   }
   if (state.numbers.length === 0) {
     return 'No SMS-capable numbers were found on the Twilio account.';

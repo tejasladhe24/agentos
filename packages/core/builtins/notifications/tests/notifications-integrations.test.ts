@@ -208,12 +208,8 @@ describe('notifications BYOK (ticket 105)', () => {
     await kit.putIntegration('org_a', {
       integration: 'sms',
       provider: 'twilio',
-      settings: {
-        accountSid: 'AC123',
-        apiKeySid: 'SK123',
-        from: '+15550001111',
-      },
-      secrets: { apiKeySecret: 'tw_secret' },
+      settings: { accountSid: 'AC123', from: '+15550001111' },
+      secrets: { authToken: 'tw_tok' },
     });
     expect((await delivery(await send('org_a', email))).source).toBe('org');
     const sms = await delivery(
@@ -235,7 +231,7 @@ describe('notifications BYOK (ticket 105)', () => {
     expect(http.calls[1]?.url).toBe(
       'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages.json',
     );
-    expect(http.calls[1]?.auth).toBe(`Basic ${btoa('SK123:tw_secret')}`);
+    expect(http.calls[1]?.auth).toBe(`Basic ${btoa('AC123:tw_tok')}`);
   });
 
   test('Settings routes: GET is display-safe; test connection sends / verifies', async () => {
@@ -268,14 +264,14 @@ describe('notifications BYOK (ticket 105)', () => {
 
     const smsTest = await call('POST', '/integrations/sms/test', {
       provider: 'twilio',
-      settings: { accountSid: 'AC9', apiKeySid: 'SK9' },
-      secrets: { apiKeySecret: 'tw' },
+      settings: { accountSid: 'AC9' },
+      secrets: { authToken: 'tw' },
     });
     expect(await smsTest.json()).toMatchObject({ ok: true });
     expect(http.calls[1]?.url).toBe(
       'https://api.twilio.com/2010-04-01/Accounts/AC9/IncomingPhoneNumbers.json?PageSize=200',
     );
-    expect(http.calls[1]?.auth).toBe(`Basic ${btoa('SK9:tw')}`);
+    expect(http.calls[1]?.auth).toBe(`Basic ${btoa('AC9:tw')}`);
 
     const platformSms = await call('POST', '/integrations/sms/test', {});
     expect(await platformSms.json()).toMatchObject({
@@ -405,7 +401,7 @@ describe('notifications BYOK (ticket 105)', () => {
     expect(JSON.parse(http.calls[1]!.body).from).toBe('org@acme.test');
   });
 
-  test('Twilio: API key validation, number listing, and per-user from number', async () => {
+  test('Twilio: credential validation, number listing, and per-user from number', async () => {
     const backend = createMemoryIntegrationsBackend();
     const kit = createIntegrationsKit(backend);
     const store = createNotifyStore(memoryDb());
@@ -480,15 +476,15 @@ describe('notifications BYOK (ticket 105)', () => {
         opts,
       );
 
-    // Pasting the master auth token as the key SID is rejected.
+    // A malformed account SID is rejected.
     const bad = await call('PUT', '/integrations/sms', {
       provider: 'twilio',
-      settings: { accountSid: 'AC1', apiKeySid: 'not_a_key_sid' },
-      secrets: { apiKeySecret: 'secret' },
+      settings: { accountSid: 'not_an_account_sid' },
+      secrets: { authToken: 'secret' },
     });
     expect(bad.status).toBe(400);
     expect(((await bad.json()) as { error: string }).error).toContain(
-      'API key SID must start with "SK"',
+      'Account SID must start with "AC"',
     );
 
     // No Twilio connected: the dropdown source reports "not configured".
@@ -500,12 +496,8 @@ describe('notifications BYOK (ticket 105)', () => {
 
     const saved = await call('PUT', '/integrations/sms', {
       provider: 'twilio',
-      settings: {
-        accountSid: 'AC1',
-        apiKeySid: 'SK1',
-        from: '+15550001111',
-      },
-      secrets: { apiKeySecret: 'secret' },
+      settings: { accountSid: 'AC1', from: '+15550001111' },
+      secrets: { authToken: 'secret' },
     });
     expect(saved.status).toBe(201);
     expect(await saved.text()).not.toContain('secret"');
@@ -541,7 +533,7 @@ describe('notifications BYOK (ticket 105)', () => {
 
     const sms = { channel: 'sms', to: '+15553334444', message: 'Hi' };
     await call('POST', '/notify', sms);
-    expect(sent.at(-1)?.auth).toBe(`Basic ${btoa('SK1:secret')}`);
+    expect(sent.at(-1)?.auth).toBe(`Basic ${btoa('AC1:secret')}`);
     expect(sent.at(-1)?.body.get('From')).toBe('+15550002222');
 
     await call('PUT', '/preferences/sms', { from: '' });

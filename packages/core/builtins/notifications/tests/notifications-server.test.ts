@@ -505,8 +505,7 @@ describe('builtin notifications server', () => {
     const providers = createProviders({
       smsProvider: 'twilio',
       smsAccountSid: 'ACxxx',
-      smsApiKeySid: 'SKxxx',
-      smsApiKeySecret: 'secret',
+      smsAuthToken: 'token',
       smsFrom: '+15550001111',
       fetchImpl,
     });

@@ -62,11 +62,10 @@ export function buildSmsProviderFromConfig(
 ): ChannelProvider {
   return createTwilioProvider({
     accountSid: setting(config, 'accountSid'),
-    apiKeySid: setting(config, 'apiKeySid'),
-    apiKeySecret: config.secrets.apiKeySecret ?? '',
+    authToken: config.secrets.authToken ?? '',
     from: setting(config, 'from'),
     fetchImpl,
-    missingConfigError: `Twilio needs an account SID, API key SID, and API key secret. ${ORG_CONFIG_HINT}`,
+    missingConfigError: `Twilio needs an account SID and auth token. ${ORG_CONFIG_HINT}`,
   });
 }
 
@@ -262,14 +261,6 @@ export function notificationIntegrationDefinitions(input: {
             description: 'Found on the Twilio Console dashboard.',
           },
           {
-            name: 'apiKeySid',
-            label: 'API key SID',
-            required: true,
-            placeholder: 'SK…',
-            description:
-              'Create a Standard API key in the Twilio Console under Account → API keys & tokens.',
-          },
-          {
             name: 'from',
             label: 'Default from number',
             required: false,
@@ -280,11 +271,10 @@ export function notificationIntegrationDefinitions(input: {
         ],
         secrets: [
           {
-            name: 'apiKeySecret',
-            label: 'API key secret',
+            name: 'authToken',
+            label: 'Auth token',
             required: true,
-            description:
-              'Shown once when the key is created. Never use your master auth token here.',
+            description: 'Found on the Twilio Console dashboard.',
           },
         ],
       },
@@ -296,16 +286,9 @@ export function notificationIntegrationDefinitions(input: {
     async beforeSave({ draft }) {
       if (draft.provider !== 'twilio') return draft;
       const accountSid = draftSetting(draft.settings.accountSid);
-      const apiKeySid = draftSetting(draft.settings.apiKeySid);
       if (accountSid && !accountSid.startsWith('AC')) {
         throw new IntegrationError(
           'Account SID must start with "AC" (find it on the Twilio Console dashboard).',
-          400,
-        );
-      }
-      if (apiKeySid && !apiKeySid.startsWith('SK')) {
-        throw new IntegrationError(
-          'API key SID must start with "SK". Create an API key in the Twilio Console — do not paste your account auth token.',
           400,
         );
       }
@@ -333,7 +316,7 @@ export function notificationIntegrationDefinitions(input: {
         return senders.ok
           ? {
               ok: true,
-              message: `Twilio API key verified — ${senders.numbers.length} SMS-capable number${senders.numbers.length === 1 ? '' : 's'} found`,
+              message: `Twilio credentials verified — ${senders.numbers.length} SMS-capable number${senders.numbers.length === 1 ? '' : 's'} found`,
             }
           : { ok: false, message: senders.error };
       }
