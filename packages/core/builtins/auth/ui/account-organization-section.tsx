@@ -1,4 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import {
   ArrowsDownUpIcon,
   CheckCircleIcon,
@@ -7,6 +9,10 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+} from '@agentos/core/client/lib/form-errors';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +75,10 @@ import {
 
 import type { AccountOrgMembership } from './account-types';
 
+const orgNameSchema = z.object({
+  name: z.string().trim().min(1, 'Organization name is required'),
+});
+
 export type AccountOrganizationSectionProps = {
   orgId: string | null;
   orgs: AccountOrgMembership[];
@@ -130,36 +140,47 @@ export function AccountOrganizationSection({
   }, [orgs, orgId, searchQuery, roleFilter, activeOnly, sortBy]);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [createName, setCreateName] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const [editingOrg, setEditingOrg] = useState<AccountOrgMembership | null>(
     null,
   );
-  const [editName, setEditName] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   const [deletingOrg, setDeletingOrg] = useState<AccountOrgMembership | null>(
     null,
   );
 
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = createName.trim();
-    if (!trimmed) {
-      setLocalError('Name required');
-      return;
-    }
-    setPending(true);
-    setLocalError(null);
-    try {
-      await onCreateOrg(trimmed);
-      setCreateName('');
-      setCreateOpen(false);
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Create failed');
-    } finally {
-      setPending(false);
-    }
-  }
+  const createForm = useForm({
+    defaultValues: { name: '' },
+    validators: { onSubmit: orgNameSchema },
+    onSubmit: async ({ value }) => {
+      setCreateError(null);
+      try {
+        await onCreateOrg(value.name.trim());
+        createForm.reset({ name: '' });
+        setCreateOpen(false);
+      } catch (err) {
+        setCreateError(err instanceof Error ? err.message : 'Create failed');
+      }
+    },
+  });
+
+  const editForm = useForm({
+    defaultValues: { name: '' },
+    validators: { onSubmit: orgNameSchema },
+    onSubmit: async ({ value }) => {
+      if (!editingOrg || !onUpdateOrg) return;
+      setEditError(null);
+      try {
+        await onUpdateOrg(editingOrg.id, value.name.trim());
+        editForm.reset({ name: '' });
+        setEditingOrg(null);
+      } catch (err) {
+        setEditError(err instanceof Error ? err.message : 'Update failed');
+      }
+    },
+  });
 
   async function handleSwitch(nextOrgId: string) {
     if (nextOrgId === orgId) return;
@@ -169,27 +190,6 @@ export function AccountOrganizationSection({
       await onSwitchOrg(nextOrgId);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Switch failed');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleUpdate(e: FormEvent) {
-    e.preventDefault();
-    if (!editingOrg || !onUpdateOrg) return;
-    const trimmed = editName.trim();
-    if (!trimmed) {
-      setLocalError('Name required');
-      return;
-    }
-    setPending(true);
-    setLocalError(null);
-    try {
-      await onUpdateOrg(editingOrg.id, trimmed);
-      setEditingOrg(null);
-      setEditName('');
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Update failed');
     } finally {
       setPending(false);
     }
@@ -233,7 +233,8 @@ export function AccountOrganizationSection({
             data-slot="create-org-trigger"
             onClick={() => {
               setLocalError(null);
-              setCreateName('');
+              setCreateError(null);
+              createForm.reset({ name: '' });
               setCreateOpen(true);
             }}
           >
@@ -439,8 +440,9 @@ export function AccountOrganizationSection({
                                       <DropdownMenuItem
                                         onClick={() => {
                                           setLocalError(null);
+                                          setEditError(null);
                                           setEditingOrg(org);
-                                          setEditName(org.name);
+                                          editForm.reset({ name: org.name });
                                         }}
                                       >
                                         Update organization
@@ -487,45 +489,89 @@ export function AccountOrganizationSection({
         )}
       </FieldGroup>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) {
+            setCreateError(null);
+            createForm.reset({ name: '' });
+          }
+        }}
+      >
         <DialogContent>
-          <form onSubmit={handleCreate} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void createForm.handleSubmit();
+            }}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
               <DialogTitle>Create organization</DialogTitle>
               <DialogDescription>
                 Enter a name for the new workspace tenant.
               </DialogDescription>
             </DialogHeader>
-            <Field>
-              <FieldLabel htmlFor="account-new-org">
-                Organization name
-              </FieldLabel>
-              <Input
-                id="account-new-org"
-                value={createName}
-                onChange={(e) => {
-                  setCreateName(e.target.value);
-                  if (localError) setLocalError(null);
-                }}
-                placeholder="Acme Inc."
-                disabled={disabled}
-                autoFocus
-              />
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={disabled}>
-                Create
-              </Button>
-            </DialogFooter>
+            <createForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => {
+                const formDisabled = disabled || isSubmitting;
+                return (
+                  <>
+                    <createForm.Field name="name">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-new-org">
+                              Organization name
+                            </FieldLabel>
+                            <Input
+                              id="account-new-org"
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => {
+                                field.handleChange(e.target.value);
+                                if (createError) setCreateError(null);
+                              }}
+                              placeholder="Acme Inc."
+                              disabled={formDisabled}
+                              aria-invalid={invalid || undefined}
+                              autoFocus
+                            />
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </createForm.Field>
+                    {createError ? (
+                      <FieldError>{createError}</FieldError>
+                    ) : null}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={formDisabled}
+                        onClick={() => setCreateOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={formDisabled}>
+                        {isSubmitting ? 'Creating…' : 'Create'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </createForm.Subscribe>
           </form>
         </DialogContent>
       </Dialog>
@@ -533,44 +579,81 @@ export function AccountOrganizationSection({
       <Dialog
         open={editingOrg !== null}
         onOpenChange={(open) => {
-          if (!open) setEditingOrg(null);
+          if (!open) {
+            setEditingOrg(null);
+            setEditError(null);
+            editForm.reset({ name: '' });
+          }
         }}
       >
         <DialogContent>
-          <form onSubmit={handleUpdate} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void editForm.handleSubmit();
+            }}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
               <DialogTitle>Update organization</DialogTitle>
               <DialogDescription>Rename {editingOrg?.name}.</DialogDescription>
             </DialogHeader>
-            <Field>
-              <FieldLabel htmlFor="account-edit-org">
-                Organization name
-              </FieldLabel>
-              <Input
-                id="account-edit-org"
-                value={editName}
-                onChange={(e) => {
-                  setEditName(e.target.value);
-                  if (localError) setLocalError(null);
-                }}
-                disabled={disabled}
-                autoFocus
-              />
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setEditingOrg(null)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={disabled}>
-                Save
-              </Button>
-            </DialogFooter>
+            <editForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => {
+                const formDisabled = disabled || isSubmitting;
+                return (
+                  <>
+                    <editForm.Field name="name">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-edit-org">
+                              Organization name
+                            </FieldLabel>
+                            <Input
+                              id="account-edit-org"
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => {
+                                field.handleChange(e.target.value);
+                                if (editError) setEditError(null);
+                              }}
+                              disabled={formDisabled}
+                              aria-invalid={invalid || undefined}
+                              autoFocus
+                            />
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </editForm.Field>
+                    {editError ? <FieldError>{editError}</FieldError> : null}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={formDisabled}
+                        onClick={() => setEditingOrg(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={formDisabled}>
+                        {isSubmitting ? 'Saving…' : 'Save'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </editForm.Subscribe>
           </form>
         </DialogContent>
       </Dialog>

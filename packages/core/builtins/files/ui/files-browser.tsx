@@ -1,4 +1,10 @@
 import { useId, useMemo, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+} from '@agentos/core/client/lib/form-errors';
 import {
   DotsThreeIcon,
   FolderIcon,
@@ -20,6 +26,7 @@ import { Badge } from '@agentos/ui/components/badge';
 import {
   Field,
   FieldContent,
+  FieldError,
   FieldLabel,
   FieldTitle,
 } from '@agentos/ui/components/field';
@@ -71,6 +78,19 @@ import {
   FilesUploadZone,
   type FilesUploadZoneProps,
 } from './files-upload-zone';
+
+const renameItemSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+});
+
+const moveItemsSchema = z.object({
+  destination: z.string(),
+});
+
+const copyItemsSchema = z.object({
+  mountId: z.string().min(1, 'Choose a destination storage'),
+  destination: z.string(),
+});
 
 export type FilesBrowserProps = {
   section: FilesSection;
@@ -164,58 +184,51 @@ export function FilesBrowser({
   const canCopyAcross = Boolean(onCopyTo) && copyTargets.length > 1;
   const showLocation = mounts.length > 1;
   const [copyOpen, setCopyOpen] = useState(false);
-  const [copyMountId, setCopyMountId] = useState('');
-  const [copyDest, setCopyDest] = useState('');
   const allSelected =
     items.length > 0 && items.every((i) => selectedKeys.has(itemId(i)));
   const selectedItems = items.filter((i) => selectedKeys.has(itemId(i)));
 
   const [renameTarget, setRenameTarget] = useState<FilesListItem | null>(null);
-  const [renameValue, setRenameValue] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
-  const [moveDest, setMoveDest] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<FilesListItem[]>([]);
   const [dialogBusy, setDialogBusy] = useState(false);
 
+  const renameForm = useForm({
+    defaultValues: { name: '' },
+    validators: { onSubmit: renameItemSchema },
+    onSubmit: async ({ value }) => {
+      if (!renameTarget) return;
+      await onRename(renameTarget, value.name.trim());
+      setRenameTarget(null);
+    },
+  });
+
+  const moveForm = useForm({
+    defaultValues: { destination: '' },
+    validators: { onSubmit: moveItemsSchema },
+    onSubmit: async ({ value }) => {
+      if (!selectedItems.length) return;
+      await onMove(selectedItems, value.destination);
+      setMoveOpen(false);
+      moveForm.reset({ destination: '' });
+    },
+  });
+
+  const copyForm = useForm({
+    defaultValues: { mountId: '', destination: '' },
+    validators: { onSubmit: copyItemsSchema },
+    onSubmit: async ({ value }) => {
+      if (!onCopyTo || !selectedItems.length) return;
+      await onCopyTo(selectedItems, value.mountId, value.destination);
+      setCopyOpen(false);
+      copyForm.reset({ mountId: '', destination: '' });
+    },
+  });
+
   function openRename(item: FilesListItem) {
     setRenameTarget(item);
-    setRenameValue(item.name);
-  }
-
-  async function submitRename() {
-    if (!renameTarget || !renameValue.trim()) return;
-    setDialogBusy(true);
-    try {
-      await onRename(renameTarget, renameValue.trim());
-      setRenameTarget(null);
-    } finally {
-      setDialogBusy(false);
-    }
-  }
-
-  async function submitMove() {
-    if (!selectedItems.length) return;
-    setDialogBusy(true);
-    try {
-      await onMove(selectedItems, moveDest);
-      setMoveOpen(false);
-      setMoveDest('');
-    } finally {
-      setDialogBusy(false);
-    }
-  }
-
-  async function submitCopy() {
-    if (!onCopyTo || !selectedItems.length || !copyMountId) return;
-    setDialogBusy(true);
-    try {
-      await onCopyTo(selectedItems, copyMountId, copyDest);
-      setCopyOpen(false);
-      setCopyDest('');
-    } finally {
-      setDialogBusy(false);
-    }
+    renameForm.reset({ name: item.name });
   }
 
   function queueDelete(targets: FilesListItem[]) {
@@ -402,7 +415,7 @@ export function FilesBrowser({
             onMove={
               isDrive
                 ? () => {
-                    setMoveDest(prefix);
+                    moveForm.reset({ destination: prefix });
                     setMoveOpen(true);
                   }
                 : undefined
@@ -411,8 +424,10 @@ export function FilesBrowser({
               isDrive && canCopyAcross
                 ? () => {
                     const first = copyTargets.find((m) => m.id !== mount?.id);
-                    setCopyMountId(first?.id ?? '');
-                    setCopyDest('');
+                    copyForm.reset({
+                      mountId: first?.id ?? '',
+                      destination: '',
+                    });
                     setCopyOpen(true);
                   }
                 : undefined
@@ -495,134 +510,234 @@ export function FilesBrowser({
         }}
       >
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            aria-label="New name"
-            autoFocus
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setRenameTarget(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={dialogBusy || !renameValue.trim()}
-              onClick={() => void submitRename()}
-            >
-              Save
-            </Button>
-          </DialogFooter>
+          <form
+            noValidate
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void renameForm.handleSubmit();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Rename</DialogTitle>
+            </DialogHeader>
+            <renameForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => (
+                <>
+                  <renameForm.Field name="name">
+                    {(field) => {
+                      const invalid = isFieldInvalid(field.state.meta);
+                      return (
+                        <Field data-invalid={invalid || undefined}>
+                          <Input
+                            name={field.name}
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            aria-label="New name"
+                            aria-invalid={invalid || undefined}
+                            disabled={isSubmitting}
+                            autoFocus
+                          />
+                          {invalid ? (
+                            <FieldError
+                              errors={toFieldErrors(field.state.meta.errors)}
+                            />
+                          ) : null}
+                        </Field>
+                      );
+                    }}
+                  </renameForm.Field>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={isSubmitting}
+                      onClick={() => setRenameTarget(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? 'Saving…' : 'Save'}
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
+            </renameForm.Subscribe>
+          </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Move to folder</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground">
-            Destination prefix relative to org root (e.g. <code>docs/</code>).
-            Moving {selectedItems.length} item(s).
-          </p>
-          <Input
-            value={moveDest}
-            onChange={(e) => setMoveDest(e.target.value)}
-            aria-label="Destination prefix"
-            placeholder="folder/subfolder/"
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setMoveOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={dialogBusy || selectedItems.length === 0}
-              onClick={() => void submitMove()}
-            >
-              Move
-            </Button>
-          </DialogFooter>
+          <form
+            noValidate
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void moveForm.handleSubmit();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Move to folder</DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-muted-foreground">
+              Destination prefix relative to org root (e.g. <code>docs/</code>).
+              Moving {selectedItems.length} item(s).
+            </p>
+            <moveForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => (
+                <>
+                  <moveForm.Field name="destination">
+                    {(field) => (
+                      <Field>
+                        <Input
+                          name={field.name}
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          aria-label="Destination prefix"
+                          placeholder="folder/subfolder/"
+                          disabled={isSubmitting}
+                        />
+                      </Field>
+                    )}
+                  </moveForm.Field>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={isSubmitting}
+                      onClick={() => setMoveOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || selectedItems.length === 0}
+                    >
+                      {isSubmitting ? 'Moving…' : 'Move'}
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
+            </moveForm.Subscribe>
+          </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
         <DialogContent data-slot="files-copy-dialog">
-          <DialogHeader>
-            <DialogTitle>
-              {personalSource ? 'Copy to org storage' : 'Copy to storage'}
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground">
-            {personalSource
-              ? [
-                  `Copies ${selectedItems.length} item(s) into org storage.`,
-                  driveCopy(mount?.provider).exportNote,
-                  'The originals stay in your drive.',
-                ]
-                  .filter(Boolean)
-                  .join(' ')
-              : `Copies ${selectedItems.length} item(s) into another mount. Files are streamed across storage backends; originals stay in place.`}
-          </p>
-          <RadioGroup
-            value={copyMountId}
-            onValueChange={(v) => setCopyMountId(String(v))}
-            aria-label="Destination storage"
+          <form
+            noValidate
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void copyForm.handleSubmit();
+            }}
           >
-            {copyTargets.map((target) => (
-              <FieldLabel key={target.id} htmlFor={`files-copy-${target.id}`}>
-                <Field orientation="horizontal">
-                  <MountIcon
-                    provider={target.provider}
-                    className="size-4 shrink-0"
-                  />
-                  <FieldContent>
-                    <FieldTitle>
-                      {target.name}
-                      {target.id === mount?.id ? ' (current)' : ''}
-                    </FieldTitle>
-                  </FieldContent>
-                  <RadioGroupItem
-                    value={target.id}
-                    id={`files-copy-${target.id}`}
-                  />
-                </Field>
-              </FieldLabel>
-            ))}
-          </RadioGroup>
-          <Input
-            value={copyDest}
-            onChange={(e) => setCopyDest(e.target.value)}
-            aria-label="Destination folder"
-            placeholder="folder/subfolder/ (empty = root)"
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setCopyOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={dialogBusy || !copyMountId || !selectedItems.length}
-              onClick={() => void submitCopy()}
-            >
-              Copy
-            </Button>
-          </DialogFooter>
+            <DialogHeader>
+              <DialogTitle>
+                {personalSource ? 'Copy to org storage' : 'Copy to storage'}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-muted-foreground">
+              {personalSource
+                ? [
+                    `Copies ${selectedItems.length} item(s) into org storage.`,
+                    driveCopy(mount?.provider).exportNote,
+                    'The originals stay in your drive.',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
+                : `Copies ${selectedItems.length} item(s) into another mount. Files are streamed across storage backends; originals stay in place.`}
+            </p>
+            <copyForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => (
+                <>
+                  <copyForm.Field name="mountId">
+                    {(field) => {
+                      const invalid = isFieldInvalid(field.state.meta);
+                      return (
+                        <Field data-invalid={invalid || undefined}>
+                          <RadioGroup
+                            value={field.state.value}
+                            onValueChange={(v) => field.handleChange(String(v))}
+                            aria-label="Destination storage"
+                          >
+                            {copyTargets.map((target) => (
+                              <FieldLabel
+                                key={target.id}
+                                htmlFor={`files-copy-${target.id}`}
+                              >
+                                <Field orientation="horizontal">
+                                  <MountIcon
+                                    provider={target.provider}
+                                    className="size-4 shrink-0"
+                                  />
+                                  <FieldContent>
+                                    <FieldTitle>
+                                      {target.name}
+                                      {target.id === mount?.id
+                                        ? ' (current)'
+                                        : ''}
+                                    </FieldTitle>
+                                  </FieldContent>
+                                  <RadioGroupItem
+                                    value={target.id}
+                                    id={`files-copy-${target.id}`}
+                                  />
+                                </Field>
+                              </FieldLabel>
+                            ))}
+                          </RadioGroup>
+                          {invalid ? (
+                            <FieldError
+                              errors={toFieldErrors(field.state.meta.errors)}
+                            />
+                          ) : null}
+                        </Field>
+                      );
+                    }}
+                  </copyForm.Field>
+                  <copyForm.Field name="destination">
+                    {(field) => (
+                      <Field>
+                        <Input
+                          name={field.name}
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          aria-label="Destination folder"
+                          placeholder="folder/subfolder/ (empty = root)"
+                          disabled={isSubmitting}
+                        />
+                      </Field>
+                    )}
+                  </copyForm.Field>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={isSubmitting}
+                      onClick={() => setCopyOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || !selectedItems.length}
+                    >
+                      {isSubmitting ? 'Copying…' : 'Copy'}
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
+            </copyForm.Subscribe>
+          </form>
         </DialogContent>
       </Dialog>
 

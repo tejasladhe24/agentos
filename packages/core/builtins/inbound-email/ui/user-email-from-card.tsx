@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import { useCallback, useEffect, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+  useHostApi,
+  useHostNotifications,
+} from '@agentos/core/client';
 import { Button } from '@agentos/ui/components/button';
 import {
   Card,
@@ -25,6 +32,25 @@ export type UserEmailFromData = {
   orgFrom: string | null;
 };
 
+const SIMPLE_EMAIL_SCHEMA = z.string().email();
+
+function isValidFromAddress(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return true;
+  const angleMatch = /^[^<>]+<([^<>]+)>$/.exec(trimmed);
+  const emailPart = angleMatch ? angleMatch[1].trim() : trimmed;
+  return SIMPLE_EMAIL_SCHEMA.safeParse(emailPart).success;
+}
+
+const userEmailFromSchema = z.object({
+  from: z
+    .string()
+    .refine(
+      isValidFromAddress,
+      'Enter a valid email or "Name <email@domain.com>"',
+    ),
+});
+
 function parseError(body: string, fallback: string): string {
   try {
     const parsed = JSON.parse(body) as { error?: unknown };
@@ -36,82 +62,122 @@ function parseError(body: string, fallback: string): string {
 }
 
 export type UserEmailFromCardViewProps = {
-  value: string;
   savedFrom: string | null;
   orgFrom: string | null;
   busy?: boolean;
   error?: string | null;
   entryId?: string;
-  onChange: (value: string) => void;
-  onSave: () => void;
-  onClear: () => void;
+  onSave: (nextFrom: string | null) => Promise<void> | void;
+  onClear: () => Promise<void> | void;
+  onClearError?: () => void;
 };
 
 /** Presentational personal sender address card (SSR / test friendly). */
 export function UserEmailFromCardView({
-  value,
   savedFrom,
   orgFrom,
   busy = false,
   error = null,
   entryId,
-  onChange,
   onSave,
   onClear,
+  onClearError,
 }: UserEmailFromCardViewProps) {
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    onSave();
-  }
+  const form = useForm({
+    defaultValues: { from: savedFrom ?? '' },
+    validators: { onSubmit: userEmailFromSchema },
+    onSubmit: async ({ value }) => {
+      await onSave(value.from.trim() || null);
+    },
+  });
+
+  useEffect(() => {
+    form.reset({ from: savedFrom ?? '' });
+  }, [savedFrom, form]);
 
   return (
-    <form onSubmit={handleSubmit}>
-      <Card data-slot="user-email-from-card" data-setting-entry={entryId}>
-        <CardHeader>
-          <CardTitle>Your sender address</CardTitle>
-          <CardDescription>
-            Choose the From address used when you send email through your
-            organization&apos;s email provider.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Field data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor="user-email-from">From address</FieldLabel>
-            <Input
-              id="user-email-from"
-              value={value}
-              placeholder={orgFrom || 'Jane Doe <jane@acme.com>'}
-              disabled={busy}
-              aria-invalid={error ? true : undefined}
-              onChange={(e) => onChange(e.target.value)}
-            />
-            <FieldDescription>
-              Must use a domain verified on your organization&apos;s email
-              provider.
-              {orgFrom
-                ? ` Leave blank to use the organization default (${orgFrom}).`
-                : ' Leave blank to use the organization default.'}
-            </FieldDescription>
-            {error ? <FieldError>{error}</FieldError> : null}
-          </Field>
-        </CardContent>
-        <CardFooter className="gap-2">
-          <Button type="submit" size="sm" disabled={busy}>
-            Save
-          </Button>
-          {savedFrom ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={onClear}
-            >
-              Use organization default
-            </Button>
-          ) : null}
-        </CardFooter>
-      </Card>
+    <form
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void form.handleSubmit();
+      }}
+    >
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => {
+          const disabled = busy || isSubmitting;
+          return (
+            <Card data-slot="user-email-from-card" data-setting-entry={entryId}>
+              <CardHeader>
+                <CardTitle>Your sender address</CardTitle>
+                <CardDescription>
+                  Choose the From address used when you send email through your
+                  organization&apos;s email provider.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <form.Field name="from">
+                  {(field) => {
+                    const fieldInvalid = isFieldInvalid(field.state.meta);
+                    const invalid = fieldInvalid || Boolean(error);
+                    return (
+                      <Field data-invalid={invalid || undefined}>
+                        <FieldLabel htmlFor="user-email-from">
+                          From address
+                        </FieldLabel>
+                        <Input
+                          id="user-email-from"
+                          name={field.name}
+                          value={field.state.value}
+                          placeholder={orgFrom || 'Jane Doe <jane@acme.com>'}
+                          disabled={disabled}
+                          aria-invalid={invalid || undefined}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => {
+                            field.handleChange(e.target.value);
+                            if (error) onClearError?.();
+                          }}
+                        />
+                        <FieldDescription>
+                          Must use a domain verified on your organization&apos;s
+                          email provider.
+                          {orgFrom
+                            ? ` Leave blank to use the organization default (${orgFrom}).`
+                            : ' Leave blank to use the organization default.'}
+                        </FieldDescription>
+                        {fieldInvalid ? (
+                          <FieldError
+                            errors={toFieldErrors(field.state.meta.errors)}
+                          />
+                        ) : error ? (
+                          <FieldError>{error}</FieldError>
+                        ) : null}
+                      </Field>
+                    );
+                  }}
+                </form.Field>
+              </CardContent>
+              <CardFooter className="gap-2">
+                <Button type="submit" size="sm" disabled={disabled}>
+                  {isSubmitting ? 'Saving…' : 'Save'}
+                </Button>
+                {savedFrom ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={() => void onClear()}
+                  >
+                    Use organization default
+                  </Button>
+                ) : null}
+              </CardFooter>
+            </Card>
+          );
+        }}
+      </form.Subscribe>
     </form>
   );
 }
@@ -121,7 +187,6 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
   const api = useHostApi();
   const notifications = useHostNotifications();
   const [data, setData] = useState<UserEmailFromData | null>(null);
-  const [value, setValue] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +201,6 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
     try {
       const parsed = JSON.parse(res.body) as UserEmailFromData;
       setData(parsed);
-      setValue(parsed.from ?? '');
       setError(null);
     } catch {
       setError('Invalid sender preference response.');
@@ -163,7 +227,6 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
     try {
       const parsed = JSON.parse(res.body) as UserEmailFromData;
       setData(parsed);
-      setValue(parsed.from ?? '');
     } catch {
       await load();
     }
@@ -177,18 +240,14 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
 
   return (
     <UserEmailFromCardView
-      value={value}
       savedFrom={data?.from ?? null}
       orgFrom={data?.orgFrom ?? null}
       busy={busy}
       error={error}
       entryId={entryId}
-      onChange={(next) => {
-        setValue(next);
-        if (error) setError(null);
-      }}
-      onSave={() => void save(value.trim() || null)}
-      onClear={() => void save(null)}
+      onSave={save}
+      onClear={() => save(null)}
+      onClearError={() => setError(null)}
     />
   );
 }

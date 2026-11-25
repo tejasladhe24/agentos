@@ -1,8 +1,20 @@
 import { useEffect, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+  useHostApi,
+  useHostNotifications,
+} from '@agentos/core/client';
 import { Button } from '@agentos/ui/components/button';
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
-import { Label } from '@agentos/ui/components/label';
 import {
   Table,
   TableBody,
@@ -14,6 +26,11 @@ import {
 
 import { parseErrorBody, type InboundAddress } from './email-types';
 
+const provisionAddressSchema = z.object({
+  address: z.string().trim().email('Enter a valid email address'),
+  purpose: z.string(),
+});
+
 export function AddressesSection({ canProvision }: { canProvision: boolean }) {
   const api = useHostApi();
   const toast = useHostNotifications();
@@ -22,21 +39,20 @@ export function AddressesSection({ canProvision }: { canProvision: boolean }) {
     provider?: string;
     backend?: string;
   } | null>(null);
-  const [address, setAddress] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
     setBusy(true);
-    setError(null);
+    setLoadError(null);
     const [listRes, healthRes] = await Promise.all([
       api.fetch('/addresses'),
       api.fetch('/health'),
     ]);
     setBusy(false);
     if (!listRes.ok) {
-      setError(parseErrorBody(listRes.body, 'Failed to load addresses'));
+      setLoadError(parseErrorBody(listRes.body, 'Failed to load addresses'));
       setAddresses([]);
     } else {
       const body = JSON.parse(listRes.body) as { addresses: InboundAddress[] };
@@ -52,29 +68,29 @@ export function AddressesSection({ canProvision }: { canProvision: boolean }) {
     }
   }
 
-  async function onProvision(event: React.FormEvent) {
-    event.preventDefault();
-    if (!canProvision) return;
-    setBusy(true);
-    setError(null);
-    const res = await api.fetch('/addresses', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        address: address.trim(),
-        purpose: purpose.trim() || undefined,
-      }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Provision failed'));
-      return;
-    }
-    setAddress('');
-    setPurpose('');
-    await toast.show('Inbound address provisioned', 'success');
-    await refresh();
-  }
+  const form = useForm({
+    defaultValues: { address: '', purpose: '' },
+    validators: { onSubmit: provisionAddressSchema },
+    onSubmit: async ({ value }) => {
+      if (!canProvision) return;
+      setSubmitError(null);
+      const res = await api.fetch('/addresses', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          address: value.address.trim(),
+          purpose: value.purpose.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        setSubmitError(parseErrorBody(res.body, 'Provision failed'));
+        return;
+      }
+      form.reset({ address: '', purpose: '' });
+      await toast.show('Inbound address provisioned', 'success');
+      await refresh();
+    },
+  });
 
   useEffect(() => {
     void refresh();
@@ -101,39 +117,81 @@ export function AddressesSection({ canProvision }: { canProvision: boolean }) {
         </Button>
       </header>
 
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {loadError ? <FieldError>{loadError}</FieldError> : null}
 
       {canProvision ? (
         <form
+          noValidate
           className="flex max-w-lg flex-col gap-3 rounded-md border p-4"
-          onSubmit={(e) => void onProvision(e)}
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void form.handleSubmit();
+          }}
         >
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="addr">Address</Label>
-            <Input
-              id="addr"
-              required
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="coi@inbound.example.com"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="purpose">Purpose (optional)</Label>
-            <Input
-              id="purpose"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              placeholder="coi"
-            />
-          </div>
-          <Button type="submit" disabled={busy}>
-            Provision
-          </Button>
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => {
+              const formDisabled = busy || isSubmitting;
+              return (
+                <FieldGroup className="gap-3">
+                  <form.Field name="address">
+                    {(field) => {
+                      const invalid = isFieldInvalid(field.state.meta);
+                      return (
+                        <Field data-invalid={invalid || undefined}>
+                          <FieldLabel htmlFor="addr">Address</FieldLabel>
+                          <Input
+                            id="addr"
+                            name={field.name}
+                            type="email"
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(e) => {
+                              field.handleChange(e.target.value);
+                              if (submitError) setSubmitError(null);
+                            }}
+                            placeholder="coi@inbound.example.com"
+                            disabled={formDisabled}
+                            aria-invalid={invalid || undefined}
+                          />
+                          {invalid ? (
+                            <FieldError
+                              errors={toFieldErrors(field.state.meta.errors)}
+                            />
+                          ) : null}
+                        </Field>
+                      );
+                    }}
+                  </form.Field>
+                  <form.Field name="purpose">
+                    {(field) => (
+                      <Field>
+                        <FieldLabel htmlFor="purpose">
+                          Purpose (optional)
+                        </FieldLabel>
+                        <Input
+                          id="purpose"
+                          name={field.name}
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => {
+                            field.handleChange(e.target.value);
+                            if (submitError) setSubmitError(null);
+                          }}
+                          placeholder="coi"
+                          disabled={formDisabled}
+                        />
+                      </Field>
+                    )}
+                  </form.Field>
+                  {submitError ? <FieldError>{submitError}</FieldError> : null}
+                  <Button type="submit" disabled={formDisabled}>
+                    {isSubmitting ? 'Provisioning…' : 'Provision'}
+                  </Button>
+                </FieldGroup>
+              );
+            }}
+          </form.Subscribe>
         </form>
       ) : (
         <p className="text-sm text-muted-foreground">

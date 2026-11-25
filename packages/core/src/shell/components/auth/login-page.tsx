@@ -1,4 +1,6 @@
-import { useState, type SubmitEvent } from 'react';
+import { useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import { Button } from '@agentos/ui/components/button';
 import {
   Field,
@@ -9,12 +11,21 @@ import {
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 import {
+  isFieldInvalid,
+  toFieldErrors,
+} from '@agentos/core/client/lib/form-errors';
+import {
   navigateApp,
   readNextParam,
   signInWithEmail,
 } from '@agentos/core/shell/lib';
 import { AuthFormCard, AuthFormPanel } from './auth-form-card';
 import { AuthPublicLayout } from './auth-public-layout';
+
+const loginSchema = z.object({
+  email: z.string().trim().email('Enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 export type LoginPageBranding = {
   appName: string;
@@ -36,25 +47,27 @@ export function LoginPage({
   search = typeof window !== 'undefined' ? window.location.search : '',
   branding = { appName: 'AgentOS' },
 }: LoginPageProps) {
-  const [email, setEmail] = useState('admin@example.com');
-  const [password, setPassword] = useState('password123');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await signInWithEmail(email, password);
-      const next = readNextParam(search) ?? afterSignInPath;
-      navigateApp(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const form = useForm({
+    defaultValues: {
+      email: 'admin@example.com',
+      password: 'password123',
+    },
+    validators: {
+      onSubmit: loginSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setSubmitError(null);
+      try {
+        await signInWithEmail(value.email.trim(), value.password);
+        const next = readNextParam(search) ?? afterSignInPath;
+        navigateApp(next);
+      } catch (err) {
+        setSubmitError(err instanceof Error ? err.message : 'Sign-in failed');
+      }
+    },
+  });
 
   return (
     <AuthPublicLayout>
@@ -69,7 +82,14 @@ export function LoginPage({
         }
       >
         <AuthFormPanel>
-          <form onSubmit={onSubmit}>
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void form.handleSubmit();
+            }}
+          >
             <FieldGroup>
               <div className="flex flex-col items-center gap-2 text-center">
                 <h1 className="text-2xl font-bold">Welcome back</h1>
@@ -77,47 +97,91 @@ export function LoginPage({
                   Login to your {branding.appName} account
                 </p>
               </div>
-              <Field>
-                <FieldLabel htmlFor="login-email">Email</FieldLabel>
-                <Input
-                  id="login-email"
-                  type="email"
-                  placeholder="m@example.com"
-                  autoComplete="username"
-                  value={email}
-                  onValueChange={setEmail}
-                  required
-                />
-              </Field>
-              <Field>
-                <div className="flex items-center">
-                  <FieldLabel htmlFor="login-password">Password</FieldLabel>
-                  {allowPasswordReset ? (
+              <form.Field name="email">
+                {(field) => {
+                  const invalid = isFieldInvalid(field.state.meta);
+                  return (
+                    <Field data-invalid={invalid || undefined}>
+                      <FieldLabel htmlFor="login-email">Email</FieldLabel>
+                      <Input
+                        id="login-email"
+                        name={field.name}
+                        type="email"
+                        placeholder="m@example.com"
+                        autoComplete="username"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onValueChange={(value) => {
+                          field.handleChange(value);
+                          if (submitError) setSubmitError(null);
+                        }}
+                        aria-invalid={invalid || undefined}
+                      />
+                      {invalid ? (
+                        <FieldError
+                          errors={toFieldErrors(field.state.meta.errors)}
+                        />
+                      ) : null}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+              <form.Field name="password">
+                {(field) => {
+                  const invalid = isFieldInvalid(field.state.meta);
+                  return (
+                    <Field data-invalid={invalid || undefined}>
+                      <div className="flex items-center">
+                        <FieldLabel htmlFor="login-password">
+                          Password
+                        </FieldLabel>
+                        {allowPasswordReset ? (
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="ml-auto h-auto px-0 text-sm"
+                            onClick={() => navigateApp('/forgot-password')}
+                          >
+                            Forgot your password?
+                          </Button>
+                        ) : null}
+                      </div>
+                      <Input
+                        id="login-password"
+                        name={field.name}
+                        type="password"
+                        autoComplete="current-password"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onValueChange={(value) => {
+                          field.handleChange(value);
+                          if (submitError) setSubmitError(null);
+                        }}
+                        aria-invalid={invalid || undefined}
+                      />
+                      {invalid ? (
+                        <FieldError
+                          errors={toFieldErrors(field.state.meta.errors)}
+                        />
+                      ) : null}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+              {submitError ? <FieldError>{submitError}</FieldError> : null}
+              <form.Subscribe selector={(state) => state.isSubmitting}>
+                {(isSubmitting) => (
+                  <Field>
                     <Button
-                      type="button"
-                      variant="link"
-                      className="ml-auto h-auto px-0 text-sm"
-                      onClick={() => navigateApp('/forgot-password')}
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full"
                     >
-                      Forgot your password?
+                      {isSubmitting ? 'Signing in…' : 'Login'}
                     </Button>
-                  ) : null}
-                </div>
-                <Input
-                  id="login-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onValueChange={setPassword}
-                  required
-                />
-              </Field>
-              {error ? <FieldError>{error}</FieldError> : null}
-              <Field>
-                <Button type="submit" disabled={busy} className="w-full">
-                  {busy ? 'Signing in…' : 'Login'}
-                </Button>
-              </Field>
+                  </Field>
+                )}
+              </form.Subscribe>
               <FieldDescription className="text-center">
                 Demo: admin@example.com / password123
               </FieldDescription>

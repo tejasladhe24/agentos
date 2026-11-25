@@ -1,4 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import {
   ArrowsDownUpIcon,
   DotsThreeIcon,
@@ -8,6 +10,10 @@ import {
   UserCircleIcon,
   UserPlusIcon,
 } from '@phosphor-icons/react';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+} from '@agentos/core/client/lib/form-errors';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,6 +82,15 @@ import {
 
 import type { AccountOrgInvite, AccountOrgMember } from './account-types';
 
+const inviteMemberSchema = z.object({
+  email: z.string().trim().email('Enter a valid email address'),
+  role: z.string().min(1, 'Role is required'),
+});
+
+const changeMemberRoleSchema = z.object({
+  role: z.string().min(1, 'Role is required'),
+});
+
 export type AccountMembersSectionProps = {
   members: AccountOrgMember[];
   invites?: AccountOrgInvite[];
@@ -113,11 +128,10 @@ export function AccountMembersSection({
   >('name-asc');
 
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('');
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const [roleMember, setRoleMember] = useState<AccountOrgMember | null>(null);
-  const [nextRole, setNextRole] = useState('');
+  const [roleError, setRoleError] = useState<string | null>(null);
 
   const [removingMember, setRemovingMember] = useState<AccountOrgMember | null>(
     null,
@@ -134,6 +148,44 @@ export function AccountMembersSection({
   const defaultInviteRole = availableRoles.includes('viewer')
     ? 'viewer'
     : (availableRoles[0] ?? 'viewer');
+
+  const inviteForm = useForm({
+    defaultValues: { email: '', role: defaultInviteRole },
+    validators: { onSubmit: inviteMemberSchema },
+    onSubmit: async ({ value }) => {
+      if (!onInviteMember) return;
+      setInviteError(null);
+      try {
+        await onInviteMember({
+          email: value.email.trim(),
+          role: value.role || defaultInviteRole,
+        });
+        inviteForm.reset({ email: '', role: defaultInviteRole });
+        setInviteOpen(false);
+      } catch (err) {
+        setInviteError(
+          err instanceof Error ? err.message : 'Invite member failed',
+        );
+      }
+    },
+  });
+
+  const roleForm = useForm({
+    defaultValues: { role: '' },
+    validators: { onSubmit: changeMemberRoleSchema },
+    onSubmit: async ({ value }) => {
+      if (!roleMember || !onChangeMemberRole) return;
+      setRoleError(null);
+      try {
+        await onChangeMemberRole(roleMember.userId, value.role);
+        setRoleMember(null);
+      } catch (err) {
+        setRoleError(
+          err instanceof Error ? err.message : 'Change member role failed',
+        );
+      }
+    },
+  });
   const filterRoles = useMemo(
     () =>
       [
@@ -189,49 +241,6 @@ export function AccountMembersSection({
     });
   }, [invites, searchQuery, statusFilter, roleFilter, sortBy]);
 
-  async function handleInvite(e: FormEvent) {
-    e.preventDefault();
-    if (!onInviteMember) return;
-    const email = inviteEmail.trim();
-    if (!email) {
-      setLocalError('Email required');
-      return;
-    }
-    setPending(true);
-    setLocalError(null);
-    try {
-      await onInviteMember({
-        email,
-        role: inviteRole || defaultInviteRole,
-      });
-      setInviteEmail('');
-      setInviteOpen(false);
-    } catch (err) {
-      setLocalError(
-        err instanceof Error ? err.message : 'Invite member failed',
-      );
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleRoleChange(e: FormEvent) {
-    e.preventDefault();
-    if (!roleMember || !onChangeMemberRole || !nextRole) return;
-    setPending(true);
-    setLocalError(null);
-    try {
-      await onChangeMemberRole(roleMember.userId, nextRole);
-      setRoleMember(null);
-    } catch (err) {
-      setLocalError(
-        err instanceof Error ? err.message : 'Change member role failed',
-      );
-    } finally {
-      setPending(false);
-    }
-  }
-
   async function handleRemove() {
     if (!removingMember || !onRemoveMember) return;
     setPending(true);
@@ -286,8 +295,8 @@ export function AccountMembersSection({
             data-slot="invite-member-trigger"
             onClick={() => {
               setLocalError(null);
-              setInviteEmail('');
-              setInviteRole(defaultInviteRole);
+              setInviteError(null);
+              inviteForm.reset({ email: '', role: defaultInviteRole });
               setInviteOpen(true);
             }}
           >
@@ -496,8 +505,9 @@ export function AccountMembersSection({
                                       <DropdownMenuItem
                                         onClick={() => {
                                           setLocalError(null);
+                                          setRoleError(null);
                                           setRoleMember(member);
-                                          setNextRole(member.role);
+                                          roleForm.reset({ role: member.role });
                                         }}
                                       >
                                         Change role
@@ -591,9 +601,26 @@ export function AccountMembersSection({
         )}
       </FieldGroup>
 
-      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+      <Dialog
+        open={inviteOpen}
+        onOpenChange={(open) => {
+          setInviteOpen(open);
+          if (!open) {
+            setInviteError(null);
+            inviteForm.reset({ email: '', role: defaultInviteRole });
+          }
+        }}
+      >
         <DialogContent>
-          <form onSubmit={handleInvite} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void inviteForm.handleSubmit();
+            }}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
               <DialogTitle>Invite member</DialogTitle>
               <DialogDescription>
@@ -601,62 +628,110 @@ export function AccountMembersSection({
                 when they sign up.
               </DialogDescription>
             </DialogHeader>
-            <Field>
-              <FieldLabel htmlFor="account-invite-email">Email</FieldLabel>
-              <Input
-                id="account-invite-email"
-                type="email"
-                required
-                value={inviteEmail}
-                onChange={(e) => {
-                  setInviteEmail(e.target.value);
-                  if (localError) setLocalError(null);
-                }}
-                placeholder="teammate@acme.com"
-                disabled={disabled}
-                autoFocus
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="account-invite-role">Role</FieldLabel>
-              <Select
-                items={roleItems}
-                value={inviteRole || defaultInviteRole}
-                onValueChange={(val) => {
-                  if (typeof val === 'string') setInviteRole(val);
-                }}
-                disabled={disabled}
-              >
-                <SelectTrigger id="account-invite-role" className="w-full">
-                  <SelectValue placeholder="Choose a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleItems.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setInviteOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={disabled || !inviteEmail.trim()}
-              >
-                Invite
-              </Button>
-            </DialogFooter>
+            <inviteForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => {
+                const formDisabled = disabled || isSubmitting;
+                return (
+                  <>
+                    <inviteForm.Field name="email">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-invite-email">
+                              Email
+                            </FieldLabel>
+                            <Input
+                              id="account-invite-email"
+                              name={field.name}
+                              type="email"
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => {
+                                field.handleChange(e.target.value);
+                                if (inviteError) setInviteError(null);
+                              }}
+                              placeholder="teammate@acme.com"
+                              disabled={formDisabled}
+                              aria-invalid={invalid || undefined}
+                              autoFocus
+                            />
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </inviteForm.Field>
+                    <inviteForm.Field name="role">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-invite-role">
+                              Role
+                            </FieldLabel>
+                            <Select
+                              items={roleItems}
+                              value={field.state.value || defaultInviteRole}
+                              onValueChange={(val) => {
+                                if (typeof val === 'string') {
+                                  field.handleChange(val);
+                                  if (inviteError) setInviteError(null);
+                                }
+                              }}
+                              disabled={formDisabled}
+                            >
+                              <SelectTrigger
+                                id="account-invite-role"
+                                className="w-full"
+                                aria-invalid={invalid || undefined}
+                              >
+                                <SelectValue placeholder="Choose a role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {roleItems.map((item) => (
+                                  <SelectItem
+                                    key={item.value}
+                                    value={item.value}
+                                  >
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </inviteForm.Field>
+                    {inviteError ? (
+                      <FieldError>{inviteError}</FieldError>
+                    ) : null}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={formDisabled}
+                        onClick={() => setInviteOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={formDisabled}>
+                        {isSubmitting ? 'Inviting…' : 'Invite'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </inviteForm.Subscribe>
           </form>
         </DialogContent>
       </Dialog>
@@ -664,53 +739,98 @@ export function AccountMembersSection({
       <Dialog
         open={roleMember !== null}
         onOpenChange={(open) => {
-          if (!open) setRoleMember(null);
+          if (!open) {
+            setRoleMember(null);
+            setRoleError(null);
+          }
         }}
       >
         <DialogContent>
-          <form onSubmit={handleRoleChange} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void roleForm.handleSubmit();
+            }}
+            className="flex flex-col gap-4"
+          >
             <DialogHeader>
               <DialogTitle>Change member role</DialogTitle>
               <DialogDescription>
                 Select a new role for {roleMember?.name} ({roleMember?.email}).
               </DialogDescription>
             </DialogHeader>
-            <Field>
-              <FieldLabel htmlFor="account-member-role">Role</FieldLabel>
-              <Select
-                items={roleItems}
-                value={nextRole || null}
-                onValueChange={(val) => {
-                  if (typeof val === 'string') setNextRole(val);
-                }}
-                disabled={disabled}
-              >
-                <SelectTrigger id="account-member-role" className="w-full">
-                  <SelectValue placeholder="Choose a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleItems.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setRoleMember(null)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={disabled || !nextRole}>
-                Save
-              </Button>
-            </DialogFooter>
+            <roleForm.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => {
+                const formDisabled = disabled || isSubmitting;
+                return (
+                  <>
+                    <roleForm.Field name="role">
+                      {(field) => {
+                        const invalid = isFieldInvalid(field.state.meta);
+                        return (
+                          <Field data-invalid={invalid || undefined}>
+                            <FieldLabel htmlFor="account-member-role">
+                              Role
+                            </FieldLabel>
+                            <Select
+                              items={roleItems}
+                              value={field.state.value || null}
+                              onValueChange={(val) => {
+                                if (typeof val === 'string') {
+                                  field.handleChange(val);
+                                  if (roleError) setRoleError(null);
+                                }
+                              }}
+                              disabled={formDisabled}
+                            >
+                              <SelectTrigger
+                                id="account-member-role"
+                                className="w-full"
+                                aria-invalid={invalid || undefined}
+                              >
+                                <SelectValue placeholder="Choose a role" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {roleItems.map((item) => (
+                                  <SelectItem
+                                    key={item.value}
+                                    value={item.value}
+                                  >
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {invalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : null}
+                          </Field>
+                        );
+                      }}
+                    </roleForm.Field>
+                    {roleError ? <FieldError>{roleError}</FieldError> : null}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={formDisabled}
+                        onClick={() => setRoleMember(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={formDisabled}>
+                        {isSubmitting ? 'Saving…' : 'Save'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                );
+              }}
+            </roleForm.Subscribe>
           </form>
         </DialogContent>
       </Dialog>

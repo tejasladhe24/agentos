@@ -1,4 +1,10 @@
-import { useEffect, useState, type SubmitEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
+import {
+  isFieldInvalid,
+  toFieldErrors,
+} from '@agentos/core/client/lib/form-errors';
 import { Button } from '@agentos/ui/components/button';
 import {
   Field,
@@ -11,6 +17,10 @@ import {
   FieldSet,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
+
+const profileSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+});
 
 export type AccountProfileSectionProps = {
   email: string;
@@ -25,41 +35,44 @@ export function AccountProfileSection({
   busy = false,
   onSaveName,
 }: AccountProfileSectionProps) {
-  const [draftName, setDraftName] = useState(name);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const form = useForm({
+    defaultValues: { name },
+    validators: {
+      onSubmit: profileSchema,
+    },
+    onSubmit: async ({ value }) => {
+      const next = value.name.trim();
+      if (next === name) {
+        setSubmitError(null);
+        return;
+      }
+      setSubmitError(null);
+      try {
+        await onSaveName(next);
+      } catch (err) {
+        setSubmitError(
+          err instanceof Error ? err.message : 'Failed to update name',
+        );
+      }
+    },
+  });
 
   useEffect(() => {
-    setDraftName(name);
-  }, [name]);
-
-  async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const next = draftName.trim();
-    if (!next) {
-      setError('Name is required');
-      return;
-    }
-    if (next === name) {
-      setError(null);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await onSaveName(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update name');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const disabled = busy || saving;
-  const invalid = Boolean(error);
+    form.reset({ name });
+  }, [name, form]);
 
   return (
-    <form onSubmit={onSubmit} data-slot="account-profile">
+    <form
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void form.handleSubmit();
+      }}
+      data-slot="account-profile"
+    >
       <FieldSet>
         <FieldLegend>Profile</FieldLegend>
         <FieldDescription>
@@ -84,39 +97,66 @@ export function AccountProfileSection({
             />
           </Field>
 
-          <Field
-            orientation="responsive"
-            data-setting-entry="display-name"
-            data-invalid={invalid || undefined}
-          >
-            <FieldContent>
-              <FieldLabel htmlFor="account-name">Display name</FieldLabel>
-              <FieldDescription>
-                Shown to teammates in activity logs and organizations.
-              </FieldDescription>
-              {error ? <FieldError>{error}</FieldError> : null}
-            </FieldContent>
-            <Input
-              id="account-name"
-              type="text"
-              value={draftName}
-              onValueChange={(v) => {
-                setDraftName(v);
-                if (error) setError(null);
-              }}
-              disabled={disabled}
-              aria-invalid={invalid || undefined}
-              autoComplete="name"
-              required
-              className="sm:max-w-60"
-            />
-          </Field>
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => {
+              const disabled = busy || isSubmitting;
+              return (
+                <>
+                  <form.Field name="name">
+                    {(field) => {
+                      const fieldInvalid = isFieldInvalid(field.state.meta);
+                      const invalid = fieldInvalid || Boolean(submitError);
+                      return (
+                        <Field
+                          orientation="responsive"
+                          data-setting-entry="display-name"
+                          data-invalid={invalid || undefined}
+                        >
+                          <FieldContent>
+                            <FieldLabel htmlFor="account-name">
+                              Display name
+                            </FieldLabel>
+                            <FieldDescription>
+                              Shown to teammates in activity logs and
+                              organizations.
+                            </FieldDescription>
+                            {fieldInvalid ? (
+                              <FieldError
+                                errors={toFieldErrors(field.state.meta.errors)}
+                              />
+                            ) : submitError ? (
+                              <FieldError>{submitError}</FieldError>
+                            ) : null}
+                          </FieldContent>
+                          <Input
+                            id="account-name"
+                            name={field.name}
+                            type="text"
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onValueChange={(value) => {
+                              field.handleChange(value);
+                              if (submitError) setSubmitError(null);
+                            }}
+                            disabled={disabled}
+                            aria-invalid={invalid || undefined}
+                            autoComplete="name"
+                            className="sm:max-w-60"
+                          />
+                        </Field>
+                      );
+                    }}
+                  </form.Field>
 
-          <Field orientation="horizontal" className="justify-end">
-            <Button type="submit" size="sm" disabled={disabled}>
-              {saving ? 'Saving…' : 'Save changes'}
-            </Button>
-          </Field>
+                  <Field orientation="horizontal" className="justify-end">
+                    <Button type="submit" size="sm" disabled={disabled}>
+                      {isSubmitting ? 'Saving…' : 'Save changes'}
+                    </Button>
+                  </Field>
+                </>
+              );
+            }}
+          </form.Subscribe>
         </FieldGroup>
       </FieldSet>
     </form>

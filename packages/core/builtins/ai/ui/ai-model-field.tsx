@@ -6,6 +6,7 @@ import { Button } from '@agentos/ui/components/button';
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
@@ -37,8 +38,9 @@ export function AiModelField({
   options,
   ...input
 }: IntegrationSettingRenderInput & { options?: string[] }) {
-  const { id, field, value, onValueChange, disabled } = input;
+  const { id, field, value, onValueChange, onBlur, disabled, errors } = input;
   const [custom, setCustom] = useState(false);
+  const invalid = Boolean(errors?.length);
 
   if (!options || options.length === 0) {
     return (
@@ -47,6 +49,8 @@ export function AiModelField({
         field={field}
         value={value}
         disabled={disabled}
+        errors={errors}
+        onBlur={onBlur}
         onValueChange={onValueChange}
       />
     );
@@ -61,7 +65,7 @@ export function AiModelField({
   const selected = custom ? CUSTOM : value || (field.required ? null : NONE);
 
   return (
-    <Field data-slot="integration-setting">
+    <Field data-slot="integration-setting" data-invalid={invalid || undefined}>
       <FieldLabel htmlFor={id}>
         {field.label}
         {field.required ? null : (
@@ -82,7 +86,11 @@ export function AiModelField({
           onValueChange(next === NONE ? '' : next);
         }}
       >
-        <SelectTrigger id={id} className="w-full max-w-md">
+        <SelectTrigger
+          id={id}
+          className="w-full max-w-md"
+          aria-invalid={invalid || undefined}
+        >
           <SelectValue placeholder="Choose a model" />
         </SelectTrigger>
         <SelectContent>
@@ -99,12 +107,15 @@ export function AiModelField({
           value={value}
           placeholder={field.placeholder ?? 'Model id'}
           disabled={disabled}
+          aria-invalid={invalid || undefined}
+          onBlur={onBlur}
           onChange={(e) => onValueChange(e.target.value)}
         />
       ) : null}
       {field.description ? (
         <FieldDescription>{field.description}</FieldDescription>
       ) : null}
+      {invalid ? <FieldError errors={errors} /> : null}
     </Field>
   );
 }
