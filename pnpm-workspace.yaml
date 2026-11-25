@@ -4,3 +4,7 @@ packages:
   - 'services/*'
   - 'tooling/*'
   - 'deploy/*'
+allowBuilds:
+  esbuild: true
+  msgpackr-extract: true
+  workerd: true

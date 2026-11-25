@@ -27,7 +27,7 @@ ARG CONSUMER_PATH=examples/client-app
 # Do not set NODE_ENV=production here — pnpm would skip turbo/typescript needed to build.
 ENV CONSUMER_PATH=${CONSUMER_PATH} \
     PNPM_HOME=/root/.local/share/pnpm \
-    PATH="/root/.local/share/pnpm:/root/.local/bin:${PATH}" \
+    PATH="/root/.local/share/pnpm/bin:/root/.local/share/pnpm:/root/.local/bin:${PATH}" \
     UV_PYTHON_DOWNLOADS=automatic \
     UV_PYTHON=3.12 \
     DEBIAN_FRONTEND=noninteractive
@@ -38,7 +38,7 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl \
   && rm -rf /var/lib/apt/lists/* \
-  && curl -fsSL https://get.pnpm.io/install.sh | SHELL=bash PNPM_VERSION=9.15.4 bash - \
+  && curl -fsSL https://get.pnpm.io/install.sh | SHELL=bash PNPM_VERSION=12.23.0 bash - \
   && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 COPY . .
