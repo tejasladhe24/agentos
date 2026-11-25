@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import {
+  useHostApi,
+  useHostNotifications,
+  useSettingsTarget,
+} from '@agentos/core/client';
 import {
   Field,
   FieldContent,
@@ -8,6 +12,7 @@ import {
   FieldGroup,
   FieldLabel,
   FieldLegend,
+  FieldSeparator,
   FieldSet,
   FieldTitle,
 } from '@agentos/ui/components/field';
@@ -61,6 +66,7 @@ function fromValue(value: RetentionValue): number | null {
  * Files extension settings view — mounted by the Shell Settings host.
  */
 export default function FilesSettings() {
+  useSettingsTarget();
   const api = useHostApi();
   const notifications = useHostNotifications();
   const [value, setValue] = useState<RetentionValue>('30');
@@ -127,18 +133,20 @@ export default function FilesSettings() {
       className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
       data-slot="settings-files"
     >
-      <FieldGroup>
+      <FieldGroup className="gap-8">
         <StorageBackends
           data={mounts.data}
           loading={mounts.loading}
           error={mounts.error}
           reload={mounts.reload}
         />
+        <FieldSeparator />
         <ConnectedDrives
           data={mounts.data}
           loading={mounts.loading}
           reload={mounts.reload}
         />
+        <FieldSeparator />
         <FieldSet data-setting-entry="bin-retention">
           <FieldLegend>Bin auto-delete</FieldLegend>
           <FieldDescription>

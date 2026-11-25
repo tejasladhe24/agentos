@@ -394,7 +394,7 @@ Omitted secret fields keep their stored value; switching **provider** drops secr
 
 **Audit:** `integration.put` / `integration.delete` / `integration.test` with provider and **field names** only.
 
-**UI building blocks** (`@agentos/core/client/components/integration-card`): `IntegrationCard`, `IntegrationSourceBadge` (**Using your key** / **Platform default**), `IntegrationProviderPicker`, `IntegrationSecretField` (write-only, set / not set, Replace), `IntegrationTestButton`, `IntegrationRemoveButton`. `@agentos/core/client/components/integration-section` exports `IntegrationSection` — a self-loading card for one single-instance integration that a builtin drops into its `ui/settings.tsx`. Optional `renderSetting` swaps one setting's control (e.g. a model select) and `renderExtra` adds content under the fields; switching provider keeps only the settings the new provider declares.
+**UI building blocks** (`@agentos/core/client/components/integration-card`): `IntegrationCard` (FieldSet-based section), `IntegrationSourceBadge` (**Using your key** / **Platform default**), `IntegrationProviderPicker`, `IntegrationSecretField` (write-only, set / not set, Replace), `IntegrationTestButton`, `IntegrationRemoveButton`. `@agentos/core/client/components/integration-section` exports `IntegrationSection` — a self-loading FieldSet section for one single-instance integration that a builtin drops into its `ui/settings.tsx`. Optional `renderSetting` swaps one setting's control (e.g. a model select) and `renderExtra` adds content under the fields; switching provider keeps only the settings the new provider declares.
 
 ## Files (blob API + Drive UI)
 

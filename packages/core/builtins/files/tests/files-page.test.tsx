@@ -6,10 +6,11 @@ import { HostProvider } from '@agentos/core/client';
 import type { HostAPIClient } from '@agentos/core/sdk';
 
 import FilesPage from '../ui/page';
+import FilesSettings from '../ui/settings';
 import { FilesBrowser } from '../ui/files-browser';
 import type { FilesMount } from '../ui/files-types';
 import { FilesSidebarNav } from '../ui/sidebar';
-import { ConnectedDrives } from '../ui/storage-backends';
+import { ConnectedDrives, StorageBackends } from '../ui/storage-backends';
 
 const CAPS = {
   serverSideCopy: true,
@@ -403,6 +404,9 @@ describe('personal drives', () => {
     expect(html).toContain('Google Drive (a@example.com)');
     expect(html).toContain('1.0 MB of 1.0 GB used');
     expect(html).toContain('Connect Google Drive');
+    expect(html).toContain('data-slot="field-set"');
+    expect(html).toContain('data-slot="files-connected-drives"');
+    expect(html).not.toContain('data-slot="card"');
     expect(html).toMatch(
       /data-connect-provider="google-drive"(?![^>]*\sdisabled="")/,
     );
@@ -411,6 +415,78 @@ describe('personal drives', () => {
       /data-connect-provider="onedrive"(?![^>]*\sdisabled="")/,
     );
     expect(render(false)).toContain('not configured on this deployment');
+  });
+
+  test('FilesSettings separates sections with FieldSeparator and renders mounts as Fields', () => {
+    const settingsHtml = renderToStaticMarkup(
+      createElement(HostProvider, {
+        host: createTestHost(async () => ({
+          ok: true,
+          status: 200,
+          body: '{}',
+        })),
+        children: createElement(FilesSettings),
+      }),
+    );
+    expect(settingsHtml).toContain('data-slot="settings-files"');
+    expect(settingsHtml).toContain('data-slot="field-group"');
+    expect(settingsHtml).toContain('data-slot="field-separator"');
+    expect(settingsHtml).not.toContain('data-slot="card"');
+
+    const backendsHtml = renderToStaticMarkup(
+      createElement(HostProvider, {
+        host: createTestHost(async () => ({
+          ok: true,
+          status: 200,
+          body: '{}',
+        })),
+        children: createElement(StorageBackends, {
+          data: {
+            mounts: [PLATFORM, ARCHIVE],
+            defaultMountId: 'platform',
+            providers: [],
+            canManage: true,
+          },
+          loading: false,
+          error: null,
+          reload: noopAsync,
+        }),
+      }),
+    );
+    expect(backendsHtml).toContain('data-slot="files-storage-backends"');
+    expect(backendsHtml).toContain('data-orientation="horizontal"');
+    expect(backendsHtml).not.toContain('<ul');
+
+    const errorHtml = renderToStaticMarkup(
+      createElement(HostProvider, {
+        host: createTestHost(async () => ({
+          ok: true,
+          status: 200,
+          body: '{}',
+        })),
+        children: createElement(StorageBackends, {
+          data: {
+            mounts: [
+              {
+                ...ARCHIVE,
+                status: 'error',
+                statusMessage: 'Access denied',
+              },
+            ],
+            defaultMountId: 'm_archive',
+            providers: [],
+            canManage: true,
+          },
+          loading: false,
+          error: null,
+          reload: noopAsync,
+        }),
+      }),
+    );
+    expect(errorHtml).toContain('aria-label="Error: Access denied"');
+    expect(errorHtml.indexOf('aria-label="Error: Access denied"')).toBeLessThan(
+      errorHtml.indexOf('Archive'),
+    );
   });
 });
 

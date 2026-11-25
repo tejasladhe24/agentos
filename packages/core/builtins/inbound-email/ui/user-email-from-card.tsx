@@ -9,18 +9,14 @@ import {
 } from '@agentos/core/client';
 import { Button } from '@agentos/ui/components/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@agentos/ui/components/card';
-import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldError,
+  FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 import { LoadingState } from '@agentos/ui/components/loading-state';
@@ -72,7 +68,7 @@ export type UserEmailFromCardViewProps = {
   onClearError?: () => void;
 };
 
-/** Presentational personal sender address card (SSR / test friendly). */
+/** Presentational personal sender address section (SSR / test friendly). */
 export function UserEmailFromCardView({
   savedFrom,
   orgFrom,
@@ -108,24 +104,44 @@ export function UserEmailFromCardView({
         {(isSubmitting) => {
           const disabled = busy || isSubmitting;
           return (
-            <Card data-slot="user-email-from-card" data-setting-entry={entryId}>
-              <CardHeader>
-                <CardTitle>Your sender address</CardTitle>
-                <CardDescription>
-                  Choose the From address used when you send email through your
-                  organization&apos;s email provider.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
+            <FieldSet
+              data-slot="user-email-from-card"
+              data-setting-entry={entryId}
+            >
+              <FieldLegend>Your sender address</FieldLegend>
+              <FieldDescription>
+                Choose the From address used when you send email through your
+                organization&apos;s email provider.
+              </FieldDescription>
+              <FieldGroup>
                 <form.Field name="from">
                   {(field) => {
                     const fieldInvalid = isFieldInvalid(field.state.meta);
                     const invalid = fieldInvalid || Boolean(error);
                     return (
-                      <Field data-invalid={invalid || undefined}>
-                        <FieldLabel htmlFor="user-email-from">
-                          From address
-                        </FieldLabel>
+                      <Field
+                        orientation="responsive"
+                        data-invalid={invalid || undefined}
+                      >
+                        <FieldContent>
+                          <FieldLabel htmlFor="user-email-from">
+                            From address
+                          </FieldLabel>
+                          <FieldDescription>
+                            Must use a domain verified on your
+                            organization&apos;s email provider.
+                            {orgFrom
+                              ? ` Leave blank to use the organization default (${orgFrom}).`
+                              : ' Leave blank to use the organization default.'}
+                          </FieldDescription>
+                          {fieldInvalid ? (
+                            <FieldError
+                              errors={toFieldErrors(field.state.meta.errors)}
+                            />
+                          ) : error ? (
+                            <FieldError>{error}</FieldError>
+                          ) : null}
+                        </FieldContent>
                         <Input
                           id="user-email-from"
                           name={field.name}
@@ -133,48 +149,38 @@ export function UserEmailFromCardView({
                           placeholder={orgFrom || 'Jane Doe <jane@acme.com>'}
                           disabled={disabled}
                           aria-invalid={invalid || undefined}
+                          className="sm:max-w-60"
                           onBlur={field.handleBlur}
                           onChange={(e) => {
                             field.handleChange(e.target.value);
                             if (error) onClearError?.();
                           }}
                         />
-                        <FieldDescription>
-                          Must use a domain verified on your organization&apos;s
-                          email provider.
-                          {orgFrom
-                            ? ` Leave blank to use the organization default (${orgFrom}).`
-                            : ' Leave blank to use the organization default.'}
-                        </FieldDescription>
-                        {fieldInvalid ? (
-                          <FieldError
-                            errors={toFieldErrors(field.state.meta.errors)}
-                          />
-                        ) : error ? (
-                          <FieldError>{error}</FieldError>
-                        ) : null}
                       </Field>
                     );
                   }}
                 </form.Field>
-              </CardContent>
-              <CardFooter className="gap-2">
-                <Button type="submit" size="sm" disabled={disabled}>
-                  {isSubmitting ? 'Saving…' : 'Save'}
-                </Button>
-                {savedFrom ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => void onClear()}
-                  >
-                    Use organization default
+                <Field
+                  orientation="horizontal"
+                  className="flex-wrap justify-end gap-2"
+                >
+                  {savedFrom ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() => void onClear()}
+                    >
+                      Use organization default
+                    </Button>
+                  ) : null}
+                  <Button type="submit" size="sm" disabled={disabled}>
+                    {isSubmitting ? 'Saving…' : 'Save'}
                   </Button>
-                ) : null}
-              </CardFooter>
-            </Card>
+                </Field>
+              </FieldGroup>
+            </FieldSet>
           );
         }}
       </form.Subscribe>
@@ -182,7 +188,7 @@ export function UserEmailFromCardView({
   );
 }
 
-/** Self-loading per-user email sender address card for Settings → Email. */
+/** Self-loading per-user email sender address section for Settings → Email. */
 export function UserEmailFromCard({ entryId }: { entryId?: string }) {
   const api = useHostApi();
   const notifications = useHostNotifications();

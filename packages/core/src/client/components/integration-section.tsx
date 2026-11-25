@@ -9,7 +9,7 @@ import {
 import { useForm } from '@tanstack/react-form';
 import { z } from 'zod';
 import { Button } from '@agentos/ui/components/button';
-import { FieldError } from '@agentos/ui/components/field';
+import { FieldDescription, FieldError } from '@agentos/ui/components/field';
 import { LoadingState } from '@agentos/ui/components/loading-state';
 
 import {
@@ -242,9 +242,9 @@ export function IntegrationSettingsForm({
               entryId={entryId}
               footer={
                 readOnly ? (
-                  <span className="text-xs text-muted-foreground">
+                  <FieldDescription>
                     Only admins can change this integration.
-                  </span>
+                  </FieldDescription>
                 ) : (
                   <>
                     <Button
@@ -274,11 +274,11 @@ export function IntegrationSettingsForm({
               }
             >
               {!saved && data.platformDefault ? (
-                <p className="text-xs text-muted-foreground">
+                <FieldDescription>
                   {data.platformDefault.configured
                     ? `Using the platform default (${data.platformDefault.provider}) until you add your own key.`
                     : 'No platform default is configured. Add your own provider to enable this integration.'}
-                </p>
+                </FieldDescription>
               ) : null}
               <form.Field name="provider">
                 {(field) => {

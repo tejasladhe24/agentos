@@ -11,6 +11,7 @@ import {
   IntegrationCard,
   IntegrationRemoveButton,
   IntegrationSecretField,
+  IntegrationStatusInfo,
   IntegrationTestButton,
   IntegrationTextField,
   type IntegrationTestOutcome,
@@ -21,9 +22,11 @@ import { Button } from '@agentos/ui/components/button';
 import { Checkbox } from '@agentos/ui/components/checkbox';
 import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldError,
   FieldLabel,
+  FieldTitle,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 import { LoadingState } from '@agentos/ui/components/loading-state';
@@ -221,9 +224,9 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
               entryId={entryId}
               footer={
                 readOnly ? (
-                  <span className="text-xs text-muted-foreground">
+                  <FieldDescription>
                     Only admins can change this integration.
-                  </span>
+                  </FieldDescription>
                 ) : (
                   <>
                     <Button
@@ -253,28 +256,39 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
               }
             >
               {!saved ? (
-                <p className="text-xs text-muted-foreground">
+                <FieldDescription>
                   {data.platformDefault?.configured
                     ? 'Mail sent to your provisioned addresses arrives through the platform default until you connect your own Resend account.'
                     : 'No platform default is configured. Connect your Resend account to receive email.'}
-                </p>
+                </FieldDescription>
               ) : null}
               {status ? (
-                <div
-                  className="flex items-center gap-2"
-                  data-slot="webhook-status"
-                >
-                  <Badge
-                    variant={status === 'failing' ? 'destructive' : 'outline'}
-                  >
-                    {WEBHOOK_STATUS_LABELS[status]}
-                  </Badge>
-                  {webhookError ? (
-                    <span className="text-xs text-muted-foreground">
-                      {webhookError}
-                    </span>
+                <Field orientation="horizontal" data-slot="webhook-status">
+                  <FieldContent>
+                    <FieldTitle className="relative">
+                      {status !== 'registered' ? (
+                        <IntegrationStatusInfo
+                          message={
+                            webhookError
+                              ? `${WEBHOOK_STATUS_LABELS[status]} — ${webhookError}`
+                              : WEBHOOK_STATUS_LABELS[status]
+                          }
+                          tone={status === 'failing' ? 'error' : 'warning'}
+                          slot="webhook-status-info"
+                        />
+                      ) : null}
+                      <span>Webhook status</span>
+                    </FieldTitle>
+                    {webhookError ? (
+                      <FieldDescription>{webhookError}</FieldDescription>
+                    ) : null}
+                  </FieldContent>
+                  {status === 'registered' ? (
+                    <Badge variant="outline">
+                      {WEBHOOK_STATUS_LABELS[status]}
+                    </Badge>
                   ) : null}
-                </div>
+                </Field>
               ) : null}
               <form.Field name="receivingDomain">
                 {(field) => {
@@ -310,6 +324,11 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
                 <form.Field name="useSendingKey">
                   {(field) => (
                     <Field orientation="horizontal" data-slot="use-sending-key">
+                      <FieldContent>
+                        <FieldLabel htmlFor="email-receive-same-key">
+                          Use the same Resend key as Email sending
+                        </FieldLabel>
+                      </FieldContent>
                       <Checkbox
                         id="email-receive-same-key"
                         checked={field.state.value}
@@ -319,9 +338,6 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
                           if (error) setError(null);
                         }}
                       />
-                      <FieldLabel htmlFor="email-receive-same-key">
-                        Use the same Resend key as Email sending
-                      </FieldLabel>
                     </Field>
                   )}
                 </form.Field>
@@ -357,11 +373,18 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
                 }
               </form.Subscribe>
               {webhookUrl ? (
-                <Field data-slot="webhook-url">
-                  <FieldLabel htmlFor="email-receive-webhook-url">
-                    Webhook URL
-                  </FieldLabel>
-                  <div className="flex gap-2">
+                <Field orientation="responsive" data-slot="webhook-url">
+                  <FieldContent>
+                    <FieldLabel htmlFor="email-receive-webhook-url">
+                      Webhook URL
+                    </FieldLabel>
+                    <FieldDescription>
+                      {showManual
+                        ? 'In Resend → Webhooks, add this URL for the email.received event, then paste the signing secret below.'
+                        : 'Registered in your Resend account for the email.received event.'}
+                    </FieldDescription>
+                  </FieldContent>
+                  <div className="flex w-full items-center gap-2 sm:max-w-60">
                     <Input
                       id="email-receive-webhook-url"
                       readOnly
@@ -379,11 +402,6 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
                       Copy
                     </Button>
                   </div>
-                  <FieldDescription>
-                    {showManual
-                      ? 'In Resend → Webhooks, add this URL for the email.received event, then paste the signing secret below.'
-                      : 'Registered in your Resend account for the email.received event.'}
-                  </FieldDescription>
                 </Field>
               ) : null}
               {showManual ? (

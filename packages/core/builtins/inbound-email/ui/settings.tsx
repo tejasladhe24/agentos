@@ -4,6 +4,7 @@ import {
   IntegrationSection,
   type IntegrationSectionData,
 } from '@agentos/core/client/components/integration-section';
+import { FieldGroup, FieldSeparator } from '@agentos/ui/components/field';
 
 import { ReceivingCard } from './receiving-card';
 import { UserEmailFromCard } from './user-email-from-card';
@@ -41,20 +42,24 @@ export default function EmailSettings() {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col gap-6 overflow-y-auto bg-background px-6 py-6 text-foreground"
+      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
       data-slot="settings-email"
     >
-      <UserEmailFromCard entryId="email-from" />
-      {canManage ? (
-        <>
-          <IntegrationSection
-            integration="email.send"
-            basePath="/api/ext/notifications/integrations"
-            entryId="email-sending"
-          />
-          <ReceivingCard entryId="email-receiving" />
-        </>
-      ) : null}
+      <FieldGroup className="gap-8">
+        <UserEmailFromCard entryId="email-from" />
+        {canManage ? (
+          <>
+            <FieldSeparator />
+            <IntegrationSection
+              integration="email.send"
+              basePath="/api/ext/notifications/integrations"
+              entryId="email-sending"
+            />
+            <FieldSeparator />
+            <ReceivingCard entryId="email-receiving" />
+          </>
+        ) : null}
+      </FieldGroup>
     </div>
   );
 }

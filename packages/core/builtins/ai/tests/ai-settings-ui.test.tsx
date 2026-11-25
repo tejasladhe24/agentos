@@ -63,7 +63,7 @@ describe('AI settings UI', () => {
     expect(html).not.toContain('<input id="ai-model"');
   });
 
-  test('settings section mounts with the shared integration card loader', () => {
+  test('settings section mounts inside FieldGroup with standard scroll container', () => {
     const html = renderToStaticMarkup(
       createElement(HostProvider, {
         host: testHost(),
@@ -71,6 +71,8 @@ describe('AI settings UI', () => {
       }),
     );
     expect(html).toContain('data-slot="ai-settings"');
+    expect(html).toContain('data-slot="field-group"');
+    expect(html).not.toContain('data-slot="card"');
     expect(html).toContain('Loading');
   });
 });

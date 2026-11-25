@@ -144,10 +144,10 @@ Agents must never promote tickets to `done/` themselves.
 124. Per-org plans and feature toggles
 125. Usage metering, limits, and billing hooks for platform keys
 126. (Later) Per-org white-label
-127. Settings field layout
+127. Settings UI: Field-based layout for Files, AI, Email, and SMS — **in-progress**
 128. Role-scoped Activity Bar, per-user email sender, and Organization/Roles/Members tables — **in-progress**
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — none.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — **127**, **128**.
 
 **BYOK + storage mounts:** **103**–**114** done (reconciled in **122**). Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
 
