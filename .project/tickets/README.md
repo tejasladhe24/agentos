@@ -144,14 +144,15 @@ Agents must never promote tickets to `done/` themselves.
 124. Per-org plans and feature toggles
 125. Usage metering, limits, and billing hooks for platform keys
 126. (Later) Per-org white-label
-127. Settings UI: Field-based layout for Files, AI, Email, and SMS — **in-progress**
-128. Role-scoped Activity Bar, per-user email sender, and Organization/Roles/Members tables — **in-progress**
-129. Standardize forms on TanStack Form + Zod — **in-progress**
-130. Turborepo remote cache for CI and deploys — **in-progress**
+127. Settings UI: Field-based layout for Files, AI, Email, and SMS — **done**
+128. Role-scoped Activity Bar, per-user email sender, and Organization/Roles/Members tables — **done**
+129. Standardize forms on TanStack Form + Zod — **done**
+130. Turborepo remote cache for CI and deploys — **done**
 131. Docker builder runs pnpm on Node 24 — **superseded** by 132
-132. Upgrade to pnpm 12 and drop Node from the Docker builder — **in-progress**
+132. Upgrade to pnpm 12 and drop Node from the Docker builder — **done**
+133. Ticket reconciliation: promote covered in-progress → done — **done** (127–130, 132 → `done/`)
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — **127**, **128**, **129**, **130**, **132**.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — empty.
 
 **BYOK + storage mounts:** **103**–**114** done (reconciled in **122**). Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
 

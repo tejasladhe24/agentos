@@ -1,6 +1,6 @@
 # 128 — Role-scoped Activity Bar, per-user email sender, and Organization/Roles/Members tables
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

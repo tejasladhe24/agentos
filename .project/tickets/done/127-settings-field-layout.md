@@ -1,6 +1,6 @@
 # 127 — Settings UI: Field-based layout for Files, AI, Email, and SMS
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
