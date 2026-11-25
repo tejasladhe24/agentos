@@ -146,8 +146,10 @@ Agents must never promote tickets to `done/` themselves.
 126. (Later) Per-org white-label
 127. Settings UI: Field-based layout for Files, AI, Email, and SMS — **in-progress**
 128. Role-scoped Activity Bar, per-user email sender, and Organization/Roles/Members tables — **in-progress**
+129. Standardize forms on TanStack Form + Zod — **in-progress**
+130. Turborepo remote cache for CI and deploys — **in-progress**
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — **127**, **128**.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — **127**, **128**, **129**, **130**.
 
 **BYOK + storage mounts:** **103**–**114** done (reconciled in **122**). Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
 
