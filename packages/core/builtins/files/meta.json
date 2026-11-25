@@ -28,6 +28,7 @@
         {
           "id": "storage-backends",
           "label": "Storage backends",
+          "adminOnly": true,
           "hint": "mount mounted storage backend provider default bucket s3 connect disconnect usage platform"
         },
         {

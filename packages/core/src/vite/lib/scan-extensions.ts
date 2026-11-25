@@ -238,6 +238,7 @@ function parseSettingsEntries(
       const keywords = parseStringList(obj.keywords);
       if (keywords.length > 0) entry.keywords = keywords;
     }
+    if (obj.adminOnly === true) entry.adminOnly = true;
     entries.push(entry);
   }
   return entries.length > 0 ? entries : undefined;
@@ -272,6 +273,7 @@ function parseMetaSettings(
     }
     const entries = parseSettingsEntries(obj.entries);
     if (entries) entry.entries = entries;
+    if (obj.adminOnly === true) entry.adminOnly = true;
     sections.push(entry);
   }
   return sections.length > 0 ? sections : undefined;

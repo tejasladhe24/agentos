@@ -14,6 +14,7 @@ import { notificationIntegrationDefinitions } from '@agentos/core/builtins/notif
 import { createNotifyStore } from '@agentos/core/builtins/notifications/api/lib/notify-store';
 import { createProviders } from '@agentos/core/builtins/notifications/api/lib/providers/create-providers';
 import { createMemoryUserEmailPrefsStore } from '@agentos/core/builtins/notifications/api/lib/user-email-prefs';
+import { createMemoryUserSmsPrefsStore } from '@agentos/core/builtins/notifications/api/lib/user-sms-prefs';
 
 function memoryDb(): DbStoreClient {
   const rows: NotificationEntry[] = [];
@@ -207,8 +208,12 @@ describe('notifications BYOK (ticket 105)', () => {
     await kit.putIntegration('org_a', {
       integration: 'sms',
       provider: 'twilio',
-      settings: { accountSid: 'AC123', from: '+15550001111' },
-      secrets: { authToken: 'tw_tok' },
+      settings: {
+        accountSid: 'AC123',
+        apiKeySid: 'SK123',
+        from: '+15550001111',
+      },
+      secrets: { apiKeySecret: 'tw_secret' },
     });
     expect((await delivery(await send('org_a', email))).source).toBe('org');
     const sms = await delivery(
@@ -230,7 +235,7 @@ describe('notifications BYOK (ticket 105)', () => {
     expect(http.calls[1]?.url).toBe(
       'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages.json',
     );
-    expect(http.calls[1]?.auth).toBe(`Basic ${btoa('AC123:tw_tok')}`);
+    expect(http.calls[1]?.auth).toBe(`Basic ${btoa('SK123:tw_secret')}`);
   });
 
   test('Settings routes: GET is display-safe; test connection sends / verifies', async () => {
@@ -263,13 +268,14 @@ describe('notifications BYOK (ticket 105)', () => {
 
     const smsTest = await call('POST', '/integrations/sms/test', {
       provider: 'twilio',
-      settings: { accountSid: 'AC9', from: '+1555' },
-      secrets: { authToken: 'tw' },
+      settings: { accountSid: 'AC9', apiKeySid: 'SK9' },
+      secrets: { apiKeySecret: 'tw' },
     });
     expect(await smsTest.json()).toMatchObject({ ok: true });
     expect(http.calls[1]?.url).toBe(
-      'https://api.twilio.com/2010-04-01/Accounts/AC9.json',
+      'https://api.twilio.com/2010-04-01/Accounts/AC9/IncomingPhoneNumbers.json?PageSize=200',
     );
+    expect(http.calls[1]?.auth).toBe(`Basic ${btoa('SK9:tw')}`);
 
     const platformSms = await call('POST', '/integrations/sms/test', {});
     expect(await platformSms.json()).toMatchObject({
@@ -397,6 +403,150 @@ describe('notifications BYOK (ticket 105)', () => {
       opts,
     );
     expect(JSON.parse(http.calls[1]!.body).from).toBe('org@acme.test');
+  });
+
+  test('Twilio: API key validation, number listing, and per-user from number', async () => {
+    const backend = createMemoryIntegrationsBackend();
+    const kit = createIntegrationsKit(backend);
+    const store = createNotifyStore(memoryDb());
+    const userSmsPrefs = createMemoryUserSmsPrefsStore();
+    const platform = createProviders();
+    const sent: Array<{ auth: string | null; body: URLSearchParams }> = [];
+
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/IncomingPhoneNumbers.json')) {
+        return Response.json({
+          incoming_phone_numbers: [
+            {
+              phone_number: '+15550002222',
+              friendly_name: '(555) 000-2222',
+              capabilities: { sms: true },
+            },
+            {
+              phone_number: '+15550009999',
+              friendly_name: 'Voice only',
+              capabilities: { sms: false },
+            },
+            {
+              phone_number: '+15550001111',
+              friendly_name: '+15550001111',
+              capabilities: { sms: true },
+            },
+          ],
+        });
+      }
+      sent.push({
+        auth: new Headers(init?.headers).get('authorization'),
+        body: new URLSearchParams(String(init?.body ?? '')),
+      });
+      return Response.json({ sid: 'SM1' }, { status: 201 });
+    }) as typeof fetch;
+
+    let permission: 'ok' | 'denied' = 'ok';
+    const integrationRoutes: IntegrationRoutesContext = {
+      kit,
+      definitions: notificationIntegrationDefinitions({ platform, fetchImpl }),
+      resolveOrg: async () => ({
+        ok: true,
+        orgId: 'org_sms',
+        via: 'session',
+        actor: 'admin@example.com',
+      }),
+      checkPermission: async () => 'ok',
+    };
+    const opts = {
+      integrations: kit,
+      userSmsPrefs,
+      integrationRoutes,
+      fetchImpl,
+      resolveOrg: async () => ({
+        ok: true as const,
+        orgId: 'org_sms',
+        via: 'session' as const,
+        userId: 'user_1',
+      }),
+      checkPermission: async () => permission,
+    };
+    const call = (method: string, path: string, body?: unknown) =>
+      handleNotificationsRequest(
+        store,
+        new Request(`http://127.0.0.1:6117${path}`, {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        }),
+        platform,
+        opts,
+      );
+
+    // Pasting the master auth token as the key SID is rejected.
+    const bad = await call('PUT', '/integrations/sms', {
+      provider: 'twilio',
+      settings: { accountSid: 'AC1', apiKeySid: 'not_a_key_sid' },
+      secrets: { apiKeySecret: 'secret' },
+    });
+    expect(bad.status).toBe(400);
+    expect(((await bad.json()) as { error: string }).error).toContain(
+      'API key SID must start with "SK"',
+    );
+
+    // No Twilio connected: the dropdown source reports "not configured".
+    const none = await call('GET', '/sms/numbers');
+    expect(await none.json()).toMatchObject({
+      configured: false,
+      numbers: [],
+    });
+
+    const saved = await call('PUT', '/integrations/sms', {
+      provider: 'twilio',
+      settings: {
+        accountSid: 'AC1',
+        apiKeySid: 'SK1',
+        from: '+15550001111',
+      },
+      secrets: { apiKeySecret: 'secret' },
+    });
+    expect(saved.status).toBe(201);
+    expect(await saved.text()).not.toContain('secret"');
+
+    const listed = await call('GET', '/sms/numbers');
+    expect(await listed.json()).toEqual({
+      configured: true,
+      source: 'org',
+      error: null,
+      numbers: [
+        { phoneNumber: '+15550001111', friendlyName: '+15550001111' },
+        { phoneNumber: '+15550002222', friendlyName: '(555) 000-2222' },
+      ],
+    });
+
+    // Members without email.send cannot list the org's numbers.
+    permission = 'denied';
+    expect((await call('GET', '/sms/numbers')).status).toBe(403);
+    permission = 'ok';
+
+    expect(await (await call('GET', '/preferences/sms')).json()).toEqual({
+      from: null,
+      orgFrom: '+15550001111',
+    });
+    expect(
+      (await call('PUT', '/preferences/sms', { from: '555-0002' })).status,
+    ).toBe(400);
+    expect(
+      await (
+        await call('PUT', '/preferences/sms', { from: '+15550002222' })
+      ).json(),
+    ).toEqual({ from: '+15550002222', orgFrom: '+15550001111' });
+
+    const sms = { channel: 'sms', to: '+15553334444', message: 'Hi' };
+    await call('POST', '/notify', sms);
+    expect(sent.at(-1)?.auth).toBe(`Basic ${btoa('SK1:secret')}`);
+    expect(sent.at(-1)?.body.get('From')).toBe('+15550002222');
+
+    await call('PUT', '/preferences/sms', { from: '' });
+    await call('POST', '/notify', sms);
+    expect(sent.at(-1)?.body.get('From')).toBe('+15550001111');
   });
 
   test('Cloudflare email.send auto-pulls accountId from API token when omitted', async () => {

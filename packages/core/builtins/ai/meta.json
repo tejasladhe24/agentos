@@ -11,6 +11,7 @@
       "description": "Bring your own AI provider key and models, or use the platform default.",
       "icon": "Sparkle",
       "group": "Workspace",
+      "adminOnly": true,
       "keywords": [
         "ai",
         "llm",

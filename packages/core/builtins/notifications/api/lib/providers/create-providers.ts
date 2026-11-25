@@ -12,7 +12,8 @@ export type ProviderEnv = {
   emailAccountId?: string;
   smsProvider?: string;
   smsAccountSid?: string;
-  smsAuthToken?: string;
+  smsApiKeySid?: string;
+  smsApiKeySecret?: string;
   smsFrom?: string;
   fetchImpl?: typeof fetch;
 };
@@ -52,7 +53,8 @@ export function createProviders(env: ProviderEnv = {}): NotificationProviders {
     smsName === 'twilio'
       ? createTwilioProvider({
           accountSid: env.smsAccountSid ?? '',
-          authToken: env.smsAuthToken ?? '',
+          apiKeySid: env.smsApiKeySid ?? '',
+          apiKeySecret: env.smsApiKeySecret ?? '',
           from: env.smsFrom ?? '',
           fetchImpl: env.fetchImpl,
         })

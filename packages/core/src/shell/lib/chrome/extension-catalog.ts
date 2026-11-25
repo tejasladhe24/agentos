@@ -11,6 +11,8 @@ export type ExtensionSettingsEntry = {
   /** Plain-text search hint. */
   hint?: string;
   keywords?: string[];
+  /** Hidden from Settings search for non-admins. */
+  adminOnly?: boolean;
 };
 
 /** One settings sidebar section registered by an extension's `meta.json`. */
@@ -22,6 +24,8 @@ export type ExtensionSettingsSection = {
   group?: string;
   keywords?: string[];
   entries?: ExtensionSettingsEntry[];
+  /** Whole section hidden from the Settings sidebar for non-admins. */
+  adminOnly?: boolean;
 };
 
 /** One row in the Extension Manager list. */

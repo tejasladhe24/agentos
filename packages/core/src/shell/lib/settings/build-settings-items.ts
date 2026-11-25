@@ -52,8 +52,10 @@ export type SettingsSearchResult = {
 export function buildSettingsItems(input: {
   extensions: ExtensionEntry[];
   contributions: UiContribution[];
+  /** When false, `adminOnly` sections and entries are omitted. Default true. */
+  isAdmin?: boolean;
 }): SettingsNavItem[] {
-  const { extensions, contributions } = input;
+  const { extensions, contributions, isAdmin = true } = input;
   const extById = new Map(extensions.map((ext) => [ext.id, ext]));
   const items: SettingsNavItem[] = [];
 
@@ -67,6 +69,7 @@ export function buildSettingsItems(input: {
 
     if (declared && declared.length > 0) {
       for (const section of declared) {
+        if (!isAdmin && section.adminOnly) continue;
         items.push({
           key: `${ext.id}:${section.id}`,
           extensionId: ext.id,
@@ -76,12 +79,14 @@ export function buildSettingsItems(input: {
           Icon: resolveExtensionIcon(section.icon ?? ext.icon),
           group: section.group ?? defaultGroup,
           keywords: [ext.id, ext.name, section.id, ...(section.keywords ?? [])],
-          entries: (section.entries ?? []).map((entry) => ({
-            id: entry.id,
-            label: entry.label,
-            ...(entry.hint ? { hint: entry.hint } : {}),
-            keywords: entry.keywords ?? [],
-          })),
+          entries: (section.entries ?? [])
+            .filter((entry) => isAdmin || !entry.adminOnly)
+            .map((entry) => ({
+              id: entry.id,
+              label: entry.label,
+              ...(entry.hint ? { hint: entry.hint } : {}),
+              keywords: entry.keywords ?? [],
+            })),
         });
       }
       continue;
