@@ -46,12 +46,40 @@ function render(props: Partial<Parameters<typeof IntegrationSettingsForm>[0]>) {
 }
 
 describe('IntegrationSettingsForm', () => {
-  test('platform default: badge, not-set secret input, no Remove', () => {
+  test('renders FieldSet and responsive Field rows without Card wrappers', () => {
+    const html = render({ entryId: 'email-sending' });
+    expect(html).toContain('data-slot="field-set"');
+    expect(html).toContain('data-slot="field-legend"');
+    expect(html).toContain('data-slot="field-group"');
+    expect(html).toContain('data-setting-entry="email-sending"');
+    expect(html).toContain('data-orientation="responsive"');
+    expect(html).not.toContain('data-slot="card"');
+  });
+
+  test('platform default: badge, not-set info icon, no Remove', () => {
     const html = render({});
     expect(html).toContain('Platform default');
-    expect(html).toContain('Not set');
+    expect(html).toContain('aria-label="Not set"');
+    expect(html).not.toContain('>Not set<');
+    expect(html.indexOf('aria-label="Not set"')).toBeLessThan(
+      html.indexOf('API key'),
+    );
     expect(html).toContain('Test connection');
     expect(html).not.toContain('Remove');
+  });
+
+  test('unconfigured platform default renders (i) icon in the left gutter beside the section title', () => {
+    const html = render({
+      data: data({
+        platformDefault: { provider: 'resend', configured: false },
+      }),
+    });
+    expect(html).toContain('aria-label="Platform default (not configured)"');
+    expect(html).toContain('-left-5');
+    expect(html).not.toContain('>Platform default (not configured)<');
+    expect(
+      html.indexOf('aria-label="Platform default (not configured)"'),
+    ).toBeLessThan(html.indexOf('Email sending'));
   });
 
   test('tenant config: "Using your key", masked set secret, Replace + Remove', () => {

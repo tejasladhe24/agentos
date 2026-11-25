@@ -134,9 +134,8 @@ export function createAiIntegrationDefinition(
   const { platform, buildModels } = options;
   return {
     id: AI_INTEGRATION_ID,
-    label: 'AI',
-    description:
-      'Use your own AI provider account and models. Without one, the platform default is used.',
+    label: 'AI Models',
+    description: 'Use your own AI provider account and models.',
     providers: AI_PROVIDER_IDS.map((id) => ({
       id,
       ...PROVIDER_LABELS[id],

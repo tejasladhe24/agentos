@@ -8,6 +8,7 @@ import {
   useHostNavigation,
   useHostNotifications,
 } from '@agentos/core/client';
+import { IntegrationStatusInfo } from '@agentos/core/client/components/integration-card';
 import {
   DotsThreeVerticalIcon,
   PlugsConnectedIcon,
@@ -41,11 +42,14 @@ import {
 } from '@agentos/ui/components/dropdown-menu';
 import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldError,
+  FieldGroup,
   FieldLabel,
   FieldLegend,
   FieldSet,
+  FieldTitle,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 import { LoadingState } from '@agentos/ui/components/loading-state';
@@ -68,20 +72,30 @@ type StorageBackendsProps = {
   reload: () => Promise<void>;
 };
 
-function statusBadge(mount: FilesMount) {
-  if (mount.status === 'connected') {
-    return <Badge variant="secondary">Connected</Badge>;
-  }
+function mountStatusMessage(mount: FilesMount): string {
+  const label = mount.status === 'error' ? 'Error' : 'Disconnected';
+  return mount.statusMessage ? `${label}: ${mount.statusMessage}` : label;
+}
+
+function mountStatusInfo(mount: FilesMount) {
+  if (mount.status === 'connected') return null;
   return (
-    <Badge variant="destructive" title={mount.statusMessage}>
-      {mount.status === 'error' ? 'Error' : 'Disconnected'}
-    </Badge>
+    <IntegrationStatusInfo
+      message={mountStatusMessage(mount)}
+      tone={mount.status === 'error' ? 'error' : 'warning'}
+      slot="files-mount-status"
+    />
   );
 }
 
 const renameStorageSchema = z.object({
   name: z.string().trim().min(1, 'Storage name is required'),
 });
+
+function connectedBadge(mount: FilesMount) {
+  if (mount.status !== 'connected') return null;
+  return <Badge variant="secondary">Connected</Badge>;
+}
 
 /** Settings › Files › Storage backends — org mounts list and management. */
 export function StorageBackends({
@@ -203,36 +217,34 @@ export function StorageBackends({
       ) : error ? (
         <FieldError>{error}</FieldError>
       ) : (
-        <ul
-          className="flex flex-col divide-y divide-border rounded-md border border-border"
-          data-slot="files-storage-backends"
-        >
+        <FieldGroup data-slot="files-storage-backends">
           {orgMounts.map((mount) => (
-            <li
+            <Field
               key={mount.id}
-              className="flex items-center gap-3 px-3 py-2 text-sm"
+              orientation="horizontal"
               data-mount-id={mount.id}
             >
-              <MountIcon
-                provider={mount.provider}
-                className="size-5 shrink-0 text-muted-foreground"
-              />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="flex items-center gap-2 font-medium">
+              <FieldContent>
+                <FieldTitle className="relative">
+                  {mountStatusInfo(mount)}
+                  <MountIcon
+                    provider={mount.provider}
+                    className="size-4 shrink-0 text-muted-foreground"
+                  />
                   <span className="truncate">{mount.name}</span>
                   {mount.isDefault ? (
                     <Badge variant="outline">Default</Badge>
                   ) : null}
-                  {statusBadge(mount)}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
+                  {connectedBadge(mount)}
+                </FieldTitle>
+                <FieldDescription>
                   {mount.provider}
                   {mount.usage
                     ? ` · ${mount.usage.files} file(s) · ${formatBytes(mount.usage.bytes)}`
                     : ''}
                   {mount.statusMessage ? ` · ${mount.statusMessage}` : ''}
-                </span>
-              </div>
+                </FieldDescription>
+              </FieldContent>
               {canManage ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger
@@ -284,23 +296,23 @@ export function StorageBackends({
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : null}
-            </li>
+            </Field>
           ))}
-        </ul>
+          {canManage ? (
+            <Field orientation="horizontal" className="justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAddOpen(true)}
+              >
+                <PlusIcon className="size-4" aria-hidden />
+                Add storage
+              </Button>
+            </Field>
+          ) : null}
+        </FieldGroup>
       )}
-      {canManage ? (
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setAddOpen(true)}
-          >
-            <PlusIcon className="size-4" aria-hidden />
-            Add storage
-          </Button>
-        </div>
-      ) : null}
 
       <AddStorageDialog
         open={addOpen}
@@ -529,114 +541,121 @@ export function ConnectedDrives({
       </FieldDescription>
       {loading ? (
         <LoadingState size="sm">Loading…</LoadingState>
-      ) : personal.length ? (
-        <ul
-          className="flex flex-col divide-y divide-border rounded-md border border-border"
-          data-slot="files-connected-drives"
-        >
-          {personal.map((mount) => {
-            const connected = mount.status === 'connected';
-            const email =
-              typeof mount.config?.email === 'string' ? mount.config.email : '';
-            return (
-              <li
-                key={mount.id}
-                className="flex items-center gap-3 px-3 py-2 text-sm"
-                data-mount-id={mount.id}
-              >
-                <MountIcon
-                  provider={mount.provider}
-                  className="size-5 shrink-0 text-muted-foreground"
-                />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex items-center gap-2 font-medium">
-                    <span className="truncate">{mount.name}</span>
-                    {statusBadge(mount)}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {email || mount.provider}
-                    {quotaLine(mount)}
-                    {!connected && mount.statusMessage
-                      ? ` · ${mount.statusMessage}`
-                      : ''}
-                  </span>
-                </div>
-                {connected ? null : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void connect(mount.provider, mount.id)}
-                  >
-                    Reconnect
-                  </Button>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
+      ) : (
+        <FieldGroup data-slot="files-connected-drives">
+          {personal.length ? (
+            personal.map((mount) => {
+              const connected = mount.status === 'connected';
+              const email =
+                typeof mount.config?.email === 'string'
+                  ? mount.config.email
+                  : '';
+              return (
+                <Field
+                  key={mount.id}
+                  orientation="horizontal"
+                  data-mount-id={mount.id}
+                >
+                  <FieldContent>
+                    <FieldTitle className="relative">
+                      {mountStatusInfo(mount)}
+                      <MountIcon
+                        provider={mount.provider}
+                        className="size-4 shrink-0 text-muted-foreground"
+                      />
+                      <span className="truncate">{mount.name}</span>
+                      {connectedBadge(mount)}
+                    </FieldTitle>
+                    <FieldDescription>
+                      {email || mount.provider}
+                      {quotaLine(mount)}
+                      {!connected && mount.statusMessage
+                        ? ` · ${mount.statusMessage}`
+                        : ''}
+                    </FieldDescription>
+                  </FieldContent>
+                  <div className="flex items-center gap-2">
+                    {connected ? null : (
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Actions for ${mount.name}`}
+                        size="sm"
+                        variant="outline"
                         disabled={busy}
-                      />
-                    }
-                  >
-                    <DotsThreeVerticalIcon className="size-4" aria-hidden />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => void testMount(mount)}>
-                      Test connection
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => void connect(mount.provider, mount.id)}
-                    >
-                      Reconnect
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => setRemoveTarget(mount)}
-                    >
-                      Disconnect
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <PlugsConnectedIcon className="size-4" aria-hidden />
-          No personal drives connected yet.
-        </p>
-      )}
-      {providers.length ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {providers.map((provider) => (
-            <Button
-              key={provider.id}
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy || !provider.connectable}
-              title={
-                provider.connectable
-                  ? undefined
-                  : `${provider.label} is not configured on this deployment`
-              }
-              onClick={() => void connect(provider.id)}
-              data-connect-provider={provider.id}
+                        onClick={() => void connect(mount.provider, mount.id)}
+                      >
+                        Reconnect
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Actions for ${mount.name}`}
+                            disabled={busy}
+                          />
+                        }
+                      >
+                        <DotsThreeVerticalIcon className="size-4" aria-hidden />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => void testMount(mount)}>
+                          Test connection
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => void connect(mount.provider, mount.id)}
+                        >
+                          Reconnect
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => setRemoveTarget(mount)}
+                        >
+                          Disconnect
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </Field>
+              );
+            })
+          ) : (
+            <FieldDescription className="flex items-center gap-2">
+              <PlugsConnectedIcon className="size-4" aria-hidden />
+              No personal drives connected yet.
+            </FieldDescription>
+          )}
+          {providers.length ? (
+            <Field
+              orientation="horizontal"
+              className="flex-wrap justify-end gap-2"
             >
-              <MountIcon provider={provider.id} className="size-4" />
-              Connect {provider.label}
-            </Button>
-          ))}
-        </div>
-      ) : null}
+              {providers.map((provider) => (
+                <Button
+                  key={provider.id}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy || !provider.connectable}
+                  title={
+                    provider.connectable
+                      ? undefined
+                      : `${provider.label} is not configured on this deployment`
+                  }
+                  onClick={() => void connect(provider.id)}
+                  data-connect-provider={provider.id}
+                >
+                  <MountIcon provider={provider.id} className="size-4" />
+                  Connect {provider.label}
+                </Button>
+              ))}
+            </Field>
+          ) : null}
+        </FieldGroup>
+      )}
 
       <AlertDialog
         open={removeTarget !== null}

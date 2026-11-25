@@ -5,9 +5,11 @@ import type { IntegrationSettingRenderInput } from '@agentos/core/client/compone
 import { Button } from '@agentos/ui/components/button';
 import {
   Field,
+  FieldContent,
   FieldDescription,
   FieldError,
   FieldLabel,
+  FieldTitle,
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 import {
@@ -65,57 +67,65 @@ export function AiModelField({
   const selected = custom ? CUSTOM : value || (field.required ? null : NONE);
 
   return (
-    <Field data-slot="integration-setting" data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor={id}>
-        {field.label}
-        {field.required ? null : (
-          <span className="text-muted-foreground"> (optional)</span>
-        )}
-      </FieldLabel>
-      <Select
-        items={items}
-        value={selected}
-        disabled={disabled}
-        onValueChange={(next) => {
-          if (typeof next !== 'string') return;
-          if (next === CUSTOM) {
-            setCustom(true);
-            return;
-          }
-          setCustom(false);
-          onValueChange(next === NONE ? '' : next);
-        }}
-      >
-        <SelectTrigger
-          id={id}
-          className="w-full max-w-md"
-          aria-invalid={invalid || undefined}
-        >
-          <SelectValue placeholder="Choose a model" />
-        </SelectTrigger>
-        <SelectContent>
-          {items.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {custom ? (
-        <Input
-          aria-label={`${field.label} id`}
-          value={value}
-          placeholder={field.placeholder ?? 'Model id'}
+    <Field
+      orientation="responsive"
+      data-slot="integration-setting"
+      data-invalid={invalid || undefined}
+    >
+      <FieldContent>
+        <FieldLabel htmlFor={id}>
+          {field.label}
+          {field.required ? null : (
+            <span className="text-muted-foreground"> (optional)</span>
+          )}
+        </FieldLabel>
+        {field.description ? (
+          <FieldDescription>{field.description}</FieldDescription>
+        ) : null}
+        {invalid ? <FieldError errors={errors} /> : null}
+      </FieldContent>
+      <div className="flex w-full flex-col gap-2 sm:max-w-60">
+        <Select
+          items={items}
+          value={selected}
           disabled={disabled}
-          aria-invalid={invalid || undefined}
-          onBlur={onBlur}
-          onChange={(e) => onValueChange(e.target.value)}
-        />
-      ) : null}
-      {field.description ? (
-        <FieldDescription>{field.description}</FieldDescription>
-      ) : null}
-      {invalid ? <FieldError errors={errors} /> : null}
+          onValueChange={(next) => {
+            if (typeof next !== 'string') return;
+            if (next === CUSTOM) {
+              setCustom(true);
+              return;
+            }
+            setCustom(false);
+            onValueChange(next === NONE ? '' : next);
+          }}
+        >
+          <SelectTrigger
+            id={id}
+            className="w-full"
+            aria-invalid={invalid || undefined}
+          >
+            <SelectValue placeholder="Choose a model" />
+          </SelectTrigger>
+          <SelectContent>
+            {items.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {custom ? (
+          <Input
+            aria-label={`${field.label} id`}
+            value={value}
+            placeholder={field.placeholder ?? 'Model id'}
+            disabled={disabled}
+            aria-invalid={invalid || undefined}
+            onBlur={onBlur}
+            onChange={(e) => onValueChange(e.target.value)}
+          />
+        ) : null}
+      </div>
     </Field>
   );
 }
@@ -190,7 +200,21 @@ export function AiModelCatalogLoader({
   }, [provider, auto]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <Field orientation="horizontal" data-slot="ai-model-catalog">
+      <FieldContent>
+        <FieldTitle>Model catalog</FieldTitle>
+        {state.status === 'loaded' ? (
+          <FieldDescription>
+            {state.count} models available from the provider.
+          </FieldDescription>
+        ) : state.status === 'error' ? (
+          <FieldError>{state.message}</FieldError>
+        ) : (
+          <FieldDescription>
+            Fetch the provider&apos;s model list to pick from it.
+          </FieldDescription>
+        )}
+      </FieldContent>
       <Button
         type="button"
         size="sm"
@@ -200,13 +224,6 @@ export function AiModelCatalogLoader({
       >
         {state.status === 'loading' ? 'Loading models…' : 'Load models'}
       </Button>
-      {state.status === 'loaded' ? (
-        <span>{state.count} models available from the provider.</span>
-      ) : state.status === 'error' ? (
-        <span className="text-destructive">{state.message}</span>
-      ) : (
-        <span>Fetch the provider&apos;s model list to pick from it.</span>
-      )}
-    </div>
+    </Field>
   );
 }
