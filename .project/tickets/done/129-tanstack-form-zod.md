@@ -1,6 +1,6 @@
 # 129 — Standardize forms on TanStack Form + Zod
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
