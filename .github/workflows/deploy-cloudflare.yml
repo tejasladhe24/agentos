@@ -18,6 +18,11 @@ on:
           - dev
         default: production
 
+# Turbo remote cache (Vercel) so the CI step can replay cached tasks.
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
 concurrency:
   group: deploy-cloudflare-${{ github.ref }}
   cancel-in-progress: false
