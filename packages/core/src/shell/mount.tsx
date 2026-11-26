@@ -2,7 +2,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { ComponentType } from 'react';
 import { registry as virtualRegistry } from 'virtual:agentos-registry';
 import type { RegistryModel } from '@agentos/core/vite/lib/types';
-import { AuthGate, type AuthGateConfig } from './components/auth/auth-gate';
+import {
+  AppRouter,
+  type AppRouterConfig,
+} from './components/routing/app-router';
 import { restoreStoredActivity } from './lib/chrome/activity-bar-persistence';
 import {
   applyRegistry,
@@ -31,18 +34,30 @@ export type MountShellOptions = {
   /**
    * Override `virtual:agentos-config` (tests).
    */
-  config?: AuthGateConfig;
+  config?: AppRouterConfig;
 };
 
-/** Mount the Core Shell workspace into `root` (auth-gated). */
+/**
+ * Restore the last Activity Bar selection only on a bare `/` visit — a deep
+ * link (`/ext/<id>`, `/settings…`) must never be overridden.
+ */
+function restoreActivityAtRoot(): void {
+  if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+    return;
+  }
+  restoreStoredActivity();
+}
+
+/** Mount the Core Shell (TanStack Router: auth, public portals, workspace). */
 export function mountShell(
   root: HTMLElement,
   options: MountShellOptions = {},
 ): void {
-  applyRegistry(options.registry ?? virtualRegistry);
-  restoreStoredActivity();
+  const registry = options.registry ?? virtualRegistry;
+  applyRegistry(registry);
+  restoreActivityAtRoot();
   void hydrateEnableStateFromGateway().then(() => {
-    restoreStoredActivity();
+    restoreActivityAtRoot();
   });
 
   if (activeRoot) {
@@ -51,10 +66,11 @@ export function mountShell(
   }
   activeRoot = createRoot(root);
   activeRoot.render(
-    <AuthGate
+    <AppRouter
       dashboard={options.dashboard}
       dashboardSidebar={options.dashboardSidebar}
       config={options.config}
+      registry={registry}
     />,
   );
 }

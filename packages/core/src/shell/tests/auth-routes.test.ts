@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
   collectPublicExtensionRoutes,
@@ -6,9 +6,11 @@ import {
   loginPathWithNext,
   matchPublicAuthRoute,
   matchPublicExtensionRoute,
+  navigateApp,
   normalizePathname,
   readNextParam,
   readResetToken,
+  registerAppNavigator,
   type PublicExtensionRoute,
 } from '@agentos/core/shell/lib';
 import type { RegistryModel } from '@agentos/core/vite/lib/types';
@@ -36,25 +38,50 @@ describe('auth routes', () => {
     expect(matchPublicAuthRoute('/', flags)).toBeNull();
   });
 
-  test('isKnownAppPath only accepts workspace root', () => {
+  test('isKnownAppPath accepts workspace paths only', () => {
     expect(isKnownAppPath('/')).toBe(true);
     expect(isKnownAppPath('')).toBe(true);
+    expect(isKnownAppPath('/settings')).toBe(true);
+    expect(isKnownAppPath('/ext/crm')).toBe(true);
+    expect(isKnownAppPath('/ext/crm/')).toBe(true);
+    expect(isKnownAppPath('/ext')).toBe(false);
+    expect(isKnownAppPath('/ext/crm/deeper')).toBe(false);
     expect(isKnownAppPath('/totally-missing')).toBe(false);
     expect(isKnownAppPath('/__public/logo.svg')).toBe(false);
     expect(isKnownAppPath('/login')).toBe(false);
   });
 
-  test('loginPathWithNext drops unknown next paths', () => {
+  test('loginPathWithNext carries known deep links, drops the rest', () => {
+    expect(loginPathWithNext('/ext/crm')).toBe('/login?next=%2Fext%2Fcrm');
+    expect(loginPathWithNext('/settings?section=files%3Astorage')).toBe(
+      '/login?next=%2Fsettings%3Fsection%3Dfiles%253Astorage',
+    );
     expect(loginPathWithNext('/crm')).toBe('/login');
     expect(loginPathWithNext('/totally-missing')).toBe('/login');
     expect(loginPathWithNext('/')).toBe('/login');
     expect(loginPathWithNext('/login')).toBe('/login');
+    expect(loginPathWithNext(null)).toBe('/login');
   });
 
   test('read query helpers', () => {
     expect(readNextParam('?next=%2Fhome')).toBe('/home');
+    expect(readNextParam('?next=%2Fext%2Fcrm')).toBe('/ext/crm');
     expect(readNextParam('?next=https://evil')).toBeNull();
+    expect(readNextParam('?next=%2F%2Fevil.example')).toBeNull();
+    expect(readNextParam('?next=%2F%5Cevil.example')).toBeNull();
     expect(readResetToken('?token=abc')).toBe('abc');
+  });
+
+  describe('navigateApp', () => {
+    afterEach(() => registerAppNavigator(null));
+
+    test('delegates to the registered router navigator', () => {
+      const calls: string[] = [];
+      registerAppNavigator((to) => calls.push(to));
+      navigateApp('/ext/crm');
+      navigateApp('/login');
+      expect(calls).toEqual(['/ext/crm', '/login']);
+    });
   });
 
   test('matchPublicExtensionRoute exact and prefix', () => {
