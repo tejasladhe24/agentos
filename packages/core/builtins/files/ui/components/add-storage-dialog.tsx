@@ -35,7 +35,7 @@ import {
   type StorageProviderField,
   type StorageProviderInfo,
   type StorageProviderPreset,
-} from './files-types';
+} from '../lib/files-types';
 import { MountIcon } from './mount-icon';
 
 type Step = 'provider' | 'form';

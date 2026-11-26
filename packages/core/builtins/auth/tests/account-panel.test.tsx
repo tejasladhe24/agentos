@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { AccountMembersSection } from '../ui/account-members-section';
-import { AccountOrganizationSection } from '../ui/account-organization-section';
-import { AccountPanel } from '../ui/account-panel';
-import { AccountRolesSection } from '../ui/account-roles-section';
+import { AccountMembersSection } from '../ui/components/account-members-section';
+import { AccountOrganizationSection } from '../ui/components/account-organization-section';
+import { AccountPanel } from '../ui/components/account-panel';
+import { AccountRolesSection } from '../ui/components/account-roles-section';
 
 const noopAsync = async () => {};
 

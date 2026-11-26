@@ -1,10 +1,13 @@
-import { ACCOUNT_SECTION_LABELS, type AccountSection } from './account-section';
+import {
+  ACCOUNT_SECTION_LABELS,
+  type AccountSection,
+} from '../lib/account-section';
 import { AccountOrganizationSection } from './account-organization-section';
 import { AccountProfileSection } from './account-profile-section';
 import { AccountRolesSection } from './account-roles-section';
 import { AccountSecuritySection } from './account-security-section';
 import { AccountSessionSection } from './account-session-section';
-import type { AccountSessionView } from './account-types';
+import type { AccountSessionView } from '../lib/account-types';
 
 export type AccountPanelProps = {
   session: AccountSessionView | null;

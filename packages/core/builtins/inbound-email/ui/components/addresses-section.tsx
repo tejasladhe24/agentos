@@ -24,7 +24,7 @@ import {
   TableRow,
 } from '@agentos/ui/components/table';
 
-import { parseErrorBody, type InboundAddress } from './email-types';
+import { parseErrorBody, type InboundAddress } from '../lib/email-types';
 
 const provisionAddressSchema = z.object({
   address: z.string().trim().email('Enter a valid email address'),

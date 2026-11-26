@@ -13,7 +13,7 @@ import {
   deliverySourceLabel,
   parseErrorBody,
   type DeliveryEntry,
-} from './email-types';
+} from '../lib/email-types';
 
 function statusVariant(
   status: string,

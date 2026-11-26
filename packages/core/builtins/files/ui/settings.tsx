@@ -20,8 +20,11 @@ import {
 import { LoadingState } from '@agentos/ui/components/loading-state';
 import { RadioGroup, RadioGroupItem } from '@agentos/ui/components/radio-group';
 
-import { ConnectedDrives, StorageBackends } from './storage-backends';
-import { useFilesMounts } from './use-files-mounts';
+import {
+  ConnectedDrives,
+  StorageBackends,
+} from './components/storage-backends';
+import { useFilesMounts } from './lib/use-files-mounts';
 
 type RetentionValue = '15' | '30' | 'never';
 

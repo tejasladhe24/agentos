@@ -59,11 +59,14 @@ import {
   parseErrorBody,
   type FilesMount,
   type FilesMountsResponse,
-} from './files-types';
+} from '../lib/files-types';
 import { AddStorageDialog } from './add-storage-dialog';
 import { MountIcon } from './mount-icon';
-import { readDriveConnectResult, startDriveConnect } from './personal-drives';
-import { useNotifyMountsChanged } from './use-files-mounts';
+import {
+  readDriveConnectResult,
+  startDriveConnect,
+} from '../lib/personal-drives';
+import { useNotifyMountsChanged } from '../lib/use-files-mounts';
 
 type StorageBackendsProps = {
   data: FilesMountsResponse;

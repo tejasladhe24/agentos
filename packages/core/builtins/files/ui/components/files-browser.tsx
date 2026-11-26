@@ -71,9 +71,9 @@ import {
   type FilesMount,
   type FilesSection,
   type FilesViewMode,
-} from './files-types';
+} from '../lib/files-types';
 import { MountIcon } from './mount-icon';
-import { driveCopy } from './personal-drives';
+import { driveCopy } from '../lib/personal-drives';
 import {
   FilesUploadZone,
   type FilesUploadZoneProps,

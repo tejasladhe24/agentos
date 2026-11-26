@@ -8,7 +8,7 @@ import {
   useHostUi,
 } from '@agentos/core/client';
 
-import { FilesBrowser } from './files-browser';
+import { FilesBrowser } from './components/files-browser';
 import {
   encodeBlobPath,
   exportQuery,
@@ -27,13 +27,13 @@ import {
   type FilesMount,
   type FilesViewMode,
   type UploadProgressItem,
-} from './files-types';
-import { driveCopy, startDriveConnect } from './personal-drives';
-import { useFilesMount } from './use-files-mount';
-import { useFilesMounts, useNotifyMountsChanged } from './use-files-mounts';
-import { useFilesPrefix } from './use-files-prefix';
-import { useFilesSection } from './use-files-section';
-import { useFilesSelection } from './use-files-selection';
+} from './lib/files-types';
+import { driveCopy, startDriveConnect } from './lib/personal-drives';
+import { useFilesMount } from './lib/use-files-mount';
+import { useFilesMounts, useNotifyMountsChanged } from './lib/use-files-mounts';
+import { useFilesPrefix } from './lib/use-files-prefix';
+import { useFilesSection } from './lib/use-files-section';
+import { useFilesSelection } from './lib/use-files-selection';
 
 function folderPrefixFor(item: FilesListItem): string {
   if (item.kind !== 'folder') return '';

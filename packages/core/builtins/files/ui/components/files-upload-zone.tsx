@@ -9,7 +9,7 @@ import { CloudArrowUpIcon } from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
 import { cn } from '@agentos/ui/lib/utils';
 
-import type { UploadProgressItem } from './files-types';
+import type { UploadProgressItem } from '../lib/files-types';
 
 export type FilesUploadZoneProps = {
   disabled?: boolean;

@@ -15,19 +15,19 @@ import {
 } from '@agentos/ui/components/field';
 import { LoadingState } from '@agentos/ui/components/loading-state';
 
-import { AccountMembersSection } from './account-members-section';
-import { AccountOrganizationSection } from './account-organization-section';
-import { AccountProfileSection } from './account-profile-section';
-import { AccountRolesSection } from './account-roles-section';
-import { AccountSecuritySection } from './account-security-section';
-import { AccountSessionSection } from './account-session-section';
+import { AccountMembersSection } from './components/account-members-section';
+import { AccountOrganizationSection } from './components/account-organization-section';
+import { AccountProfileSection } from './components/account-profile-section';
+import { AccountRolesSection } from './components/account-roles-section';
+import { AccountSecuritySection } from './components/account-security-section';
+import { AccountSessionSection } from './components/account-session-section';
 import {
   isAdminSessionRoles,
   type AccountOrgInvite,
   type AccountOrgMember,
   type AccountRoleEntry,
   type AccountSessionView,
-} from './account-types';
+} from './lib/account-types';
 
 type AuthSettingsSectionId = 'profile' | 'organization';
 

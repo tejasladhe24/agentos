@@ -14,7 +14,7 @@ import {
   authenticationSummary,
   parseErrorBody,
   type InboundMessage,
-} from './email-types';
+} from '../lib/email-types';
 
 /** Attachment download link; the host resolves the blob URL (no direct files call). */
 function AttachmentLink({

@@ -80,7 +80,7 @@ import {
   TableRow,
 } from '@agentos/ui/components/table';
 
-import type { AccountOrgInvite, AccountOrgMember } from './account-types';
+import type { AccountOrgInvite, AccountOrgMember } from '../lib/account-types';
 
 const inviteMemberSchema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
