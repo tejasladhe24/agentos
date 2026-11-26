@@ -1,3 +1,4 @@
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useEffect, useState } from 'react';
 import {
   extensionPath,
@@ -10,8 +11,8 @@ import {
 } from '@agentos/core/client/components/integration-section';
 import { FieldGroup, FieldSeparator } from '@agentos/ui/components/field';
 
-import { ReceivingCard } from './receiving-card';
-import { UserEmailFromCard } from './user-email-from-card';
+import { ReceivingCard } from './components/receiving-card';
+import { UserEmailFromCard } from './components/user-email-from-card';
 
 const EMAIL_SEND_INTEGRATION_PATH = extensionPath(
   'notifications',
@@ -47,10 +48,7 @@ export default function EmailSettings() {
   }, [api]);
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="settings-email"
-    >
+    <SettingsPage data-slot="settings-email">
       <FieldGroup className="gap-8">
         <UserEmailFromCard entryId="email-from" />
         {canManage ? (
@@ -66,6 +64,6 @@ export default function EmailSettings() {
           </>
         ) : null}
       </FieldGroup>
-    </div>
+    </SettingsPage>
   );
 }

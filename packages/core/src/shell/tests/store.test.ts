@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { defaultEnabledById, useShellStore } from '@agentos/core/shell/lib';
 import {
-  defaultEnabledById,
-  defaultSkillsByExtension,
   STUB_EXTENSION_CATALOG,
   STUB_SKILLS_BY_EXTENSION,
-  useShellStore,
-} from '@agentos/core/shell/lib';
+  defaultSkillsByExtension,
+} from './fixtures/stub-extension-catalog';
 
 function resetStore() {
   useShellStore.setState({
@@ -15,7 +14,7 @@ function resetStore() {
     chatMessages: [],
     chatBusy: false,
     extensions: STUB_EXTENSION_CATALOG,
-    enabledById: defaultEnabledById(),
+    enabledById: defaultEnabledById(STUB_EXTENSION_CATALOG),
     desiredContributions: [],
     contributions: [],
     runtimeStatus: {},

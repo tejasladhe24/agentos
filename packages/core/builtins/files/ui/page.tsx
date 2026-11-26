@@ -8,15 +8,12 @@ import {
   useHostUi,
 } from '@agentos/core/client';
 
-import { FilesBrowser } from './files-browser';
+import { FilesBrowser } from './components/files-browser';
 import {
   encodeBlobPath,
   exportQuery,
   FILES_DETAIL_OPEN_TOPIC,
-  fileToBase64,
-  formatBytes,
   itemId,
-  joinPrefix,
   mountQuery,
   parseErrorBody,
   parseListResponse,
@@ -26,49 +23,19 @@ import {
   type FilesListItem,
   type FilesMount,
   type FilesViewMode,
-  type UploadProgressItem,
-} from './files-types';
-import { driveCopy, startDriveConnect } from './personal-drives';
-import { useFilesMount } from './use-files-mount';
-import { useFilesMounts, useNotifyMountsChanged } from './use-files-mounts';
-import { useFilesPrefix } from './use-files-prefix';
-import { useFilesSection } from './use-files-section';
-import { useFilesSelection } from './use-files-selection';
-
-function folderPrefixFor(item: FilesListItem): string {
-  if (item.kind !== 'folder') return '';
-  return item.relativeKey.endsWith('/')
-    ? item.relativeKey
-    : `${item.relativeKey}/`;
-}
-
-function parentOfRelativeKey(relativeKey: string): string {
-  const trimmed = relativeKey.replace(/\/+$/, '');
-  const idx = trimmed.lastIndexOf('/');
-  if (idx < 0) return '';
-  return `${trimmed.slice(0, idx + 1)}`;
-}
-
-function renameTargetKey(item: FilesListItem, newName: string): string {
-  const parent = parentOfRelativeKey(
-    item.kind === 'folder' ? folderPrefixFor(item) : item.relativeKey,
-  );
-  const next =
-    item.kind === 'folder'
-      ? `${parent}${newName.replace(/\/+$/, '')}/`
-      : joinPrefix(parent.replace(/\/$/, ''), newName);
-  return next;
-}
-
-function isReconnectError(body: string): boolean {
-  try {
-    return (
-      (JSON.parse(body) as { code?: string }).code === 'reconnect_required'
-    );
-  } catch {
-    return false;
-  }
-}
+} from './lib/files-types';
+import { driveCopy, startDriveConnect } from './lib/personal-drives';
+import { useFilesMount } from './lib/use-files-mount';
+import { useFilesMounts, useNotifyMountsChanged } from './lib/use-files-mounts';
+import { useFilesPrefix } from './lib/use-files-prefix';
+import { useFilesSection } from './lib/use-files-section';
+import { useFilesSelection } from './lib/use-files-selection';
+import { useFilesUpload } from './lib/use-files-upload';
+import {
+  folderPrefixFor,
+  isReconnectError,
+  renameTargetKey,
+} from './lib/files-keys';
 
 /**
  * Files secondary Activity Bar page — org-scoped Drive-style manager.
@@ -114,10 +81,6 @@ export default function FilesPage() {
   const [viewMode, setViewMode] = useState<FilesViewMode>('list');
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [detailOpen, setDetailOpen] = useState(false);
-
-  const [uploadProgress, setUploadProgress] = useState<UploadProgressItem[]>(
-    [],
-  );
 
   const selectedItems = useMemo(
     () => items.filter((i) => selectedKeys.has(itemId(i))),
@@ -249,59 +212,13 @@ export default function FilesPage() {
     if (failure) await notifications.show(failure, 'error');
   }
 
-  async function onUploadFiles(files: File[]) {
-    if (unauthenticated || section !== 'files') return;
-    const maxBytes = mount?.capabilities?.maxFileSize;
-    const jobs: UploadProgressItem[] = files.map((file, i) => ({
-      id: `${Date.now()}-${i}`,
-      name: file.name,
-      status: 'pending',
-    }));
-    setUploadProgress(jobs);
-
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i]!;
-      const jobId = jobs[i]!.id;
-      setUploadProgress((prev) =>
-        prev.map((p) => (p.id === jobId ? { ...p, status: 'uploading' } : p)),
-      );
-      try {
-        if (maxBytes && file.size > maxBytes) {
-          throw new Error(
-            `exceeds ${mount?.name ?? 'storage'} limit of ${formatBytes(maxBytes)}`,
-          );
-        }
-        const base64 = await fileToBase64(file);
-        const key = joinPrefix(prefix, file.name);
-        const path = encodeBlobPath(key);
-        const res = await api.fetch(`/blobs/${path}${mountQuery(mountId)}`, {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            base64,
-            contentType: file.type || 'application/octet-stream',
-          }),
-        });
-        if (!res.ok) {
-          throw new Error(parseErrorBody(res.body, 'Upload failed'));
-        }
-        setUploadProgress((prev) =>
-          prev.map((p) => (p.id === jobId ? { ...p, status: 'done' } : p)),
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Upload failed';
-        setUploadProgress((prev) =>
-          prev.map((p) =>
-            p.id === jobId ? { ...p, status: 'error', error: message } : p,
-          ),
-        );
-        await notifications.show(`${file.name}: ${message}`, 'error');
-      }
-    }
-
-    await loadList();
-    setTimeout(() => setUploadProgress([]), 4000);
-  }
+  const { uploadProgress, onUploadFiles } = useFilesUpload({
+    enabled: !unauthenticated && section === 'files',
+    mount,
+    mountId,
+    prefix,
+    reload: loadList,
+  });
 
   async function onDelete(itemsToDelete: FilesListItem[]) {
     for (const item of itemsToDelete) {

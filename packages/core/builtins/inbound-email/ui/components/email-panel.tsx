@@ -1,4 +1,4 @@
-import { EMAIL_SECTION_LABELS, type EmailSection } from './email-section';
+import { EMAIL_SECTION_LABELS, type EmailSection } from '../lib/email-section';
 import { AddressesSection } from './addresses-section';
 import { ComposeSection } from './compose-section';
 import { DeliveriesSection } from './deliveries-section';

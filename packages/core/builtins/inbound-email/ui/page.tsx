@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useHostAuth } from '@agentos/core/client';
 
-import { EmailPanel } from './email-panel';
-import { useEmailSection } from './use-email-section';
+import { EmailPanel } from './components/email-panel';
+import { useEmailSection } from './lib/use-email-section';
 
 /**
  * Email secondary Activity Bar page — inbox, compose, deliveries, addresses.

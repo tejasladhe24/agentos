@@ -5,19 +5,18 @@ import {
   ExtensionManagerList,
   ExtensionManagerView,
 } from '@agentos/core/shell/components';
+import { defaultEnabledById, useShellStore } from '@agentos/core/shell/lib';
 import {
-  defaultEnabledById,
-  defaultSkillsByExtension,
   STUB_EXTENSION_CATALOG,
-  useShellStore,
-} from '@agentos/core/shell/lib';
+  defaultSkillsByExtension,
+} from './fixtures/stub-extension-catalog';
 
 function resetStore() {
   useShellStore.setState({
     activeView: 'home',
     sidebarOpen: true,
     extensions: STUB_EXTENSION_CATALOG,
-    enabledById: defaultEnabledById(),
+    enabledById: defaultEnabledById(STUB_EXTENSION_CATALOG),
     desiredContributions: [],
     contributions: [],
     runtimeStatus: {},
@@ -47,7 +46,7 @@ describe('ExtensionManagerList', () => {
     const html = renderToStaticMarkup(
       <ExtensionManagerList
         extensions={STUB_EXTENSION_CATALOG}
-        enabledById={defaultEnabledById()}
+        enabledById={defaultEnabledById(STUB_EXTENSION_CATALOG)}
       />,
     );
 
@@ -67,7 +66,10 @@ describe('ExtensionManagerList', () => {
     const html = renderToStaticMarkup(
       <ExtensionManagerList
         extensions={STUB_EXTENSION_CATALOG}
-        enabledById={{ ...defaultEnabledById(), crm: false }}
+        enabledById={{
+          ...defaultEnabledById(STUB_EXTENSION_CATALOG),
+          crm: false,
+        }}
       />,
     );
     expect(html).toContain('data-extension-id="crm"');
@@ -88,7 +90,7 @@ describe('ExtensionManagerList', () => {
     const html = renderToStaticMarkup(
       <ExtensionManagerList
         extensions={STUB_EXTENSION_CATALOG}
-        enabledById={defaultEnabledById()}
+        enabledById={defaultEnabledById(STUB_EXTENSION_CATALOG)}
       />,
     );
     expect(html).toContain('aria-label="Extension list"');
@@ -102,7 +104,7 @@ describe('ExtensionManagerList', () => {
     const html = renderToStaticMarkup(
       <ExtensionManagerList
         extensions={STUB_EXTENSION_CATALOG}
-        enabledById={defaultEnabledById()}
+        enabledById={defaultEnabledById(STUB_EXTENSION_CATALOG)}
       />,
     );
     expect(html).not.toContain('data-extension-id="auth"');

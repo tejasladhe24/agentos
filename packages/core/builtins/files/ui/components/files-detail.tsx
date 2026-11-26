@@ -10,7 +10,7 @@ import {
   formatDate,
   type FilesBlobJson,
   type FilesListItem,
-} from './files-types';
+} from '../lib/files-types';
 
 export type FilesDetailProps = {
   open: boolean;

@@ -1,3 +1,4 @@
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useEffect, useState } from 'react';
 import {
   useHostApi,
@@ -19,8 +20,9 @@ import {
 import { LoadingState } from '@agentos/ui/components/loading-state';
 import { RadioGroup, RadioGroupItem } from '@agentos/ui/components/radio-group';
 
-import { ConnectedDrives, StorageBackends } from './storage-backends';
-import { useFilesMounts } from './use-files-mounts';
+import { ConnectedDrives } from './components/connected-drives';
+import { StorageBackends } from './components/storage-backends';
+import { useFilesMounts } from './lib/use-files-mounts';
 
 type RetentionValue = '15' | '30' | 'never';
 
@@ -136,10 +138,7 @@ export default function FilesSettings() {
   }
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="settings-files"
-    >
+    <SettingsPage data-slot="settings-files">
       <FieldGroup className="gap-8">
         {mounts.loading || mounts.data.canManage ? (
           <>
@@ -194,6 +193,6 @@ export default function FilesSettings() {
           )}
         </FieldSet>
       </FieldGroup>
-    </div>
+    </SettingsPage>
   );
 }

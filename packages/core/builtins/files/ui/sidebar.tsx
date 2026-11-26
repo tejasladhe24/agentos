@@ -13,12 +13,12 @@ import {
   resolveSelectedMount,
   type FilesMount,
   type FilesSection,
-} from './files-types';
-import { MountIcon } from './mount-icon';
-import { useFilesMount } from './use-files-mount';
-import { useFilesMounts } from './use-files-mounts';
-import { useFilesPrefix } from './use-files-prefix';
-import { useFilesSection } from './use-files-section';
+} from './lib/files-types';
+import { MountIcon } from './components/mount-icon';
+import { useFilesMount } from './lib/use-files-mount';
+import { useFilesMounts } from './lib/use-files-mounts';
+import { useFilesPrefix } from './lib/use-files-prefix';
+import { useFilesSection } from './lib/use-files-section';
 
 const VIEWS: Array<{
   id: Exclude<FilesSection, 'files'>;

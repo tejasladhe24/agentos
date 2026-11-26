@@ -10,9 +10,9 @@ import {
   parseWebhookStatus,
   receivingDraftBody,
   receivingWebhookUrl,
-} from '../ui/receiving';
+} from '../ui/lib/receiving';
 import EmailSettings from '../ui/settings';
-import { UserEmailFromCardView } from '../ui/user-email-from-card';
+import { UserEmailFromCardView } from '../ui/components/user-email-from-card';
 
 describe('email receiving settings helpers', () => {
   test('draft body sends only provided secrets', () => {

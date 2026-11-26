@@ -129,10 +129,7 @@ export {
 export {
   collectEnabledSkills,
   defaultEnabledById,
-  defaultSkillsByExtension,
   resolveActivityBarSection,
-  STUB_EXTENSION_CATALOG,
-  STUB_SKILLS_BY_EXTENSION,
   type ActivityBarSection,
   type ExtensionEntry,
   type ExtensionEventDeclarations,

@@ -8,7 +8,7 @@ import {
   useHostUi,
 } from '@agentos/core/client';
 
-import { FilesDetail } from './files-detail';
+import { FilesDetail } from './components/files-detail';
 import {
   encodeBlobPath,
   exportQuery,
@@ -19,11 +19,11 @@ import {
   resolveSelectedMount,
   type FilesBlobJson,
   type FilesListItem,
-} from './files-types';
-import { driveCopy } from './personal-drives';
-import { useFilesMount } from './use-files-mount';
-import { useFilesMounts } from './use-files-mounts';
-import { useFilesSelection } from './use-files-selection';
+} from './lib/files-types';
+import { driveCopy } from './lib/personal-drives';
+import { useFilesMount } from './lib/use-files-mount';
+import { useFilesMounts } from './lib/use-files-mounts';
+import { useFilesSelection } from './lib/use-files-selection';
 
 /**
  * Files right sidebar contribution (`ui/right-sidebar.tsx`) —

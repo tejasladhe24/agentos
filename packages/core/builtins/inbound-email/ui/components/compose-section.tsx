@@ -16,7 +16,7 @@ import {
 import { Input } from '@agentos/ui/components/input';
 import { Textarea } from '@agentos/ui/components/textarea';
 
-import type { DeliveryEntry } from './email-types';
+import type { DeliveryEntry } from '../lib/email-types';
 
 const TEMPLATES = [
   { id: '', label: 'None' },

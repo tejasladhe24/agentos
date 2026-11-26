@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import * as filesTypes from '@agentos/core/builtins/files/ui/files-types';
-import * as emailSection from '@agentos/core/builtins/inbound-email/ui/email-section';
+import * as filesTypes from '@agentos/core/builtins/files/ui/lib/files-types';
+import * as emailSection from '@agentos/core/builtins/inbound-email/ui/lib/email-section';
 
 const builtinsDir = join(import.meta.dir, '../../../builtins');
 

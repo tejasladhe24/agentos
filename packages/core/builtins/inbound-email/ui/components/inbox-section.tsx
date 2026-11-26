@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  parseHostJson,
   useFilesBlobUrl,
   useHostApi,
   useHostNotifications,
@@ -10,11 +11,7 @@ import { Input } from '@agentos/ui/components/input';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
 import { Separator } from '@agentos/ui/components/separator';
 
-import {
-  authenticationSummary,
-  parseErrorBody,
-  type InboundMessage,
-} from './email-types';
+import { authenticationSummary, type InboundMessage } from '../lib/email-types';
 
 /** Attachment download link; the host resolves the blob URL (no direct files call). */
 function AttachmentLink({
@@ -59,33 +56,36 @@ export function InboxSection() {
     setError(null);
     const params = new URLSearchParams({ limit: '50' });
     if (query.trim()) params.set('q', query.trim());
-    const res = await api.fetch(`/messages?${params.toString()}`);
+    const result = parseHostJson<{ messages?: InboundMessage[] }>(
+      await api.fetch(`/messages?${params.toString()}`),
+      'Failed to load inbox',
+    );
     setBusy(false);
-    if (!res.ok) {
-      const message = parseErrorBody(res.body, 'Failed to load inbox');
-      setError(message);
-      void notifications.show(message, 'error');
+    if (!result.ok) {
+      setError(result.error);
+      void notifications.show(result.error, 'error');
       setMessages([]);
       return;
     }
-    const body = JSON.parse(res.body) as { messages: InboundMessage[] };
-    setMessages(body.messages ?? []);
+    setMessages(result.data.messages ?? []);
   }
 
   async function openMessage(id: string) {
     setSelectedId(id);
     setShowHtml(false);
-    const res = await api.fetch(`/messages/${encodeURIComponent(id)}`);
-    if (!res.ok) {
-      const message = parseErrorBody(res.body, 'Failed to load message');
-      setError(message);
-      void notifications.show(message, 'error');
+    const result = parseHostJson<{ message: InboundMessage }>(
+      await api.fetch(`/messages/${encodeURIComponent(id)}`),
+      'Failed to load message',
+    );
+    if (!result.ok) {
+      setError(result.error);
+      void notifications.show(result.error, 'error');
       setDetail(null);
       return;
     }
-    const body = JSON.parse(res.body) as { message: InboundMessage };
-    setDetail(body.message);
-    if (!body.message.readAt) {
+    const { message } = result.data;
+    setDetail(message);
+    if (!message.readAt) {
       void api.fetch(`/messages/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },

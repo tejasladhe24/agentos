@@ -40,7 +40,7 @@ import {
   parseWebhookStatus,
   WEBHOOK_STATUS_LABELS,
   type ReceivingDraft,
-} from './receiving';
+} from '../lib/receiving';
 
 const SECRET_FIELDS = {
   apiKey: { name: 'apiKey', label: 'Resend API key', placeholder: 're_…' },

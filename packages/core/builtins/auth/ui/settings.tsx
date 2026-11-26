@@ -1,3 +1,5 @@
+import { parseErrorBody } from '@agentos/core/client/lib/host-json';
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useCallback, useEffect, useState } from 'react';
 import {
   useHostApi,
@@ -14,36 +16,25 @@ import {
 } from '@agentos/ui/components/field';
 import { LoadingState } from '@agentos/ui/components/loading-state';
 
-import { AccountMembersSection } from './account-members-section';
-import { AccountOrganizationSection } from './account-organization-section';
-import { AccountProfileSection } from './account-profile-section';
-import { AccountRolesSection } from './account-roles-section';
-import { AccountSecuritySection } from './account-security-section';
-import { AccountSessionSection } from './account-session-section';
+import { AccountMembersSection } from './components/account-members-section';
+import { AccountOrganizationSection } from './components/account-organization-section';
+import { AccountProfileSection } from './components/account-profile-section';
+import { AccountRolesSection } from './components/account-roles-section';
+import { AccountSecuritySection } from './components/account-security-section';
+import { AccountSessionSection } from './components/account-session-section';
 import {
   isAdminSessionRoles,
   type AccountOrgInvite,
   type AccountOrgMember,
   type AccountRoleEntry,
   type AccountSessionView,
-} from './account-types';
+} from './lib/account-types';
 
 type AuthSettingsSectionId = 'profile' | 'organization';
 
 function parseAuthSettingsSection(raw: string): AuthSettingsSectionId {
   if (raw === 'organization' || raw === 'roles') return 'organization';
   return 'profile';
-}
-
-function parseErrorBody(body: string, fallback: string): string {
-  try {
-    const data = JSON.parse(body) as { error?: string; message?: string };
-    if (typeof data.error === 'string' && data.error) return data.error;
-    if (typeof data.message === 'string' && data.message) return data.message;
-  } catch {
-    // ignore non-JSON
-  }
-  return body.trim() || fallback;
 }
 
 function parseSession(body: string): AccountSessionView {
@@ -375,11 +366,7 @@ export default function AuthSettings() {
   const isAdmin = session ? isAdminSessionRoles(session.roles) : false;
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="auth-settings"
-      data-account-section={section}
-    >
+    <SettingsPage data-slot="auth-settings" data-account-section={section}>
       {!session ? (
         <LoadingState size="sm">Loading session…</LoadingState>
       ) : !session.user ? (
@@ -451,6 +438,6 @@ export default function AuthSettings() {
           )}
         </FieldGroup>
       )}
-    </div>
+    </SettingsPage>
   );
 }

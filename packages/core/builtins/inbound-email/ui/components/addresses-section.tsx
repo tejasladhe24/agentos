@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { z } from 'zod';
 import {
+  parseHostJson,
   isFieldInvalid,
   toFieldErrors,
   useHostApi,
@@ -24,7 +25,7 @@ import {
   TableRow,
 } from '@agentos/ui/components/table';
 
-import { parseErrorBody, type InboundAddress } from './email-types';
+import { parseErrorBody, type InboundAddress } from '../lib/email-types';
 
 const provisionAddressSchema = z.object({
   address: z.string().trim().email('Enter a valid email address'),
@@ -51,21 +52,20 @@ export function AddressesSection({ canProvision }: { canProvision: boolean }) {
       api.fetch('/health'),
     ]);
     setBusy(false);
-    if (!listRes.ok) {
-      setLoadError(parseErrorBody(listRes.body, 'Failed to load addresses'));
+    const list = parseHostJson<{ addresses?: InboundAddress[] }>(
+      listRes,
+      'Failed to load addresses',
+    );
+    if (!list.ok) {
+      setLoadError(list.error);
       setAddresses([]);
     } else {
-      const body = JSON.parse(listRes.body) as { addresses: InboundAddress[] };
-      setAddresses(body.addresses ?? []);
+      setAddresses(list.data.addresses ?? []);
     }
-    if (healthRes.ok) {
-      setHealth(
-        JSON.parse(healthRes.body) as {
-          provider?: string;
-          backend?: string;
-        },
-      );
-    }
+    const healthJson = parseHostJson<{ provider?: string; backend?: string }>(
+      healthRes,
+    );
+    if (healthJson.ok) setHealth(healthJson.data);
   }
 
   const form = useForm({

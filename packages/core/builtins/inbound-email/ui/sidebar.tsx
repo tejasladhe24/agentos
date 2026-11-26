@@ -5,8 +5,8 @@ import {
   EMAIL_SECTION_LABELS,
   EMAIL_SECTIONS,
   type EmailSection,
-} from './email-section';
-import { useEmailSection } from './use-email-section';
+} from './lib/email-section';
+import { useEmailSection } from './lib/use-email-section';
 
 /**
  * Email manager nav — left sidebar when Email is the active secondary view.

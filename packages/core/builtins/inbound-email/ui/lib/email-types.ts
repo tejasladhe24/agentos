@@ -70,13 +70,4 @@ export function deliverySourceLabel(source?: string): string | null {
   return null;
 }
 
-export function parseErrorBody(body: string, fallback: string): string {
-  try {
-    const data = JSON.parse(body) as { error?: string; message?: string };
-    if (typeof data.error === 'string' && data.error) return data.error;
-    if (typeof data.message === 'string' && data.message) return data.message;
-  } catch {
-    // ignore
-  }
-  return body.trim() || fallback;
-}
+export { parseErrorBody } from '@agentos/core/client/lib/host-json';

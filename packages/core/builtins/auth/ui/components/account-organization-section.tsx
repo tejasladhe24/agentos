@@ -23,6 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@agentos/ui/components/alert-dialog';
+import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import {
   ButtonGroup,
@@ -38,6 +39,7 @@ import {
 } from '@agentos/ui/components/dialog';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -70,214 +72,174 @@ import {
   TableHeader,
   TableRow,
 } from '@agentos/ui/components/table';
-import { Textarea } from '@agentos/ui/components/textarea';
 
-import type { AccountRoleEntry } from './account-types';
+import type { AccountOrgMembership } from '../lib/account-types';
 
-const PROTECTED_ROLES = new Set(['admin', 'owner']);
-const BUILTIN_ROLES = new Set([
-  'admin',
-  'owner',
-  'reviewer',
-  'sales',
-  'viewer',
-  'external_viewer',
-]);
+const orgNameSchema = z.object({
+  name: z.string().trim().min(1, 'Organization name is required'),
+});
 
-export type AccountRolesSectionProps = {
-  /** Current user's assigned roles. */
-  roles: string[];
-  /** All roles available in the organization. */
-  availableRoles?: AccountRoleEntry[];
+export type AccountOrganizationSectionProps = {
+  orgId: string | null;
+  orgs: AccountOrgMembership[];
   isAdmin?: boolean;
   busy?: boolean;
-  onSaveRole?: (role: string, permissions: string[]) => Promise<void>;
-  onDeleteRole?: (role: string) => Promise<void>;
+  onCreateOrg: (name: string) => Promise<void>;
+  onSwitchOrg: (orgId: string) => Promise<void>;
+  onUpdateOrg?: (orgId: string, name: string) => Promise<void>;
+  onDeleteOrg?: (orgId: string) => Promise<void>;
 };
 
-const DEFAULT_NEW_ROLE_PERMS = 'auth.session.read, files.read, email.read';
-
-function parsePermissionsInput(raw: string): string[] {
-  return [
-    ...new Set(
-      raw
-        .split(/[\n,]/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0),
-    ),
-  ];
-}
-
-const createRoleSchema = z.object({
-  name: z.string().trim().min(1, 'Role name is required'),
-  permissions: z
-    .string()
-    .refine(
-      (raw) => parsePermissionsInput(raw).length > 0,
-      'At least one permission is required',
-    ),
-});
-
-const editRoleSchema = z.object({
-  permissions: z.string(),
-});
-
-function formatPermissionsSummary(permissions: readonly string[]): string {
-  if (permissions.includes('*')) return 'All permissions (*)';
-  if (permissions.length === 0) return 'None';
-  return permissions.join(', ');
-}
-
-export function AccountRolesSection({
-  roles,
-  availableRoles,
+export function AccountOrganizationSection({
+  orgId,
+  orgs,
   isAdmin = false,
   busy = false,
-  onSaveRole,
-  onDeleteRole,
-}: AccountRolesSectionProps) {
+  onCreateOrg,
+  onSwitchOrg,
+  onUpdateOrg,
+  onDeleteOrg,
+}: AccountOrganizationSectionProps) {
   const [localError, setLocalError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<
-    'all' | 'assigned' | 'builtin' | 'custom'
-  >('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [activeOnly, setActiveOnly] = useState(false);
   const [sortBy, setSortBy] = useState<
-    'name-asc' | 'name-desc' | 'perms-desc' | 'assigned-first'
+    'name-asc' | 'name-desc' | 'role-asc' | 'active-first'
   >('name-asc');
+
+  const orgRoles = useMemo(
+    () => [...new Set(orgs.map((o) => o.role))].sort(),
+    [orgs],
+  );
+  const hasFilter = roleFilter !== 'all' || activeOnly;
+
+  const filteredOrgs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const list = orgs.filter((o) => {
+      if (activeOnly && o.id !== orgId) return false;
+      if (roleFilter !== 'all' && o.role !== roleFilter) return false;
+      if (!q) return true;
+      return (
+        o.name.toLowerCase().includes(q) || o.role.toLowerCase().includes(q)
+      );
+    });
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortBy === 'role-asc') {
+        return a.role.localeCompare(b.role) || a.name.localeCompare(b.name);
+      }
+      if (sortBy === 'active-first') {
+        const aActive = a.id === orgId ? 0 : 1;
+        const bActive = b.id === orgId ? 0 : 1;
+        return aActive - bActive || a.name.localeCompare(b.name);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [orgs, orgId, searchQuery, roleFilter, activeOnly, sortBy]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const [editingRole, setEditingRole] = useState<AccountRoleEntry | null>(null);
+  const [editingOrg, setEditingOrg] = useState<AccountOrgMembership | null>(
+    null,
+  );
   const [editError, setEditError] = useState<string | null>(null);
 
-  const [deletingRole, setDeletingRole] = useState<string | null>(null);
+  const [deletingOrg, setDeletingOrg] = useState<AccountOrgMembership | null>(
+    null,
+  );
 
   const createForm = useForm({
-    defaultValues: { name: '', permissions: DEFAULT_NEW_ROLE_PERMS },
-    validators: { onSubmit: createRoleSchema },
+    defaultValues: { name: '' },
+    validators: { onSubmit: orgNameSchema },
     onSubmit: async ({ value }) => {
-      if (!onSaveRole) return;
       setCreateError(null);
       try {
-        await onSaveRole(
-          value.name.trim(),
-          parsePermissionsInput(value.permissions),
-        );
+        await onCreateOrg(value.name.trim());
+        createForm.reset({ name: '' });
         setCreateOpen(false);
-        createForm.reset({ name: '', permissions: DEFAULT_NEW_ROLE_PERMS });
       } catch (err) {
-        setCreateError(
-          err instanceof Error ? err.message : 'Create role failed',
-        );
+        setCreateError(err instanceof Error ? err.message : 'Create failed');
       }
     },
   });
 
   const editForm = useForm({
-    defaultValues: { permissions: '' },
-    validators: { onSubmit: editRoleSchema },
+    defaultValues: { name: '' },
+    validators: { onSubmit: orgNameSchema },
     onSubmit: async ({ value }) => {
-      if (!editingRole || !onSaveRole) return;
+      if (!editingOrg || !onUpdateOrg) return;
       setEditError(null);
       try {
-        await onSaveRole(
-          editingRole.role,
-          parsePermissionsInput(value.permissions),
-        );
-        setEditingRole(null);
-        editForm.reset({ permissions: '' });
+        await onUpdateOrg(editingOrg.id, value.name.trim());
+        editForm.reset({ name: '' });
+        setEditingOrg(null);
       } catch (err) {
-        setEditError(err instanceof Error ? err.message : 'Update role failed');
+        setEditError(err instanceof Error ? err.message : 'Update failed');
       }
     },
   });
 
-  const assignedSet = useMemo(() => new Set(roles), [roles]);
-  const rows: AccountRoleEntry[] = useMemo(
-    () => availableRoles ?? roles.map((role) => ({ role, permissions: [] })),
-    [availableRoles, roles],
-  );
-  const filteredRows = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const list = rows.filter((entry) => {
-      if (roleFilter === 'assigned' && !assignedSet.has(entry.role))
-        return false;
-      if (roleFilter === 'builtin' && !BUILTIN_ROLES.has(entry.role))
-        return false;
-      if (roleFilter === 'custom' && BUILTIN_ROLES.has(entry.role))
-        return false;
-      if (!q) return true;
-      return (
-        entry.role.toLowerCase().includes(q) ||
-        entry.permissions.some((p) => p.toLowerCase().includes(q))
-      );
-    });
-    return [...list].sort((a, b) => {
-      if (sortBy === 'name-desc') return b.role.localeCompare(a.role);
-      if (sortBy === 'perms-desc') {
-        const aScore = a.permissions.includes('*')
-          ? Number.MAX_SAFE_INTEGER
-          : a.permissions.length;
-        const bScore = b.permissions.includes('*')
-          ? Number.MAX_SAFE_INTEGER
-          : b.permissions.length;
-        return bScore - aScore || a.role.localeCompare(b.role);
-      }
-      if (sortBy === 'assigned-first') {
-        const aAssigned = assignedSet.has(a.role) ? 0 : 1;
-        const bAssigned = assignedSet.has(b.role) ? 0 : 1;
-        return aAssigned - bAssigned || a.role.localeCompare(b.role);
-      }
-      return a.role.localeCompare(b.role);
-    });
-  }, [rows, assignedSet, searchQuery, roleFilter, sortBy]);
-
-  const disabled = busy || pending;
-
-  async function handleDelete() {
-    if (!deletingRole || !onDeleteRole) return;
+  async function handleSwitch(nextOrgId: string) {
+    if (nextOrgId === orgId) return;
     setPending(true);
     setLocalError(null);
     try {
-      await onDeleteRole(deletingRole);
-      setDeletingRole(null);
+      await onSwitchOrg(nextOrgId);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : 'Delete role failed');
+      setLocalError(err instanceof Error ? err.message : 'Switch failed');
     } finally {
       setPending(false);
     }
   }
 
+  async function handleDelete() {
+    if (!deletingOrg || !onDeleteOrg) return;
+    setPending(true);
+    setLocalError(null);
+    try {
+      await onDeleteOrg(deletingOrg.id);
+      setDeletingOrg(null);
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const disabled = busy || pending;
+  const showActionsColumn = isAdmin || orgs.some((o) => o.id !== orgId);
+
   return (
-    <FieldSet data-slot="account-roles" data-setting-entry="roles">
+    <FieldSet
+      data-slot="account-organization"
+      data-setting-entry="organizations"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <FieldLegend>Roles</FieldLegend>
+          <FieldLegend>Organizations</FieldLegend>
           <FieldDescription>
-            Roles available in this organization and their granted permissions.
+            Organizations you belong to and your active tenant workspace.
           </FieldDescription>
         </div>
-        {isAdmin && onSaveRole ? (
+        {isAdmin ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
             disabled={disabled}
-            data-slot="create-role-trigger"
+            data-slot="create-org-trigger"
             onClick={() => {
               setLocalError(null);
               setCreateError(null);
-              createForm.reset({
-                name: '',
-                permissions: DEFAULT_NEW_ROLE_PERMS,
-              });
+              createForm.reset({ name: '' });
               setCreateOpen(true);
             }}
           >
             <PlusIcon className="size-3.5" aria-hidden />
-            Create role
+            Create organization
           </Button>
         ) : null}
       </div>
@@ -285,18 +247,20 @@ export function AccountRolesSection({
       {localError ? <FieldError>{localError}</FieldError> : null}
 
       <FieldGroup>
-        {rows.length === 0 ? (
-          <FieldDescription>No roles assigned</FieldDescription>
+        {orgs.length === 0 ? (
+          <FieldDescription>
+            You are not a member of any organization yet.
+          </FieldDescription>
         ) : (
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-2">
               <InputGroup className="max-w-xs">
                 <InputGroupInput
-                  placeholder="Search roles…"
+                  placeholder="Search organizations…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search roles"
-                  data-slot="roles-search"
+                  aria-label="Search organizations"
+                  data-slot="organizations-search"
                 />
                 <InputGroupAddon>
                   <MagnifyingGlassIcon
@@ -313,41 +277,42 @@ export function AccountRolesSection({
                         type="button"
                         variant="outline"
                         size="icon"
-                        aria-label="Filter roles"
-                        data-slot="roles-filter"
+                        aria-label="Filter organizations"
+                        data-slot="organizations-filter"
                       />
                     }
                   >
                     <FunnelIcon
                       className="size-4"
-                      weight={roleFilter !== 'all' ? 'fill' : 'regular'}
+                      weight={hasFilter ? 'fill' : 'regular'}
                     />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-44">
                     <DropdownMenuGroup>
-                      <DropdownMenuLabel>Filter roles</DropdownMenuLabel>
+                      <DropdownMenuLabel>Filter by role</DropdownMenuLabel>
                       <DropdownMenuRadioGroup
                         value={roleFilter}
-                        onValueChange={(v) =>
-                          setRoleFilter(
-                            v as 'all' | 'assigned' | 'builtin' | 'custom',
-                          )
-                        }
+                        onValueChange={setRoleFilter}
                       >
                         <DropdownMenuRadioItem value="all">
                           All roles
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="assigned">
-                          Assigned to you
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="builtin">
-                          Built-in roles
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="custom">
-                          Custom roles
-                        </DropdownMenuRadioItem>
+                        {orgRoles.map((role) => (
+                          <DropdownMenuRadioItem key={role} value={role}>
+                            {role}
+                          </DropdownMenuRadioItem>
+                        ))}
                       </DropdownMenuRadioGroup>
                     </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuCheckboxItem
+                      checked={activeOnly}
+                      onCheckedChange={(checked) =>
+                        setActiveOnly(checked === true)
+                      }
+                    >
+                      Active only
+                    </DropdownMenuCheckboxItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <ButtonGroupSeparator />
@@ -358,8 +323,8 @@ export function AccountRolesSection({
                         type="button"
                         variant="outline"
                         size="icon"
-                        aria-label="Sort roles"
-                        data-slot="roles-sort"
+                        aria-label="Sort organizations"
+                        data-slot="organizations-sort"
                       />
                     }
                   >
@@ -375,22 +340,22 @@ export function AccountRolesSection({
                             v as
                               | 'name-asc'
                               | 'name-desc'
-                              | 'perms-desc'
-                              | 'assigned-first',
+                              | 'role-asc'
+                              | 'active-first',
                           )
                         }
                       >
                         <DropdownMenuRadioItem value="name-asc">
-                          Role (A → Z)
+                          Name (A → Z)
                         </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="name-desc">
-                          Role (Z → A)
+                          Name (Z → A)
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="perms-desc">
-                          Most permissions
+                        <DropdownMenuRadioItem value="role-asc">
+                          Role (A → Z)
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="assigned-first">
-                          Assigned first
+                        <DropdownMenuRadioItem value="active-first">
+                          Active first
                         </DropdownMenuRadioItem>
                       </DropdownMenuRadioGroup>
                     </DropdownMenuGroup>
@@ -399,99 +364,118 @@ export function AccountRolesSection({
               </ButtonGroup>
             </div>
             <div className="rounded-none border border-border">
-              <Table data-slot="roles-table">
+              <Table data-slot="organizations-table">
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Organization</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Permissions</TableHead>
-                    {isAdmin ? <TableHead className="w-12 text-right" /> : null}
+                    {showActionsColumn ? (
+                      <TableHead className="w-12 text-right" />
+                    ) : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRows.length === 0 ? (
+                  {filteredOrgs.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={isAdmin ? 3 : 2}
+                        colSpan={showActionsColumn ? 3 : 2}
                         className="py-6 text-center text-muted-foreground"
                       >
-                        No matching roles.
+                        No matching organizations.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRows.map((entry) => {
-                      const isProtected = PROTECTED_ROLES.has(entry.role);
-                      const assigned = assignedSet.has(entry.role);
+                    filteredOrgs.map((org) => {
+                      const active = org.id === orgId;
                       return (
                         <TableRow
-                          key={entry.role}
-                          data-role-name={entry.role}
-                          data-state={assigned ? 'selected' : undefined}
+                          key={org.id}
+                          data-org-id={org.id}
+                          data-state={active ? 'selected' : undefined}
                         >
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              <span>{entry.role}</span>
-                              {assigned ? (
+                              <span>{org.name}</span>
+                              {active ? (
                                 <CheckCircleIcon
                                   weight="fill"
                                   className="size-3.5 shrink-0 text-primary"
-                                  aria-label="Assigned to you"
+                                  aria-label="Active organization"
                                 />
                               ) : null}
                             </div>
                           </TableCell>
-                          <TableCell className="whitespace-normal text-muted-foreground">
-                            {formatPermissionsSummary(entry.permissions)}
+                          <TableCell>
+                            <Badge variant="outline">{org.role}</Badge>
                           </TableCell>
-                          {isAdmin ? (
+                          {showActionsColumn ? (
                             <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  render={
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      disabled={disabled}
-                                      aria-label={`Actions for ${entry.role}`}
-                                      data-slot="role-row-actions"
-                                    />
-                                  }
-                                >
-                                  <DotsThreeIcon className="size-4" />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {onSaveRole ? (
-                                    <DropdownMenuItem
-                                      onClick={() => {
-                                        setLocalError(null);
-                                        setEditError(null);
-                                        setEditingRole(entry);
-                                        editForm.reset({
-                                          permissions:
-                                            entry.permissions.join(', '),
-                                        });
-                                      }}
-                                    >
-                                      Update role
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  {onDeleteRole ? (
-                                    <>
-                                      <DropdownMenuSeparator />
+                              {isAdmin ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                    render={
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        disabled={disabled}
+                                        aria-label={`Actions for ${org.name}`}
+                                        data-slot="org-row-actions"
+                                      />
+                                    }
+                                  >
+                                    <DotsThreeIcon className="size-4" />
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {!active ? (
                                       <DropdownMenuItem
-                                        variant="destructive"
-                                        disabled={isProtected}
+                                        onClick={() =>
+                                          void handleSwitch(org.id)
+                                        }
+                                      >
+                                        Switch to organization
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                    {onUpdateOrg ? (
+                                      <DropdownMenuItem
                                         onClick={() => {
                                           setLocalError(null);
-                                          setDeletingRole(entry.role);
+                                          setEditError(null);
+                                          setEditingOrg(org);
+                                          editForm.reset({ name: org.name });
                                         }}
                                       >
-                                        Delete role
+                                        Update organization
                                       </DropdownMenuItem>
-                                    </>
-                                  ) : null}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                    ) : null}
+                                    {onDeleteOrg ? (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          variant="destructive"
+                                          disabled={orgs.length <= 1}
+                                          onClick={() => {
+                                            setLocalError(null);
+                                            setDeletingOrg(org);
+                                          }}
+                                        >
+                                          Delete organization
+                                        </DropdownMenuItem>
+                                      </>
+                                    ) : null}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : !active ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={disabled}
+                                  onClick={() => void handleSwitch(org.id)}
+                                >
+                                  Switch
+                                </Button>
+                              ) : null}
                             </TableCell>
                           ) : null}
                         </TableRow>
@@ -511,7 +495,7 @@ export function AccountRolesSection({
           setCreateOpen(open);
           if (!open) {
             setCreateError(null);
-            createForm.reset({ name: '', permissions: DEFAULT_NEW_ROLE_PERMS });
+            createForm.reset({ name: '' });
           }
         }}
       >
@@ -526,9 +510,9 @@ export function AccountRolesSection({
             className="flex flex-col gap-4"
           >
             <DialogHeader>
-              <DialogTitle>Create role</DialogTitle>
+              <DialogTitle>Create organization</DialogTitle>
               <DialogDescription>
-                Define a role name and comma-separated permissions.
+                Enter a name for the new workspace tenant.
               </DialogDescription>
             </DialogHeader>
             <createForm.Subscribe selector={(state) => state.isSubmitting}>
@@ -541,11 +525,11 @@ export function AccountRolesSection({
                         const invalid = isFieldInvalid(field.state.meta);
                         return (
                           <Field data-invalid={invalid || undefined}>
-                            <FieldLabel htmlFor="account-new-role-name">
-                              Role name
+                            <FieldLabel htmlFor="account-new-org">
+                              Organization name
                             </FieldLabel>
                             <Input
-                              id="account-new-role-name"
+                              id="account-new-org"
                               name={field.name}
                               value={field.state.value}
                               onBlur={field.handleBlur}
@@ -553,46 +537,11 @@ export function AccountRolesSection({
                                 field.handleChange(e.target.value);
                                 if (createError) setCreateError(null);
                               }}
-                              placeholder="analyst"
+                              placeholder="Acme Inc."
                               disabled={formDisabled}
                               aria-invalid={invalid || undefined}
                               autoFocus
                             />
-                            {invalid ? (
-                              <FieldError
-                                errors={toFieldErrors(field.state.meta.errors)}
-                              />
-                            ) : null}
-                          </Field>
-                        );
-                      }}
-                    </createForm.Field>
-                    <createForm.Field name="permissions">
-                      {(field) => {
-                        const invalid = isFieldInvalid(field.state.meta);
-                        return (
-                          <Field data-invalid={invalid || undefined}>
-                            <FieldLabel htmlFor="account-new-role-perms">
-                              Permissions
-                            </FieldLabel>
-                            <Textarea
-                              id="account-new-role-perms"
-                              name={field.name}
-                              value={field.state.value}
-                              onBlur={field.handleBlur}
-                              onChange={(e) => {
-                                field.handleChange(e.target.value);
-                                if (createError) setCreateError(null);
-                              }}
-                              rows={3}
-                              placeholder="auth.session.read, files.read, email.read"
-                              disabled={formDisabled}
-                              aria-invalid={invalid || undefined}
-                            />
-                            <FieldDescription>
-                              Comma- or newline-separated permission
-                              identifiers.
-                            </FieldDescription>
                             {invalid ? (
                               <FieldError
                                 errors={toFieldErrors(field.state.meta.errors)}
@@ -628,11 +577,12 @@ export function AccountRolesSection({
       </Dialog>
 
       <Dialog
-        open={editingRole !== null}
+        open={editingOrg !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setEditingRole(null);
+            setEditingOrg(null);
             setEditError(null);
+            editForm.reset({ name: '' });
           }
         }}
       >
@@ -647,26 +597,24 @@ export function AccountRolesSection({
             className="flex flex-col gap-4"
           >
             <DialogHeader>
-              <DialogTitle>Update role: {editingRole?.role}</DialogTitle>
-              <DialogDescription>
-                Edit the permissions granted to this role.
-              </DialogDescription>
+              <DialogTitle>Update organization</DialogTitle>
+              <DialogDescription>Rename {editingOrg?.name}.</DialogDescription>
             </DialogHeader>
             <editForm.Subscribe selector={(state) => state.isSubmitting}>
               {(isSubmitting) => {
                 const formDisabled = disabled || isSubmitting;
                 return (
                   <>
-                    <editForm.Field name="permissions">
+                    <editForm.Field name="name">
                       {(field) => {
                         const invalid = isFieldInvalid(field.state.meta);
                         return (
                           <Field data-invalid={invalid || undefined}>
-                            <FieldLabel htmlFor="account-edit-role-perms">
-                              Permissions
+                            <FieldLabel htmlFor="account-edit-org">
+                              Organization name
                             </FieldLabel>
-                            <Textarea
-                              id="account-edit-role-perms"
+                            <Input
+                              id="account-edit-org"
                               name={field.name}
                               value={field.state.value}
                               onBlur={field.handleBlur}
@@ -674,14 +622,10 @@ export function AccountRolesSection({
                                 field.handleChange(e.target.value);
                                 if (editError) setEditError(null);
                               }}
-                              rows={4}
                               disabled={formDisabled}
                               aria-invalid={invalid || undefined}
+                              autoFocus
                             />
-                            <FieldDescription>
-                              Comma- or newline-separated permission
-                              identifiers.
-                            </FieldDescription>
                             {invalid ? (
                               <FieldError
                                 errors={toFieldErrors(field.state.meta.errors)}
@@ -698,7 +642,7 @@ export function AccountRolesSection({
                         variant="outline"
                         size="sm"
                         disabled={formDisabled}
-                        onClick={() => setEditingRole(null)}
+                        onClick={() => setEditingOrg(null)}
                       >
                         Cancel
                       </Button>
@@ -715,18 +659,16 @@ export function AccountRolesSection({
       </Dialog>
 
       <AlertDialog
-        open={deletingRole !== null}
+        open={deletingOrg !== null}
         onOpenChange={(open) => {
-          if (!open) setDeletingRole(null);
+          if (!open) setDeletingOrg(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete role &ldquo;{deletingRole}&rdquo;?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete {deletingOrg?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes all permission grants for this role.
+              This permanently removes the organization and its memberships.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

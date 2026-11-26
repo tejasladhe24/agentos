@@ -4,11 +4,11 @@ import {
   defaultEnabledById,
   readStoredActivity,
   restoreStoredActivity,
-  STUB_EXTENSION_CATALOG,
   useShellStore,
   writeStoredActivity,
   type UiContribution,
 } from '@agentos/core/shell/lib';
+import { STUB_EXTENSION_CATALOG } from './fixtures/stub-extension-catalog';
 
 const pageContributions: UiContribution[] = [
   { extensionId: 'crm', view: 'page', src: '/__agentos/ext/crm/page.html' },
@@ -55,7 +55,7 @@ function resetStore() {
     activeView: 'home',
     sidebarOpen: true,
     extensions: STUB_EXTENSION_CATALOG,
-    enabledById: defaultEnabledById(),
+    enabledById: defaultEnabledById(STUB_EXTENSION_CATALOG),
     desiredContributions: pageContributions,
     contributions: pageContributions,
     runtimeStatus: {},
@@ -143,7 +143,10 @@ describe('activity-bar-persistence', () => {
 
   test('restoreStoredActivity ignores disabled extension views', () => {
     useShellStore.setState({
-      enabledById: { ...defaultEnabledById(), crm: false },
+      enabledById: {
+        ...defaultEnabledById(STUB_EXTENSION_CATALOG),
+        crm: false,
+      },
       contributions: pageContributions.filter((c) => c.extensionId !== 'crm'),
     });
     writeStoredActivity({ view: 'crm' });

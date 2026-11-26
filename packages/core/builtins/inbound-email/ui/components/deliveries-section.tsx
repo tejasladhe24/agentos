@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  parseHostJson,
   extensionPath,
   useHostApi,
   useHostNotifications,
@@ -9,11 +10,7 @@ import { Button } from '@agentos/ui/components/button';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
 import { Separator } from '@agentos/ui/components/separator';
 
-import {
-  deliverySourceLabel,
-  parseErrorBody,
-  type DeliveryEntry,
-} from './email-types';
+import { deliverySourceLabel, type DeliveryEntry } from '../lib/email-types';
 
 function statusVariant(
   status: string,
@@ -34,33 +31,35 @@ export function DeliveriesSection() {
   async function refresh() {
     setBusy(true);
     setError(null);
-    const res = await api.fetch(
-      extensionPath('notifications', '/deliveries?channel=email&limit=50'),
+    const result = parseHostJson<{ notifications?: DeliveryEntry[] }>(
+      await api.fetch(
+        extensionPath('notifications', '/deliveries?channel=email&limit=50'),
+      ),
+      'Failed to load deliveries',
     );
     setBusy(false);
-    if (!res.ok) {
-      const message = parseErrorBody(res.body, 'Failed to load deliveries');
-      setError(message);
-      void notifications.show(message, 'error');
+    if (!result.ok) {
+      setError(result.error);
+      void notifications.show(result.error, 'error');
       setItems([]);
       return;
     }
-    const body = JSON.parse(res.body) as { notifications: DeliveryEntry[] };
-    setItems(body.notifications ?? []);
+    setItems(result.data.notifications ?? []);
   }
 
   async function openDelivery(id: string) {
-    const res = await api.fetch(
-      extensionPath('notifications', `/deliveries/${encodeURIComponent(id)}`),
+    const result = parseHostJson<{ notification: DeliveryEntry }>(
+      await api.fetch(
+        extensionPath('notifications', `/deliveries/${encodeURIComponent(id)}`),
+      ),
+      'Failed to load delivery',
     );
-    if (!res.ok) {
-      const message = parseErrorBody(res.body, 'Failed to load delivery');
-      setError(message);
-      void notifications.show(message, 'error');
+    if (!result.ok) {
+      setError(result.error);
+      void notifications.show(result.error, 'error');
       return;
     }
-    const body = JSON.parse(res.body) as { notification: DeliveryEntry };
-    setSelected(body.notification);
+    setSelected(result.data.notification);
   }
 
   useEffect(() => {

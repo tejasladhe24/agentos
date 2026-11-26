@@ -1,3 +1,4 @@
+import { parseErrorBody } from '@agentos/core/client/lib/host-json';
 import type { SecretListResult, SecretsHealth } from './types';
 
 export type HostApiFetch = (
@@ -9,16 +10,7 @@ export type HostApiFetch = (
   },
 ) => Promise<{ ok: boolean; status: number; body: string }>;
 
-export function parseErrorBody(body: string, fallback: string): string {
-  try {
-    const data = JSON.parse(body) as { error?: string; message?: string };
-    if (typeof data.error === 'string' && data.error) return data.error;
-    if (typeof data.message === 'string' && data.message) return data.message;
-  } catch {
-    // ignore
-  }
-  return body.trim() || fallback;
-}
+export { parseErrorBody };
 
 export async function fetchHealth(api: HostApiFetch): Promise<SecretsHealth> {
   const res = await api('/health');

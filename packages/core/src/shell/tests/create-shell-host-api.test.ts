@@ -3,13 +3,15 @@ import {
   createShellEventBus,
   createShellHostApi,
   defaultEnabledById,
-  defaultSkillsByExtension,
   resetShellHostApiStorage,
   shellEventBus,
   type EventDeclarations,
-  STUB_EXTENSION_CATALOG,
   useShellStore,
 } from '@agentos/core/shell/lib';
+import {
+  STUB_EXTENSION_CATALOG,
+  defaultSkillsByExtension,
+} from './fixtures/stub-extension-catalog';
 
 function resetStore() {
   useShellStore.setState({
@@ -20,7 +22,7 @@ function resetStore() {
     chatMessages: [],
     chatBusy: false,
     extensions: STUB_EXTENSION_CATALOG,
-    enabledById: defaultEnabledById(),
+    enabledById: defaultEnabledById(STUB_EXTENSION_CATALOG),
     desiredContributions: [],
     contributions: [],
     runtimeStatus: {},

@@ -5,8 +5,8 @@ import {
   EMAIL_SECTIONS,
   isEmailSection,
   parseEmailSection,
-} from '../ui/email-section';
-import { authenticationSummary, parseErrorBody } from '../ui/email-types';
+} from '../ui/lib/email-section';
+import { authenticationSummary, parseErrorBody } from '../ui/lib/email-types';
 
 describe('email manager UI helpers', () => {
   test('parses email sections', () => {

@@ -8,10 +8,11 @@ import type { HostAPIClient } from '@agentos/core/sdk';
 import FilesPage from '../ui/page';
 import FilesRightSidebar from '../ui/right-sidebar';
 import FilesSettings from '../ui/settings';
-import { FilesBrowser } from '../ui/files-browser';
-import type { FilesMount } from '../ui/files-types';
+import { FilesBrowser } from '../ui/components/files-browser';
+import type { FilesMount } from '../ui/lib/files-types';
 import { FilesSidebarNav } from '../ui/sidebar';
-import { ConnectedDrives, StorageBackends } from '../ui/storage-backends';
+import { ConnectedDrives } from '../ui/components/connected-drives';
+import { StorageBackends } from '../ui/components/storage-backends';
 
 const CAPS = {
   serverSideCopy: true,
@@ -563,7 +564,7 @@ describe('FilesSidebarNav', () => {
 
 describe('AddStorageDialog fields', () => {
   test('preset fields filter non-secret inputs; secrets always shown', async () => {
-    const { visibleFields } = await import('../ui/add-storage-dialog');
+    const { visibleFields } = await import('../ui/lib/add-storage-form');
     const provider = {
       id: 's3',
       label: 'S3',
@@ -588,7 +589,7 @@ describe('AddStorageDialog fields', () => {
 
 describe('resolveSelectedMount', () => {
   test('falls back to the org default mount when nothing is chosen', async () => {
-    const { resolveSelectedMount } = await import('../ui/files-types');
+    const { resolveSelectedMount } = await import('../ui/lib/files-types');
     const mounts = [
       { ...PLATFORM, isDefault: false },
       { ...ARCHIVE, isDefault: true },

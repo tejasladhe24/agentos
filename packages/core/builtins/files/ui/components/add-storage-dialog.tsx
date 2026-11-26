@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
+import {} from 'zod';
 import {
   isFieldInvalid,
   toFieldErrors,
@@ -30,77 +30,19 @@ import {
 import { Input } from '@agentos/ui/components/input';
 import { RadioGroup, RadioGroupItem } from '@agentos/ui/components/radio-group';
 
-import {
-  parseErrorBody,
-  type StorageProviderField,
-  type StorageProviderInfo,
-  type StorageProviderPreset,
-} from './files-types';
+import { parseErrorBody } from '../lib/files-types';
 import { MountIcon } from './mount-icon';
 
-type Step = 'provider' | 'form';
-
-type Choice = { provider: StorageProviderInfo; preset?: StorageProviderPreset };
-
-type TestState =
-  | { status: 'idle' }
-  | { status: 'running' }
-  | { status: 'ok' }
-  | { status: 'failed'; message: string };
-
-type AddStorageFormValues = {
-  name: string;
-  values: Record<string, string>;
-  makeDefault: boolean;
-};
-
-export type AddStorageDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  providers: StorageProviderInfo[];
-  onAdded: () => Promise<void> | void;
-};
-
-function choiceId(
-  provider: StorageProviderInfo,
-  preset?: StorageProviderPreset,
-) {
-  return preset ? `${provider.id}:${preset.id}` : provider.id;
-}
-
-/** Fields shown for a provider + preset (secrets always shown). */
-export function visibleFields(
-  provider: StorageProviderInfo,
-  preset?: StorageProviderPreset,
-): StorageProviderField[] {
-  const fields = provider.fields ?? [];
-  if (!preset?.fields) return fields;
-  const allowed = new Set(preset.fields);
-  return fields.filter((f) => f.type === 'secret' || allowed.has(f.id));
-}
-
-function createAddStorageSchema(
-  fields: StorageProviderField[],
-  required: Set<string>,
-) {
-  return z
-    .object({
-      name: z.string().trim().min(1, 'Name is required'),
-      values: z.record(z.string(), z.string()),
-      makeDefault: z.boolean(),
-    })
-    .superRefine((data, ctx) => {
-      for (const field of fields) {
-        if (required.has(field.id) && !(data.values[field.id] ?? '').trim()) {
-          ctx.addIssue({
-            code: 'custom',
-            message: `${field.label} is required`,
-            path: ['values', field.id],
-          });
-        }
-      }
-    });
-}
+import {
+  type AddStorageDialogProps,
+  choiceId,
+  createAddStorageSchema,
+  visibleFields,
+  type AddStorageFormValues,
+  type Choice,
+  type Step,
+  type TestState,
+} from '../lib/add-storage-form';
 
 /** Settings › Files › Add storage: pick provider / preset → form → test → add. */
 export function AddStorageDialog({

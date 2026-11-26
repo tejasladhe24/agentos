@@ -9,7 +9,7 @@ import { CloudArrowUpIcon } from '@phosphor-icons/react';
 import { Button } from '@agentos/ui/components/button';
 import { cn } from '@agentos/ui/lib/utils';
 
-import type { UploadProgressItem } from './files-types';
+import type { UploadProgressItem } from '../lib/files-types';
 
 export type FilesUploadZoneProps = {
   disabled?: boolean;
@@ -48,6 +48,8 @@ export function FilesUploadZone({
     [disabled, onUploadFiles],
   );
 
+  // agentos-allow-native: hidden <input type="file"> is the platform file
+  // picker; @agentos/ui has no equivalent control.
   const fileInput = (
     <input
       ref={inputRef}
