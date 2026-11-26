@@ -52,6 +52,10 @@ export function createStandaloneHost(): HostAPIClient {
       setRightSidebarOpen: async () => {},
       toggleRightSidebar: async () => false,
       isRightSidebarOpen: async () => false,
+      openRightSheet: async () => {},
+      closeRightSheet: async () => {},
+      toggleRightSheet: async () => null,
+      getActiveRightSheet: async () => null,
     },
   };
 }

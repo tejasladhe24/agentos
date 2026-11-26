@@ -57,6 +57,12 @@ export {
   RightSidebarSlot,
   type RightSidebarSlotProps,
 } from './ui-contribs/right-sidebar-slot';
+export {
+  resolveRightSheetState,
+  RightSheetSlot,
+  type RightSheetSlotProps,
+  type RightSheetState,
+} from './ui-contribs/right-sheet-slot';
 export { SidebarSlot } from './ui-contribs/sidebar-slot';
 export { StatusBar } from './ui-contribs/status-bar';
 export { TopBar } from './ui-contribs/top-bar';

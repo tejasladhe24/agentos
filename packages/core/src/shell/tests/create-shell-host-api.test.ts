@@ -254,4 +254,55 @@ describe('createShellHostApi notifications', () => {
     expect(await host.ui.toggleRightSidebar()).toBe(false);
     expect(useShellStore.getState().rightSidebarOpen).toBe(false);
   });
+
+  test('ui right sheet controls default to the calling extension', async () => {
+    useShellStore.setState({
+      activeRightSheet: null,
+      contributions: [
+        {
+          extensionId: 'notes',
+          view: 'right-sheet',
+          src: '/__agentos/ext/notes/right-sheet.html',
+        },
+        {
+          extensionId: 'reports',
+          view: 'right-sheet',
+          src: '/__agentos/ext/reports/right-sheet.html',
+        },
+      ],
+    });
+    const host = createShellHostApi('notes');
+
+    expect(await host.ui.getActiveRightSheet()).toBeNull();
+    await host.ui.openRightSheet();
+    expect(await host.ui.getActiveRightSheet()).toBe('notes');
+
+    await host.ui.closeRightSheet();
+    expect(await host.ui.getActiveRightSheet()).toBeNull();
+
+    expect(await host.ui.toggleRightSheet()).toBe('notes');
+    expect(await host.ui.toggleRightSheet()).toBeNull();
+  });
+
+  test('ui right sheet accepts an explicit extension id and ignores unknown ones', async () => {
+    useShellStore.setState({
+      activeRightSheet: null,
+      contributions: [
+        {
+          extensionId: 'reports',
+          view: 'right-sheet',
+          src: '/__agentos/ext/reports/right-sheet.html',
+        },
+      ],
+    });
+    const host = createShellHostApi('notes');
+
+    await host.ui.openRightSheet('reports');
+    expect(await host.ui.getActiveRightSheet()).toBe('reports');
+
+    await host.ui.openRightSheet('missing');
+    expect(await host.ui.getActiveRightSheet()).toBe('reports');
+
+    expect(await host.ui.toggleRightSheet('missing')).toBe('reports');
+  });
 });

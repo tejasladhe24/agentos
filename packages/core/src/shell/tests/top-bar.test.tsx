@@ -81,4 +81,61 @@ describe('TopBar', () => {
     );
     expect(open).toContain('Collapse right sidebar');
   });
+
+  test('renders one right-sheet trigger per enabled right-sheet contribution', () => {
+    const extensions = [
+      {
+        id: 'notes',
+        name: 'Notes',
+        kind: 'customer' as const,
+        toggleable: true,
+        driven: false,
+        icon: 'Users',
+        rightSheet: { label: 'Inbox', icon: 'Bell' },
+      },
+      {
+        id: 'reports',
+        name: 'Reports',
+        kind: 'customer' as const,
+        toggleable: true,
+        driven: false,
+      },
+    ];
+    const contributions = [
+      {
+        extensionId: 'notes',
+        view: 'right-sheet' as const,
+        src: '/__agentos/ext/notes/right-sheet.html',
+      },
+      {
+        extensionId: 'reports',
+        view: 'right-sheet' as const,
+        src: '/__agentos/ext/reports/right-sheet.html',
+      },
+    ];
+
+    const html = renderToStaticMarkup(
+      <TopBar
+        activeView="home"
+        activeRightSheet="notes"
+        contributions={contributions}
+        extensions={extensions}
+      />,
+    );
+    const triggers = html.match(/data-slot="topbar-right-sheet-toggle"/g) ?? [];
+    expect(triggers).toHaveLength(2);
+    expect(html).toMatch(
+      /data-extension-id="notes"[^>]*aria-label="Inbox"[^>]*aria-pressed="true"/,
+    );
+    expect(html).toMatch(
+      /data-extension-id="reports"[^>]*aria-label="Reports"[^>]*aria-pressed="false"/,
+    );
+  });
+
+  test('right-sheet triggers are hidden when no extension contributes one', () => {
+    const html = renderToStaticMarkup(
+      <TopBar activeView="home" activeRightSheet={null} contributions={[]} />,
+    );
+    expect(html).not.toContain('data-slot="topbar-right-sheet-toggle"');
+  });
 });

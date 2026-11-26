@@ -30,6 +30,7 @@ export function mapRegistry(registry: RegistryModel): AppliedRegistry {
       ...(ext.meta.icon ? { icon: ext.meta.icon } : {}),
       ...(activityBarSection !== 'primary' ? { activityBarSection } : {}),
       ...(ext.meta.settings?.length ? { settings: ext.meta.settings } : {}),
+      ...(ext.meta.rightSheet ? { rightSheet: ext.meta.rightSheet } : {}),
     };
   });
 
@@ -41,6 +42,7 @@ export function mapRegistry(registry: RegistryModel): AppliedRegistry {
       'page',
       'sidebar',
       'right-sidebar',
+      'right-sheet',
       'widget',
       'settings',
     ] as const) {

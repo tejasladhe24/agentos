@@ -79,6 +79,12 @@ export function hostApiFromRemote(
         (await ns('ui')).setRightSidebarOpen(open),
       toggleRightSidebar: async () => (await ns('ui')).toggleRightSidebar(),
       isRightSidebarOpen: async () => (await ns('ui')).isRightSidebarOpen(),
+      openRightSheet: async (extensionId) =>
+        (await ns('ui')).openRightSheet(extensionId),
+      closeRightSheet: async () => (await ns('ui')).closeRightSheet(),
+      toggleRightSheet: async (extensionId) =>
+        (await ns('ui')).toggleRightSheet(extensionId),
+      getActiveRightSheet: async () => (await ns('ui')).getActiveRightSheet(),
     },
   };
 }
@@ -140,6 +146,13 @@ function createLazyHostProxy(
         (await hostPromise).ui.toggleRightSidebar(),
       isRightSidebarOpen: async () =>
         (await hostPromise).ui.isRightSidebarOpen(),
+      openRightSheet: async (extensionId) =>
+        (await hostPromise).ui.openRightSheet(extensionId),
+      closeRightSheet: async () => (await hostPromise).ui.closeRightSheet(),
+      toggleRightSheet: async (extensionId) =>
+        (await hostPromise).ui.toggleRightSheet(extensionId),
+      getActiveRightSheet: async () =>
+        (await hostPromise).ui.getActiveRightSheet(),
     },
   };
 }

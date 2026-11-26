@@ -29,6 +29,7 @@ import { HomeDashboard } from '../home/home-dashboard';
 import { SettingsView } from '../settings/settings-view';
 import { HiddenSlot } from '../ui-contribs/hidden-slot';
 import { KeepAlive } from '../ui-contribs/keep-alive';
+import { RightSheetSlot } from '../ui-contribs/right-sheet-slot';
 import { RightSidebarSlot } from '../ui-contribs/right-sidebar-slot';
 import { SidebarSlot } from '../ui-contribs/sidebar-slot';
 import { StatusBar } from '../ui-contribs/status-bar';
@@ -263,6 +264,7 @@ export function ShellRoot({
           <StatusBar />
           <ChatPanel />
           <HiddenSlot />
+          <RightSheetSlot contributions={contributionsProp} />
           <CommandPalette />
         </div>
       </Toaster>

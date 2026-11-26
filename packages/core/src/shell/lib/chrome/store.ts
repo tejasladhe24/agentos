@@ -32,6 +32,24 @@ function filterContributions(
   return desired.filter((c) => enabledById[c.extensionId] !== false);
 }
 
+function hasRightSheetContribution(
+  contributions: UiContribution[],
+  extensionId: string,
+): boolean {
+  return contributions.some(
+    (c) => c.view === 'right-sheet' && c.extensionId === extensionId,
+  );
+}
+
+/** Close the global sheet when its extension is no longer mounted. */
+function sanitizeActiveRightSheet(
+  active: string | null,
+  contributions: UiContribution[],
+): string | null {
+  if (active === null) return null;
+  return hasRightSheetContribution(contributions, active) ? active : null;
+}
+
 function filterSkills(
   desired: Record<string, string[]>,
   enabledById: Record<string, boolean>,
@@ -58,6 +76,11 @@ export type ShellUiState = {
   sidebarPanel: SidebarPanel;
   /** Right sidebar open state (active-extension `ui/right-sidebar.tsx`). */
   rightSidebarOpen: boolean;
+  /**
+   * Extension id whose global `ui/right-sheet.tsx` is open, or `null` when
+   * closed. Store-driven only (not URL-backed).
+   */
+  activeRightSheet: string | null;
   chatOpen: boolean;
   chatMessages: ChatMessage[];
   chatBusy: boolean;
@@ -97,6 +120,11 @@ export type ShellUiState = {
   setSidebarPanel: (panel: SidebarPanel) => void;
   setRightSidebarOpen: (open: boolean) => void;
   toggleRightSidebar: () => void;
+  /** No-op unless `extensionId` has an enabled `ui/right-sheet` contribution. */
+  openRightSheet: (extensionId: string) => void;
+  closeRightSheet: () => void;
+  /** Open `extensionId`'s sheet, or close it when it is already the active sheet. */
+  toggleRightSheet: (extensionId: string) => void;
   setChatOpen: (open: boolean) => void;
   toggleChat: () => void;
   appendChatMessage: (message: ChatMessage) => void;
@@ -127,6 +155,7 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
   sidebarOpen: true,
   sidebarPanel: 'contribution',
   rightSidebarOpen: false,
+  activeRightSheet: null,
   chatOpen: false,
   chatMessages: [],
   chatBusy: false,
@@ -157,6 +186,22 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
   setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),
   toggleRightSidebar: () =>
     set((s) => ({ rightSidebarOpen: !s.rightSidebarOpen })),
+  openRightSheet: (extensionId) => {
+    if (!hasRightSheetContribution(get().contributions, extensionId)) return;
+    if (get().activeRightSheet === extensionId) return;
+    set({ activeRightSheet: extensionId });
+  },
+  closeRightSheet: () => {
+    if (get().activeRightSheet === null) return;
+    set({ activeRightSheet: null });
+  },
+  toggleRightSheet: (extensionId) => {
+    if (get().activeRightSheet === extensionId) {
+      get().closeRightSheet();
+      return;
+    }
+    get().openRightSheet(extensionId);
+  },
   setChatOpen: (open) => set({ chatOpen: open }),
   toggleChat: () => set((s) => ({ chatOpen: !s.chatOpen })),
   appendChatMessage: (message) =>
@@ -186,10 +231,20 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
       };
     }),
   setContributions: (desiredContributions) =>
-    set((s) => ({
-      desiredContributions,
-      contributions: filterContributions(desiredContributions, s.enabledById),
-    })),
+    set((s) => {
+      const contributions = filterContributions(
+        desiredContributions,
+        s.enabledById,
+      );
+      return {
+        desiredContributions,
+        contributions,
+        activeRightSheet: sanitizeActiveRightSheet(
+          s.activeRightSheet,
+          contributions,
+        ),
+      };
+    }),
   setDesiredSkills: (desiredSkillsByExtension) =>
     set((s) => ({
       desiredSkillsByExtension,
@@ -246,6 +301,10 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
           }
         }
       }
+      const contributions = filterContributions(
+        s.desiredContributions,
+        enabledById,
+      );
       return {
         enabledById,
         skillsByExtension: filterSkills(
@@ -253,7 +312,11 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
           enabledById,
         ),
         runtimeStatus,
-        contributions: filterContributions(s.desiredContributions, enabledById),
+        contributions,
+        activeRightSheet: sanitizeActiveRightSheet(
+          s.activeRightSheet,
+          contributions,
+        ),
       };
     });
 
@@ -277,6 +340,10 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
           }
         }
       }
+      const contributions = filterContributions(
+        s.desiredContributions,
+        enabledById,
+      );
       return {
         enabledById,
         runtimeStatus,
@@ -284,7 +351,11 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
           s.desiredSkillsByExtension,
           enabledById,
         ),
-        contributions: filterContributions(s.desiredContributions, enabledById),
+        contributions,
+        activeRightSheet: sanitizeActiveRightSheet(
+          s.activeRightSheet,
+          contributions,
+        ),
       };
     });
   },

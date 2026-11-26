@@ -226,6 +226,18 @@ export function createShellHostApi(extensionId: string): HostAPI {
         return useShellStore.getState().rightSidebarOpen;
       },
       isRightSidebarOpen: async () => useShellStore.getState().rightSidebarOpen,
+      openRightSheet: async (targetId) => {
+        useShellStore.getState().openRightSheet(targetId ?? extensionId);
+      },
+      closeRightSheet: async () => {
+        useShellStore.getState().closeRightSheet();
+      },
+      toggleRightSheet: async (targetId) => {
+        useShellStore.getState().toggleRightSheet(targetId ?? extensionId);
+        return useShellStore.getState().activeRightSheet;
+      },
+      getActiveRightSheet: async () =>
+        useShellStore.getState().activeRightSheet,
     },
   };
 }
