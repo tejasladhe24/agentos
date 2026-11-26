@@ -543,6 +543,7 @@ describe('events publish and job policy', () => {
     const { deps } = makeDeps();
     for (const topic of [
       'hitl.resolved',
+      'hitl.requested',
       'email.received',
       'secrets.user_purged',
       'integration.changed',

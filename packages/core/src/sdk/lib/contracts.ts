@@ -33,6 +33,13 @@ export type StorageValue = JsonValue;
 export type EventPayload = JsonValue;
 
 /**
+ * Host-originated event the Shell sends every frame when the app theme
+ * changes (payload `{ theme }`). Frames load with `?theme=` once and then
+ * follow this event, so toggling the theme never reloads an iframe.
+ */
+export const HOST_THEME_TOPIC = 'shell.theme.changed';
+
+/**
  * HITL approval metadata bag.
  * Stub: free-form JSON until hitl builtin locks fields (assignee, severity, …).
  */

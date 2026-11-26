@@ -16,14 +16,16 @@ import {
   sendNotification,
   setEmailPreferences,
 } from './platform-capabilities';
-import { shellEventBus } from './shell-event-bus';
+import { waitForApproval } from './hitl-wait';
+import { ensureEventsBridge, shellEventBus } from './shell-event-bus';
 import { useShellStore } from './store';
 
-/** In-memory storage shared across HostAPI instances (keyed by extension). */
+/**
+ * In-memory, session-only storage shared across HostAPI instances (keyed by
+ * extension). Deliberately not `localStorage`: no org/user key is available to
+ * scope it, so persisting could leak between users of one device.
+ */
 const storageByExtension = new Map<string, Map<string, StorageValue>>();
-
-const HITL_POLL_MS = 250;
-const HITL_POLL_MAX_MS = 5 * 60 * 1000;
 
 function storageFor(extensionId: string): Map<string, StorageValue> {
   let store = storageByExtension.get(extensionId);
@@ -94,28 +96,31 @@ async function requestHitlApproval(
   showNotification(`Approval needed: ${input.title}`, 'info');
   useShellStore.getState().setActiveView('hitl');
 
-  const deadline = Date.now() + HITL_POLL_MAX_MS;
-  while (Date.now() < deadline) {
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, HITL_POLL_MS);
-    });
-    const allRes = await fetch('/api/ext/hitl/approvals', {
-      credentials: 'include',
-    });
-    if (!allRes.ok) continue;
-    const body = (await allRes.json()) as {
-      approvals?: Array<{ id: string; status: string }>;
-    };
-    const found = body.approvals?.find((a) => a.id === id);
-    if (!found) continue;
-    if (found.status === 'approved') {
-      return { approved: true, id };
-    }
-    if (found.status === 'rejected') {
-      return { approved: false, id };
-    }
-  }
-  throw new Error(`HITL approval timed out for ${id}`);
+  ensureEventsBridge();
+  return waitForApproval(id, {
+    fetchStatus: async (approvalId) => {
+      const res = await fetch(
+        `/api/ext/hitl/approvals/${encodeURIComponent(approvalId)}`,
+        { credentials: 'include' },
+      );
+      if (!res.ok) return null;
+      const body = (await res.json()) as { status?: string };
+      return body.status === 'approved' ||
+        body.status === 'rejected' ||
+        body.status === 'pending'
+        ? body.status
+        : null;
+    },
+    listenResolved: (onResolved) =>
+      shellEventBus.listen(['hitl.resolved'], (_topic, payload) => {
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+          const { approvalId, decision } = payload as Record<string, unknown>;
+          if (typeof approvalId === 'string' && typeof decision === 'string') {
+            onResolved({ approvalId, decision });
+          }
+        }
+      }),
+  });
 }
 
 /** Only absolute http(s) URLs leave the sandbox (no `javascript:` / `data:`). */

@@ -5,47 +5,18 @@ import {
   type ReactNode,
 } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import {
-  AGENTOS_THEMES,
-  type AgentosTheme,
-} from '@agentos/ui/components/theme-provider';
+import type { AgentosTheme } from '@agentos/ui/components/theme-provider';
 import type { HostAPIClient } from '@agentos/core/sdk';
 import { HostProvider } from '@agentos/core/client/components/host-provider';
+import {
+  applyDocumentTheme,
+  markExtensionDocument,
+  resolveThemeFromSearch,
+} from './document-theme';
 import { createStandaloneHost, isShellIframe } from './standalone-host';
+
+export { applyDocumentTheme, markExtensionDocument, resolveThemeFromSearch };
 import '@agentos/ui/globals.css';
-
-const THEME_SET = new Set<string>(AGENTOS_THEMES);
-
-/** Resolve `?theme=` from a search string; defaults to `dark`. */
-export function resolveThemeFromSearch(
-  search: string = typeof window !== 'undefined' ? window.location.search : '',
-): AgentosTheme {
-  const raw = new URLSearchParams(
-    search.startsWith('?') ? search : `?${search}`,
-  ).get('theme');
-  if (raw && THEME_SET.has(raw)) {
-    return raw as AgentosTheme;
-  }
-  return 'dark';
-}
-
-/** Mark the document as an extension iframe so globals allow body scroll. */
-export function markExtensionDocument(): void {
-  if (typeof document === 'undefined') return;
-  document.documentElement.dataset.agentosExt = '';
-}
-
-/** Apply theme class on `<html>` (FOUC already handled in HTML shell). */
-export function applyDocumentTheme(theme: AgentosTheme): void {
-  if (typeof document === 'undefined') return;
-  const root = document.documentElement;
-  markExtensionDocument();
-  for (const name of AGENTOS_THEMES) {
-    root.classList.remove(name);
-  }
-  root.classList.add(theme);
-  root.style.colorScheme = theme;
-}
 
 export type ExtensionViewAppProps = {
   View: ComponentType;

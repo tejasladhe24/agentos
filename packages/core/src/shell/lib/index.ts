@@ -65,7 +65,12 @@ export {
   type ActivityBarSections,
 } from './chrome/build-activity-bar-items';
 export {
+  pushThemeToFrame,
+  type ThemeEventRemote,
+} from './ui-contribs/push-theme';
+export {
   contributionKey,
+  filterContributions,
   type ContributionRuntimeStatus,
   type ExtensionView,
   type UiContribution,
@@ -109,6 +114,13 @@ export {
   type EventsBridge,
   type EventsBridgeOptions,
 } from './chrome/events-bridge';
+export {
+  HITL_FALLBACK_POLL_MS,
+  HITL_WAIT_TIMEOUT_MS,
+  waitForApproval,
+  type ApprovalStatus,
+  type WaitForApprovalDeps,
+} from './chrome/hitl-wait';
 export {
   disposeEventsBridge,
   ensureEventsBridge,

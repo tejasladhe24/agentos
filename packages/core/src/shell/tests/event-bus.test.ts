@@ -189,4 +189,25 @@ describe('shell event bus', () => {
     bus.subscribe('f3', 'viewer', ['email.received']);
     expect(changes).toEqual([true, false]);
   });
+
+  test('listen: Shell-internal subscription needs no declaration and unsubscribes cleanly', () => {
+    const { bus } = setup();
+    const seen: Array<[string, unknown]> = [];
+    const changes: boolean[] = [];
+    bus.onActiveChange((active) => changes.push(active));
+
+    const stop = bus.listen(['hitl.resolved'], (topic, payload) => {
+      seen.push([topic, payload]);
+    });
+    expect(bus.active).toBe(true);
+    expect(bus.emit('hitl.resolved', { approvalId: 'a' })).toBe(1);
+    expect(bus.emit('other.topic', {})).toBe(0);
+    expect(seen).toEqual([['hitl.resolved', { approvalId: 'a' }]]);
+
+    stop();
+    stop(); // idempotent
+    expect(bus.active).toBe(false);
+    expect(bus.emit('hitl.resolved', {})).toBe(0);
+    expect(changes).toEqual([true, false]);
+  });
 });

@@ -5,6 +5,7 @@ import { createApprovalsStore } from './lib/approvals-store';
 import { HITL_PORT } from './lib/constants';
 import { createDbStoreClient } from './lib/db-store-client';
 import { handleHitlRequest } from './lib/handle-request';
+import { resolveSessionOrgId } from './lib/resolve-org';
 
 const env = keys();
 
@@ -19,8 +20,12 @@ const server = Bun.serve({
   port,
   async fetch(request) {
     return handleHitlRequest(store, request, {
-      publishResolved: async (payload) => {
-        await publish('hitl.resolved', payload);
+      resolveOrgId: (req) => resolveSessionOrgId(req),
+      publishResolved: async (payload, orgId) => {
+        await publish('hitl.resolved', payload, undefined, { orgId });
+      },
+      publishRequested: async (payload, orgId) => {
+        await publish('hitl.requested', payload, undefined, { orgId });
       },
     });
   },

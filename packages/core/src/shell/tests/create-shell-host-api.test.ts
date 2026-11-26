@@ -5,6 +5,7 @@ import {
   defaultEnabledById,
   defaultSkillsByExtension,
   resetShellHostApiStorage,
+  shellEventBus,
   type EventDeclarations,
   STUB_EXTENSION_CATALOG,
   useShellStore,
@@ -354,25 +355,25 @@ describe('createShellHostApi notifications', () => {
   test('hitl.requestApproval creates, opens inbox, and returns on resolve', async () => {
     const originalFetch = globalThis.fetch;
     let status: 'pending' | 'approved' = 'pending';
+    let listCalls = 0;
     globalThis.fetch = (async (
       input: RequestInfo | URL,
       init?: RequestInit,
     ) => {
       const url = String(input);
+      if (url === '/api/ext/hitl/approvals' && !init?.method) listCalls += 1;
       if (url === '/api/ext/hitl/approvals' && init?.method === 'POST') {
         return new Response(
           JSON.stringify({ id: 'a1', status: 'pending', title: 'Pay' }),
           { status: 201, headers: { 'content-type': 'application/json' } },
         );
       }
-      if (url === '/api/ext/hitl/approvals') {
+      if (url === '/api/ext/hitl/approvals/a1') {
+        // Single-record lookups only; the list endpoint must never be polled.
         const current = status;
-        // Flip after first poll so the HostAPI loop completes.
         status = 'approved';
         return new Response(
-          JSON.stringify({
-            approvals: [{ id: 'a1', status: current, title: 'Pay' }],
-          }),
+          JSON.stringify({ id: 'a1', status: current, title: 'Pay' }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
@@ -385,8 +386,14 @@ describe('createShellHostApi notifications', () => {
       // Allow create + navigation to `/ext/hitl` to settle before asserting.
       await new Promise((r) => setTimeout(r, 0));
       expect(useShellStore.getState().activeView).toBe('hitl');
+      // Resolved by the `hitl.resolved` server event, not by polling.
+      shellEventBus.emit('hitl.resolved', {
+        approvalId: 'a1',
+        decision: 'approved',
+      });
       const result = await resultPromise;
       expect(result).toEqual({ approved: true, id: 'a1' });
+      expect(listCalls).toBe(0);
     } finally {
       globalThis.fetch = originalFetch;
     }

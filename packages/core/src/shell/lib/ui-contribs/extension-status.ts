@@ -17,6 +17,8 @@ export function shouldShowExtensionFrameLoading(
 
 /**
  * Derive Extension Manager row status from enable flag + mounted frame statuses.
+ * Frames are lazy (ticket 145): a frame with no status has not mounted yet, so
+ * it is idle, not loading.
  */
 export function deriveExtensionManagerStatus(
   extensionId: string,
@@ -34,7 +36,7 @@ export function deriveExtensionManagerStatus(
     const status =
       runtimeStatus[contributionKey(frame.extensionId, frame.view)];
     if (status === 'crashed') return 'crashed';
-    if (status === 'loading' || status === undefined) anyLoading = true;
+    if (status === 'loading') anyLoading = true;
   }
   return anyLoading ? 'loading' : 'active';
 }

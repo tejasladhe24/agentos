@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useExtensionHost } from '@agentos/core/shell/hooks';
 import {
   contributionKey,
@@ -31,9 +31,23 @@ export type ExtensionFrameProps = {
 
 /**
  * Sandboxed extension iframe with Comlink host lifecycle (ADR 005).
+ *
+ * Lazy: nothing mounts (no `src` request, no handshake) until the frame is
+ * first visible. After that it stays mounted when parked, so switching views
+ * never remounts it (ticket 102).
+ */
+export function ExtensionFrame(props: ExtensionFrameProps) {
+  const visible = props.visible ?? true;
+  const [everVisible, setEverVisible] = useState(visible);
+  if (visible && !everVisible) setEverVisible(true);
+  if (!everVisible) return null;
+  return <MountedExtensionFrame {...props} />;
+}
+
+/**
  * Shows an in-canvas LoadingState while runtime status is loading / unset.
  */
-export function ExtensionFrame({
+function MountedExtensionFrame({
   contribution,
   visible = true,
   handshakeTimeoutMs,
@@ -44,12 +58,16 @@ export function ExtensionFrame({
   const { extensionId, view, src } = contribution;
   const { resolvedTheme } = useTheme();
   const theme = themeProp ?? resolvedTheme ?? 'dark';
-  const themedSrc = withThemeQuery(src, theme);
+  // `?theme=` only seeds the first load; later changes are pushed to the live
+  // frame as `shell.theme.changed`, so the src (and the iframe) stays put.
+  const [initialTheme] = useState(theme);
+  const themedSrc = withThemeQuery(src, initialTheme);
   const iframeRef = useExtensionHost(
     { ...contribution, src: themedSrc },
     {
       handshakeTimeoutMs,
       rpcTimeoutMs,
+      theme,
     },
   );
   const runtimeStatus = useShellStore(

@@ -69,6 +69,14 @@ export interface EmailPreferences {
  * Nested namespaces must be wrapped with `Comlink.proxy` on the host.
  */
 export interface HostAPI {
+  /**
+   * Per-extension key/value storage shared by every frame of the extension.
+   * **Session-only**: it lives in the Shell's memory and is cleared on reload
+   * or sign-out. The Shell has no org/user scope to key durable browser
+   * storage by, so persisting here could leak values between users of one
+   * device. Use the extension's own API (db-store) for anything that must
+   * survive a reload.
+   */
   storage: {
     get<T extends StorageValue>(key: string): Promise<T | null>;
     set<T extends StorageValue>(key: string, value: T): Promise<void>;

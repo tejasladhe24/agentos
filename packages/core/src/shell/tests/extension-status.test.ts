@@ -42,19 +42,24 @@ describe('deriveExtensionManagerStatus', () => {
     ).toBe('crashed');
   });
 
-  test('loading if any frame loading or missing status', () => {
+  test('loading if any mounted frame is loading', () => {
     expect(
       deriveExtensionManagerStatus('crm', true, contributions, {
         [contributionKey('crm', 'page')]: 'loading',
         [contributionKey('crm', 'sidebar')]: 'active',
       }),
     ).toBe('loading');
+  });
 
+  test('frames that never mounted (lazy, no status yet) are idle, not loading', () => {
     expect(
       deriveExtensionManagerStatus('crm', true, contributions, {
         [contributionKey('crm', 'page')]: 'active',
       }),
-    ).toBe('loading');
+    ).toBe('active');
+    expect(deriveExtensionManagerStatus('crm', true, contributions, {})).toBe(
+      'active',
+    );
   });
 
   test('active when all frames active', () => {

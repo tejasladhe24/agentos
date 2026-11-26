@@ -64,7 +64,7 @@ Builtin **`events`** writes every `POST /publish` to platform collection `events
 | `DELETE` | `/api/ext/events/jobs/:id`    | Delete job                                                          |
 | `POST`   | `/api/ext/events/jobs/tick`   | Run due jobs once (also on an internal timer)                       |
 
-**Cron expr:** `@every 30s` / `@every 5m` / `@every 1h`, or standard 5-field UTC cron. **Poison messages:** after `AGENT_OS_EXT_EVENTS_MAX_ATTEMPTS` (default 5) nacks, status becomes `dead` — inspect via claim/list tooling or db-store; replay is a manual re-publish for now. HITL approve/reject publishes topic **`hitl.resolved`** with `{ approvalId, decision, title, resolvedAt }`.
+**Cron expr:** `@every 30s` / `@every 5m` / `@every 1h`, or standard 5-field UTC cron. **Poison messages:** after `AGENT_OS_EXT_EVENTS_MAX_ATTEMPTS` (default 5) nacks, status becomes `dead` — inspect via claim/list tooling or db-store; replay is a manual re-publish for now. HITL approve/reject publishes topic **`hitl.resolved`** with `{ approvalId, decision, title, resolvedAt }`, and creating an approval publishes **`hitl.requested`** with `{ approvalId, title }`. Both are scoped to the actor's org when the request carries a session cookie; otherwise they stay platform-scoped. `GET /api/ext/hitl/approvals/:id` returns one approval.
 
 | Variable                                      | Role                                      |
 | --------------------------------------------- | ----------------------------------------- |
@@ -85,7 +85,7 @@ Every route except `GET /health` authenticates the caller; an unauthenticated re
 
 - **Where the token comes from:** the CLI generates a random per-stack token in `builtinApiEnv` unless `AGENT_OS_EVENTS_SERVICE_TOKEN` is already set (set it explicitly when builtins run as separate deployments). Browsers never see it. The shared TS client (`@agentos/core/api/events`) and the Python client (`agentos.events`) attach it automatically, so builtins call `publish`, `claim`, `ack`, `nack` and the job helpers unchanged.
 - **Org scope:** each outbox record, job, and SSE subscriber carries an `orgId` (`__platform__` for platform signals such as `hitl.resolved`). A session subscriber only receives events published in its org; platform-scoped events never reach sessions. A service subscriber with no org header sees every org. Jobs are listed and deleted only within the caller's org; an out-of-scope job id reads as `404`.
-- **Topics:** must match `^[a-z0-9][a-z0-9._-]*$` (max 128). Server-only topics (`hitl.resolved`, `email.received`, `secrets.user_purged`, `integration.changed`) can be published only by the service principal, so an extension UI cannot forge platform signals.
+- **Topics:** must match `^[a-z0-9][a-z0-9._-]*$` (max 128). Server-only topics (`hitl.resolved`, `hitl.requested`, `email.received`, `secrets.user_purged`, `integration.changed`) can be published only by the service principal, so an extension UI cannot forge platform signals.
 - **HTTP jobs:** `action: "http"` is service-only. Targets must be `http(s)` without embedded credentials and may not point at cloud metadata or link-local addresses (`169.254.*`, `fe80:`, `metadata.google.internal`, `fd00:ec2::254`). The scheduler re-validates the URL at run time. Loopback stays allowed because builtins are loopback peers.
 
 ## Notifications delivery env

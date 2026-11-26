@@ -42,3 +42,15 @@ export function contributionKey(
 ): string {
   return `${extensionId}:${view}`;
 }
+
+/**
+ * Contributions of one view kind. Returns the input array itself when no view
+ * is given so callers keep a stable reference for unchanged inputs.
+ */
+export function filterContributions(
+  contributions: UiContribution[],
+  view?: ExtensionView,
+): UiContribution[] {
+  if (!view) return contributions;
+  return contributions.filter((c) => c.view === view);
+}

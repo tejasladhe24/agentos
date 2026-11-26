@@ -30,13 +30,12 @@ describe('SidebarSlot contextual sidebar', () => {
       <SidebarSlot sidebarOpen activeView="crm" contributions={sidebars} />,
     );
     expect(onCrm).toContain('data-extension-id="crm"');
-    expect(onCrm).toContain('data-extension-id="demo"');
+    // Frames are lazy (ticket 145): the inactive sidebar has no iframe yet.
+    expect(onCrm).not.toContain('data-extension-id="demo"');
     expect(onCrm).toMatch(
       /data-sidebar-active="true"[\s\S]*data-extension-id="crm"/,
     );
-    expect(onCrm).toMatch(
-      /data-sidebar-active="false"[\s\S]*data-extension-id="demo"/,
-    );
+    expect(onCrm).toContain('data-sidebar-active="false"');
 
     const onDemo = renderToStaticMarkup(
       <SidebarSlot sidebarOpen activeView="demo" contributions={sidebars} />,
@@ -44,9 +43,7 @@ describe('SidebarSlot contextual sidebar', () => {
     expect(onDemo).toMatch(
       /data-sidebar-active="true"[\s\S]*data-extension-id="demo"/,
     );
-    expect(onDemo).toMatch(
-      /data-sidebar-active="false"[\s\S]*data-extension-id="crm"/,
-    );
+    expect(onDemo).not.toContain('data-extension-id="crm"');
   });
 
   test('home with sidebars present shows no active contribution', () => {
@@ -106,7 +103,7 @@ describe('SidebarSlot contextual sidebar', () => {
     }
   });
 
-  test('extension sidebars stay mounted (hidden) on a full-page Shell view', () => {
+  test('extension sidebars are not mounted (lazy) on a full-page Shell view', () => {
     const html = renderToStaticMarkup(
       <SidebarSlot
         sidebarOpen
@@ -114,8 +111,7 @@ describe('SidebarSlot contextual sidebar', () => {
         contributions={sidebars}
       />,
     );
-    expect(html).toContain('data-extension-id="crm"');
-    expect(html).toContain('data-extension-id="demo"');
+    expect(html).not.toContain('<iframe');
     expect(html).not.toContain('data-sidebar-active="true"');
   });
 });

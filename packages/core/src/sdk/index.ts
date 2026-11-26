@@ -1,6 +1,7 @@
 /** @agentos/core/sdk — low-level Comlink (dual MessageChannel, ADR 005). */
 
 export {
+  HOST_THEME_TOPIC,
   fromDomMessageEvent,
   isPlainObject,
   toError,
