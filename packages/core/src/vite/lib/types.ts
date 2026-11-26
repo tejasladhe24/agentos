@@ -73,6 +73,8 @@ export type ExtensionSettingsEntryMeta = {
   hint?: string;
   /** Optional extra search keywords. */
   keywords?: string[];
+  /** Hidden from Settings search for non-admins (`admin` / `owner` only). */
+  adminOnly?: boolean;
 };
 
 /** One settings sidebar entry declared in `meta.json` `settings`. */
@@ -91,6 +93,8 @@ export type ExtensionSettingsSectionMeta = {
   keywords?: string[];
   /** Individual settings inside this section, searchable from the sidebar. */
   entries?: ExtensionSettingsEntryMeta[];
+  /** Whole section hidden from the Settings sidebar for non-admins. */
+  adminOnly?: boolean;
 };
 
 /** One public SPA UI entry from `meta.json` `public.ui`. */

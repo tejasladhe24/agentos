@@ -14,6 +14,7 @@ import { notificationIntegrationDefinitions } from './lib/integrations';
 import { createNotifyStore } from './lib/notify-store';
 import { createProviders } from './lib/providers/create-providers';
 import { createDbUserEmailPrefsStore } from './lib/user-email-prefs';
+import { createDbUserSmsPrefsStore } from './lib/user-sms-prefs';
 
 const env = keys();
 
@@ -25,6 +26,7 @@ const dbBaseUrl = `http://${dbHost}:${dbPort}`;
 const db = createDbStoreClient(dbBaseUrl);
 const store = createNotifyStore(db);
 const userPrefs = createDbUserEmailPrefsStore(dbBaseUrl);
+const userSmsPrefs = createDbUserSmsPrefsStore(dbBaseUrl);
 const providers = createProviders({
   emailProvider: env.AGENT_OS_EXT_NOTIFICATIONS_EMAIL_PROVIDER,
   emailApiKey: env.AGENT_OS_EXT_NOTIFICATIONS_EMAIL_API_KEY,
@@ -46,6 +48,7 @@ watchIntegrationChanges(integrations);
 const options = {
   integrations,
   userPrefs,
+  userSmsPrefs,
   integrationRoutes: {
     kit: integrations,
     definitions: notificationIntegrationDefinitions({ platform: providers }),

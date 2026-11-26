@@ -121,6 +121,71 @@ describe('buildSettingsItems', () => {
     expect(items.map((i) => i.key)).toEqual(['files:files']);
   });
 
+  test('hides adminOnly sections and entries from non-admins', () => {
+    const gated: ExtensionEntry[] = [
+      {
+        id: 'ai',
+        name: 'AI',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        settings: [
+          { id: 'ai', label: 'AI', group: 'Workspace', adminOnly: true },
+        ],
+      },
+      {
+        id: 'notifications',
+        name: 'Notifications',
+        kind: 'builtin',
+        toggleable: false,
+        driven: true,
+        settings: [
+          {
+            id: 'sms',
+            label: 'SMS',
+            group: 'Integrations',
+            entries: [
+              { id: 'sms-from', label: 'Your sender number' },
+              { id: 'sms-provider', label: 'SMS provider', adminOnly: true },
+            ],
+          },
+        ],
+      },
+    ];
+    const gatedContributions: UiContribution[] = [
+      { extensionId: 'ai', view: 'settings', src: '/__agentos/ext/ai/s.html' },
+      {
+        extensionId: 'notifications',
+        view: 'settings',
+        src: '/__agentos/ext/notifications/s.html',
+      },
+    ];
+
+    const admin = buildSettingsItems({
+      extensions: gated,
+      contributions: gatedContributions,
+      isAdmin: true,
+    });
+    expect(admin.map((i) => i.key)).toEqual(['ai:ai', 'notifications:sms']);
+    expect(admin[1]?.entries.map((e) => e.id)).toEqual([
+      'sms-from',
+      'sms-provider',
+    ]);
+
+    const member = buildSettingsItems({
+      extensions: gated,
+      contributions: gatedContributions,
+      isAdmin: false,
+    });
+    expect(member.map((i) => i.key)).toEqual(['notifications:sms']);
+    expect(member[0]?.entries.map((e) => e.id)).toEqual(['sms-from']);
+    expect(
+      searchSettings(member, 'SMS provider').some(
+        (r) => r.entry?.id === 'sms-provider',
+      ),
+    ).toBe(false);
+  });
+
   test('filters and groups items cleanly', () => {
     const items = buildSettingsItems({ extensions, contributions });
     const filtered = filterSettingsItems(items, 'password');

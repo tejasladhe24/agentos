@@ -1,20 +1,68 @@
-import { useSettingsTarget } from '@agentos/core/client';
-import { IntegrationSection } from '@agentos/core/client/components/integration-section';
-import { FieldGroup } from '@agentos/ui/components/field';
+import { useEffect, useState } from 'react';
+import { useHostApi, useSettingsTarget } from '@agentos/core/client';
+import {
+  IntegrationSection,
+  type IntegrationSectionData,
+} from '@agentos/core/client/components/integration-section';
+import { FieldGroup, FieldSeparator } from '@agentos/ui/components/field';
+
+import { SmsDefaultNumberField } from './sms-number-select';
+import { UserSmsFromCard } from './user-sms-from-card';
+import { useSmsNumbers } from './use-sms-numbers';
+
+const SMS_INTEGRATION_PATH = '/integrations/sms';
 
 /**
- * Notifications Settings — SMS provider (BYOK) section. Mounted by the Shell
- * Settings host for section `sms`.
+ * Notifications Settings — personal SMS sender number for every member; the
+ * org's Twilio credentials (BYOK) is shown only to admins (`canManage`). Mounted by
+ * the Shell Settings host for section `sms`.
  */
 export default function NotificationsSettings() {
   useSettingsTarget();
+  const api = useHostApi();
+  const numbers = useSmsNumbers();
+  const [canManage, setCanManage] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function checkAccess() {
+      const res = await api.fetch(SMS_INTEGRATION_PATH);
+      if (cancelled || !res.ok) return;
+      try {
+        const data = JSON.parse(res.body) as Partial<IntegrationSectionData>;
+        setCanManage(data.canManage === true);
+      } catch {
+        setCanManage(false);
+      }
+    }
+    void checkAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
   return (
     <div
       className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
       data-slot="settings-sms"
     >
       <FieldGroup className="gap-8">
-        <IntegrationSection integration="sms" entryId="sms-provider" />
+        <UserSmsFromCard entryId="sms-from" numbers={numbers} />
+        {canManage ? (
+          <>
+            <FieldSeparator />
+            <IntegrationSection
+              integration="sms"
+              entryId="sms-provider"
+              onSaved={() => void numbers.reload()}
+              renderSetting={(input) =>
+                input.field.name === 'from' ? (
+                  <SmsDefaultNumberField input={input} state={numbers} />
+                ) : undefined
+              }
+            />
+          </>
+        ) : null}
       </FieldGroup>
     </div>
   );

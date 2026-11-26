@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import {
   buildSettingsItems,
+  isAdminRoles,
   resolveActiveSettingsItem,
   useShellStore,
   writeStoredSettingsKey,
@@ -49,9 +50,12 @@ export function useSettingsItems(
     view: 'settings',
   });
 
+  const sessionRoles = useShellStore((s) => s.sessionRoles);
+  const isAdmin = isAdminRoles(sessionRoles);
+
   const items = useMemo(
-    () => buildSettingsItems({ extensions, contributions }),
-    [extensions, contributions],
+    () => buildSettingsItems({ extensions, contributions, isAdmin }),
+    [extensions, contributions, isAdmin],
   );
 
   const activeItem = useMemo(

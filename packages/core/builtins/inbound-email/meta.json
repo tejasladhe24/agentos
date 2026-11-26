@@ -40,11 +40,13 @@
         {
           "id": "email-sending",
           "label": "Email sending",
+          "adminOnly": true,
           "hint": "resend cloudflare api key token from address domain own account byok test connection"
         },
         {
           "id": "email-receiving",
           "label": "Email receiving",
+          "adminOnly": true,
           "hint": "inbound receive resend webhook signing secret mx domain own account byok"
         }
       ]

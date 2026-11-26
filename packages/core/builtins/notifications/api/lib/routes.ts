@@ -12,7 +12,12 @@ import {
 } from './http';
 import type { IntegrationsKit } from '@agentos/core/api/integrations';
 
-import { EMAIL_SEND_INTEGRATION, resolveChannelProvider } from './integrations';
+import {
+  E164_PATTERN,
+  EMAIL_SEND_INTEGRATION,
+  resolveChannelProvider,
+  SMS_INTEGRATION,
+} from './integrations';
 import type { NotificationProviders } from './providers/create-providers';
 import type {
   DeliveryChannel,
@@ -25,6 +30,7 @@ import {
 } from './resolve-org';
 import { renderNotificationContent } from './templates/render';
 import type { UserEmailPrefsStore } from './user-email-prefs';
+import type { UserSmsPrefsStore } from './user-sms-prefs';
 
 export type NotifyRouteDeps = {
   store: NotifyStore;
@@ -33,6 +39,8 @@ export type NotifyRouteDeps = {
   integrations?: IntegrationsKit;
   /** Per-user email sender preferences (ticket 128). */
   userPrefs?: UserEmailPrefsStore;
+  /** Per-user SMS sender number preferences. */
+  userSmsPrefs?: UserSmsPrefsStore;
   fetchImpl?: typeof fetch;
   runtimeEnv?: Record<string, string | undefined>;
   resolveOrg?: (
@@ -270,16 +278,14 @@ export async function handleNotify(
     }
 
     let fromOverride = bodyFrom;
-    if (
-      channel === 'email' &&
-      !fromOverride &&
-      orgId &&
-      sessionUserId &&
-      deps.userPrefs
-    ) {
-      const pref = await deps.userPrefs
-        .get(orgId, sessionUserId)
-        .catch(() => null);
+    const prefsStore =
+      channel === 'email'
+        ? deps.userPrefs
+        : channel === 'sms'
+          ? deps.userSmsPrefs
+          : undefined;
+    if (!fromOverride && orgId && sessionUserId && prefsStore) {
+      const pref = await prefsStore.get(orgId, sessionUserId).catch(() => null);
       if (pref?.from) fromOverride = pref.from;
     }
 
@@ -407,6 +413,143 @@ export async function handleSetEmailPreference(
   }
 }
 
+async function resolveOrgDefaultSmsFrom(
+  deps: NotifyRouteDeps,
+  orgId: string,
+): Promise<string | null> {
+  if (deps.integrations) {
+    try {
+      const view = await deps.integrations.describeIntegration(
+        orgId,
+        SMS_INTEGRATION,
+      );
+      const from = view?.settings.from;
+      if (typeof from === 'string' && from.trim()) return from.trim();
+    } catch {
+      // ignore — hint only
+    }
+  }
+  const envFrom = (deps.runtimeEnv ?? Bun.env)
+    .AGENT_OS_EXT_NOTIFICATIONS_SMS_FROM;
+  return typeof envFrom === 'string' && envFrom.trim() ? envFrom.trim() : null;
+}
+
+export async function handleGetSmsPreference(
+  deps: NotifyRouteDeps,
+  request: Request,
+): Promise<Response> {
+  const org = await ensureOrg(deps, request);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+  if (!org.userId) {
+    return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  try {
+    const pref = deps.userSmsPrefs
+      ? await deps.userSmsPrefs.get(org.orgId, org.userId)
+      : null;
+    const orgFrom = await resolveOrgDefaultSmsFrom(deps, org.orgId);
+    return json({ from: pref?.from ?? null, orgFrom });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+export async function handleSetSmsPreference(
+  deps: NotifyRouteDeps,
+  request: Request,
+): Promise<Response> {
+  const org = await ensureOrg(deps, request);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+  if (!org.userId) {
+    return json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  if (!deps.userSmsPrefs) {
+    return json({ error: 'user SMS preferences unavailable' }, { status: 503 });
+  }
+  const body = await readJsonBody(request);
+  const rawFrom = body?.from;
+  if (
+    rawFrom !== null &&
+    rawFrom !== undefined &&
+    typeof rawFrom !== 'string'
+  ) {
+    return json({ error: 'from must be a string or null' }, { status: 400 });
+  }
+  const trimmed = typeof rawFrom === 'string' ? rawFrom.trim() : '';
+  try {
+    if (!trimmed) {
+      await deps.userSmsPrefs.clear(org.orgId, org.userId);
+      const orgFrom = await resolveOrgDefaultSmsFrom(deps, org.orgId);
+      return json({ from: null, orgFrom });
+    }
+    if (!E164_PATTERN.test(trimmed)) {
+      return json(
+        { error: 'Pick a phone number in E.164 format (e.g. +15551234567).' },
+        { status: 400 },
+      );
+    }
+    const saved = await deps.userSmsPrefs.set(org.orgId, org.userId, trimmed);
+    const orgFrom = await resolveOrgDefaultSmsFrom(deps, org.orgId);
+    return json({ from: saved.from, orgFrom });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+/**
+ * SMS-capable numbers on the org's Twilio account (or the platform's), for
+ * the sender dropdowns. Needs `email.send` — the permission to send at all.
+ */
+export async function handleListSmsNumbers(
+  deps: NotifyRouteDeps,
+  request: Request,
+): Promise<Response> {
+  const org = await ensureOrg(deps, request);
+  if (!org.ok) {
+    return json({ error: org.error }, { status: org.status });
+  }
+  const denied = await ensurePermission(
+    deps,
+    request,
+    org,
+    PERMISSION_EMAIL_SEND,
+  );
+  if (denied) return denied;
+  try {
+    const { provider, source } = await resolveChannelProvider({
+      channel: 'sms',
+      orgId: org.orgId,
+      integrations: deps.integrations,
+      platform: deps.providers,
+      fetchImpl: deps.fetchImpl,
+    });
+    if (!provider?.listSenders) {
+      return json({ configured: false, source, numbers: [], error: null });
+    }
+    const result = await provider.listSenders();
+    if (!result.ok) {
+      return json({
+        configured: true,
+        source,
+        numbers: [],
+        error: result.error,
+      });
+    }
+    return json({
+      configured: true,
+      source,
+      numbers: result.numbers,
+      error: null,
+    });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
 export const NOTIFY_EXACT_ROUTES: ReadonlyArray<{
   method: string;
   path: string;
@@ -429,5 +572,20 @@ export const NOTIFY_EXACT_ROUTES: ReadonlyArray<{
     method: 'PUT',
     path: '/preferences/email',
     handle: (d, r) => handleSetEmailPreference(d, r),
+  },
+  {
+    method: 'GET',
+    path: '/preferences/sms',
+    handle: (d, r) => handleGetSmsPreference(d, r),
+  },
+  {
+    method: 'PUT',
+    path: '/preferences/sms',
+    handle: (d, r) => handleSetSmsPreference(d, r),
+  },
+  {
+    method: 'GET',
+    path: '/sms/numbers',
+    handle: (d, r) => handleListSmsNumbers(d, r),
   },
 ];

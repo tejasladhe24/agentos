@@ -12,11 +12,23 @@ export type SendResult = {
   error?: string;
 };
 
+/** A sender identity (phone number) the provider account can send from. */
+export type SenderNumber = {
+  /** E.164 number used as the `From` value. */
+  phoneNumber: string;
+  friendlyName: string;
+};
+
+export type ListSendersResult =
+  { ok: true; numbers: SenderNumber[] } | { ok: false; error: string };
+
 export type ChannelProvider = {
   name: string;
   send: (payload: SendPayload) => Promise<SendResult>;
   /** Check credentials without sending (when the provider has an endpoint). */
   verify?: () => Promise<SendResult>;
+  /** SMS-capable sender numbers on the account (Twilio incoming numbers). */
+  listSenders?: () => Promise<ListSendersResult>;
 };
 
 /** Turn a provider HTTP failure into an operator-readable error. */

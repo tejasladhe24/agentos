@@ -8,7 +8,7 @@
     {
       "id": "sms",
       "label": "SMS",
-      "description": "Send SMS through your own Twilio account or the platform default.",
+      "description": "Send SMS through your organization's Twilio account or the platform default.",
       "icon": "ChatText",
       "group": "Integrations",
       "keywords": [
@@ -16,15 +16,23 @@
         "text",
         "twilio",
         "phone",
+        "from number",
+        "sender",
         "byok",
         "provider",
         "integration"
       ],
       "entries": [
         {
+          "id": "sms-from",
+          "label": "Your sender number",
+          "hint": "from number personal sender phone sms twilio identity override dropdown"
+        },
+        {
           "id": "sms-provider",
           "label": "SMS provider",
-          "hint": "twilio account sid auth token from number api key byok own account test connection"
+          "adminOnly": true,
+          "hint": "twilio account sid auth token byok own account test connection"
         }
       ]
     }

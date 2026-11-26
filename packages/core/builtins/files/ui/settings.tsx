@@ -134,13 +134,17 @@ export default function FilesSettings() {
       data-slot="settings-files"
     >
       <FieldGroup className="gap-8">
-        <StorageBackends
-          data={mounts.data}
-          loading={mounts.loading}
-          error={mounts.error}
-          reload={mounts.reload}
-        />
-        <FieldSeparator />
+        {mounts.loading || mounts.data.canManage ? (
+          <>
+            <StorageBackends
+              data={mounts.data}
+              loading={mounts.loading}
+              error={mounts.error}
+              reload={mounts.reload}
+            />
+            <FieldSeparator />
+          </>
+        ) : null}
         <ConnectedDrives
           data={mounts.data}
           loading={mounts.loading}

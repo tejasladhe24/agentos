@@ -21,6 +21,13 @@ export type DeliverySource = 'org' | 'platform';
 
 const ORG_CONFIG_HINT = 'Check the provider settings in Settings.';
 
+/** E.164: `+` and 7–15 digits, no leading zero. */
+export const E164_PATTERN = /^\+[1-9]\d{6,14}$/;
+
+function draftSetting(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function setting(config: ResolvedIntegration, name: string): string {
   const value = config.settings[name];
   return typeof value === 'string' ? value : '';
@@ -58,7 +65,7 @@ export function buildSmsProviderFromConfig(
     authToken: config.secrets.authToken ?? '',
     from: setting(config, 'from'),
     fetchImpl,
-    missingConfigError: `Twilio needs an account SID, auth token, and from number. ${ORG_CONFIG_HINT}`,
+    missingConfigError: `Twilio needs an account SID and auth token. ${ORG_CONFIG_HINT}`,
   });
 }
 
@@ -251,22 +258,49 @@ export function notificationIntegrationDefinitions(input: {
             label: 'Account SID',
             required: true,
             placeholder: 'AC…',
+            description: 'Found on the Twilio Console dashboard.',
           },
           {
             name: 'from',
-            label: 'From number',
-            required: true,
+            label: 'Default from number',
+            required: false,
             placeholder: '+15551234567',
-            description: 'E.164 number or messaging service sender.',
+            description:
+              'Used when a member has not picked their own number. Save your credentials first to load your Twilio numbers.',
           },
         ],
-        secrets: [{ name: 'authToken', label: 'Auth token', required: true }],
+        secrets: [
+          {
+            name: 'authToken',
+            label: 'Auth token',
+            required: true,
+            description: 'Found on the Twilio Console dashboard.',
+          },
+        ],
       },
     ],
     platformDefault: () => ({
       provider: platformName(platform.sms),
       configured: true,
     }),
+    async beforeSave({ draft }) {
+      if (draft.provider !== 'twilio') return draft;
+      const accountSid = draftSetting(draft.settings.accountSid);
+      if (accountSid && !accountSid.startsWith('AC')) {
+        throw new IntegrationError(
+          'Account SID must start with "AC" (find it on the Twilio Console dashboard).',
+          400,
+        );
+      }
+      const from = draftSetting(draft.settings.from);
+      if (from && !E164_PATTERN.test(from)) {
+        throw new IntegrationError(
+          'Default from number must be in E.164 format (e.g. +15551234567).',
+          400,
+        );
+      }
+      return draft;
+    },
     async test({ config }) {
       const provider = config
         ? buildSmsProviderFromConfig(config, fetchImpl)
@@ -276,6 +310,15 @@ export function notificationIntegrationDefinitions(input: {
           ok: true,
           message: 'Platform log sink — messages are printed, not delivered.',
         };
+      }
+      if (provider.listSenders) {
+        const senders = await provider.listSenders();
+        return senders.ok
+          ? {
+              ok: true,
+              message: `Twilio credentials verified — ${senders.numbers.length} SMS-capable number${senders.numbers.length === 1 ? '' : 's'} found`,
+            }
+          : { ok: false, message: senders.error };
       }
       const result = await provider.verify();
       return result.ok
