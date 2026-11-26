@@ -14,9 +14,21 @@ type Subscriber = {
   close: () => void;
 };
 
+/**
+ * SSE comment frame sent on an otherwise idle subscription. Bun.serve closes a
+ * connection that writes nothing for 10 s (default `idleTimeout`), which made
+ * every quiet `/subscribe` stream drop and reconnect. Keep this well under 10 s.
+ */
+export const SSE_HEARTBEAT_MS = 5_000;
+
+export type EventBusOptions = {
+  heartbeatMs?: number;
+};
+
 /** In-process pub/sub bus for SSE subscribers, scoped per org. */
-export function createEventBus() {
+export function createEventBus(options: EventBusOptions = {}) {
   const subscribers = new Set<Subscriber>();
+  const heartbeatMs = options.heartbeatMs ?? SSE_HEARTBEAT_MS;
 
   return {
     publish(
@@ -49,6 +61,7 @@ export function createEventBus() {
       const encoder = new TextEncoder();
       let controller: ReadableStreamDefaultController<Uint8Array> | null = null;
       let closed = false;
+      let heartbeat: ReturnType<typeof setInterval> | null = null;
 
       const sub: Subscriber = {
         topics: topics && topics.length > 0 ? new Set(topics) : null,
@@ -61,6 +74,7 @@ export function createEventBus() {
         close() {
           if (closed) return;
           closed = true;
+          if (heartbeat) clearInterval(heartbeat);
           subscribers.delete(sub);
           try {
             controller?.close();
@@ -75,6 +89,16 @@ export function createEventBus() {
           controller = c;
           subscribers.add(sub);
           c.enqueue(encoder.encode(': ok\n\n'));
+          heartbeat = setInterval(() => {
+            if (closed) return;
+            try {
+              c.enqueue(encoder.encode(': ping\n\n'));
+            } catch {
+              sub.close();
+            }
+          }, heartbeatMs);
+          // Never keep the process alive just for an idle subscriber.
+          heartbeat.unref?.();
         },
         cancel() {
           sub.close();
