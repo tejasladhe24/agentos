@@ -59,5 +59,18 @@ export function createStubHost(
         );
       },
     },
+    ui: {
+      setRightSidebarOpen: async (open) => {
+        calls.push(`ui.setRightSidebarOpen:${open}`);
+      },
+      toggleRightSidebar: async () => {
+        calls.push('ui.toggleRightSidebar');
+        return true;
+      },
+      isRightSidebarOpen: async () => {
+        calls.push('ui.isRightSidebarOpen');
+        return false;
+      },
+    },
   };
 }

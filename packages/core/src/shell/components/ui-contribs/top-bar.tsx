@@ -1,12 +1,25 @@
 import { SidebarSimpleIcon } from '@phosphor-icons/react';
-import { useShellSidebarOpen } from '@agentos/core/shell/hooks';
-import { useShellStore } from '@agentos/core/shell/lib';
+import {
+  useShellActiveView,
+  useShellContributions,
+  useShellRightSidebarOpen,
+  useShellSidebarOpen,
+} from '@agentos/core/shell/hooks';
+import {
+  rightSidebarColumnHasContent,
+  useShellStore,
+  type ShellView,
+  type UiContribution,
+} from '@agentos/core/shell/lib';
 import { Button } from '@agentos/ui/components/button';
 import { config as agentosConfig } from 'virtual:agentos-config';
 
 export type TopBarProps = {
   /** Override store / config values (SSR / tests). */
   sidebarOpen?: boolean;
+  rightSidebarOpen?: boolean;
+  activeView?: ShellView;
+  contributions?: UiContribution[];
   appName?: string;
   logoUrl?: string;
 };
@@ -22,11 +35,25 @@ export type TopBarProps = {
 export function TopBar(props: TopBarProps = {}) {
   const {
     sidebarOpen: sidebarOpenProp,
+    rightSidebarOpen: rightSidebarOpenProp,
+    activeView: activeViewProp,
+    contributions: contributionsProp,
     appName: appNameProp,
     logoUrl: logoUrlProp,
   } = props;
   const sidebarOpen = useShellSidebarOpen(sidebarOpenProp);
+  const rightSidebarOpen = useShellRightSidebarOpen(rightSidebarOpenProp);
+  const activeView = useShellActiveView(activeViewProp);
+  const rightSidebars = useShellContributions({
+    contributions: contributionsProp,
+    view: 'right-sidebar',
+  });
   const toggleSidebar = useShellStore((s) => s.toggleSidebar);
+  const toggleRightSidebar = useShellStore((s) => s.toggleRightSidebar);
+  const hasRightSidebar = rightSidebarColumnHasContent({
+    activeView,
+    rightSidebars,
+  });
 
   const appName = appNameProp ?? agentosConfig.branding.appName;
   const logoUrl =
@@ -76,10 +103,29 @@ export function TopBar(props: TopBarProps = {}) {
         </span>
       </div>
 
-      <div
-        className="flex shrink-0 items-center gap-1"
-        data-slot="top-bar-end"
-      />
+      <div className="flex shrink-0 items-center gap-1" data-slot="top-bar-end">
+        {hasRightSidebar ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground"
+            data-slot="topbar-right-sidebar-toggle"
+            aria-label={
+              rightSidebarOpen
+                ? 'Collapse right sidebar'
+                : 'Expand right sidebar'
+            }
+            aria-pressed={rightSidebarOpen}
+            onClick={() => toggleRightSidebar()}
+          >
+            <SidebarSimpleIcon
+              className="size-4 -scale-x-100"
+              weight="regular"
+            />
+          </Button>
+        ) : null}
+      </div>
     </header>
   );
 }

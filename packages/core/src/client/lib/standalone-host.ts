@@ -48,5 +48,10 @@ export function createStandaloneHost(): HostAPIClient {
     navigation: {
       openExternal: async () => {},
     },
+    ui: {
+      setRightSidebarOpen: async () => {},
+      toggleRightSidebar: async () => false,
+      isRightSidebarOpen: async () => false,
+    },
   };
 }

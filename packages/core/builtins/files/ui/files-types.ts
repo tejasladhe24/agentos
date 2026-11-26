@@ -173,6 +173,18 @@ export const FILES_PREFIX_CHANNEL = 'agentos-files-prefix';
 export const FILES_SECTION_STORAGE_KEY = 'files:section';
 export const FILES_SECTION_CHANNEL = 'agentos-files-section';
 
+export const FILES_SELECTION_STORAGE_KEY = 'files:selection';
+export const FILES_SELECTION_CHANNEL = 'agentos-files-selection';
+
+export const FILES_DETAIL_OPEN_CHANNEL = 'agentos-files-detail-open';
+
+/** `&export=` for provider-native documents (Google Docs…). */
+export function exportQuery(item: FilesListItem, format?: string): string {
+  if (!item.exportFormats?.length) return '';
+  const pick = format ?? item.exportFormats[0];
+  return pick ? `&export=${encodeURIComponent(pick)}` : '';
+}
+
 export function parseErrorBody(body: string, fallback: string): string {
   try {
     const data = JSON.parse(body) as { error?: string; message?: string };

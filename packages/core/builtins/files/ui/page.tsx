@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useHostApi,
   useHostNavigation,
   useHostNotifications,
+  useHostUi,
 } from '@agentos/core/client';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-  usePanelRef,
-} from '@agentos/ui/components/resizable';
-import { cn } from '@agentos/ui/lib/utils';
 
 import { FilesBrowser } from './files-browser';
-import { FilesDetail } from './files-detail';
 import {
   encodeBlobPath,
+  exportQuery,
+  FILES_DETAIL_OPEN_CHANNEL,
   fileToBase64,
   formatBytes,
   itemId,
@@ -36,10 +31,7 @@ import { useFilesMount } from './use-files-mount';
 import { broadcastMountsChanged, useFilesMounts } from './use-files-mounts';
 import { useFilesPrefix } from './use-files-prefix';
 import { useFilesSection } from './use-files-section';
-
-const DETAIL_DEFAULT_SIZE_PX = 320;
-const DETAIL_MIN_SIZE_PX = 240;
-const DETAIL_MAX_SIZE = '45%';
+import { useFilesSelection } from './use-files-selection';
 
 function folderPrefixFor(item: FilesListItem): string {
   if (item.kind !== 'folder') return '';
@@ -66,13 +58,6 @@ function renameTargetKey(item: FilesListItem, newName: string): string {
   return next;
 }
 
-/** `&export=` for provider-native documents (Google Docs…). */
-function exportQuery(item: FilesListItem, format?: string): string {
-  if (!item.exportFormats?.length) return '';
-  const pick = format ?? item.exportFormats[0];
-  return pick ? `&export=${encodeURIComponent(pick)}` : '';
-}
-
 function isReconnectError(body: string): boolean {
   try {
     return (
@@ -90,9 +75,11 @@ export default function FilesPage() {
   const api = useHostApi();
   const navigation = useHostNavigation();
   const notifications = useHostNotifications();
+  const ui = useHostUi();
   const [prefix, setPrefix] = useFilesPrefix();
   const [section] = useFilesSection();
   const [selectedMountId, setSelectedMountId] = useFilesMount();
+  const [, setSharedSelection] = useFilesSelection();
   const { data: mountsData, loading: mountsLoading } = useFilesMounts();
   const mounts = mountsData.mounts;
   const mount = resolveSelectedMount(mounts, selectedMountId);
@@ -121,49 +108,41 @@ export default function FilesPage() {
   const [viewMode, setViewMode] = useState<FilesViewMode>('list');
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [detailOpen, setDetailOpen] = useState(false);
-  const detailPanelRef = usePanelRef();
-  /** Last expanded width so reopening restores the user's size. */
-  const lastDetailSizePxRef = useRef(DETAIL_DEFAULT_SIZE_PX);
-
-  useEffect(() => {
-    const panel = detailPanelRef.current;
-    if (!panel) return;
-    if (detailOpen) {
-      if (panel.isCollapsed()) panel.expand();
-      panel.resize(lastDetailSizePxRef.current);
-    } else if (!panel.isCollapsed()) {
-      const { inPixels } = panel.getSize();
-      if (inPixels >= DETAIL_MIN_SIZE_PX)
-        lastDetailSizePxRef.current = inPixels;
-      panel.collapse();
-    }
-  }, [detailOpen, detailPanelRef]);
 
   const [uploadProgress, setUploadProgress] = useState<UploadProgressItem[]>(
     [],
   );
-
-  const [previewBlob, setPreviewBlob] = useState<FilesBlobJson | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
 
   const selectedItems = useMemo(
     () => items.filter((i) => selectedKeys.has(itemId(i))),
     [items, selectedKeys],
   );
 
-  const primary =
-    selectedItems.length === 1 ? (selectedItems[0] ?? null) : null;
-
-  const revokePreviewUrl = useCallback(() => {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
+  useEffect(() => {
+    let cancelled = false;
+    void ui.isRightSidebarOpen().then((open) => {
+      if (!cancelled) setDetailOpen(open);
+    });
+    const channel =
+      typeof BroadcastChannel !== 'undefined'
+        ? new BroadcastChannel(FILES_DETAIL_OPEN_CHANNEL)
+        : null;
+    if (channel) {
+      channel.onmessage = (event: MessageEvent) => {
+        if (typeof event.data === 'boolean') {
+          setDetailOpen(event.data);
+        }
+      };
     }
-    setPreviewUrl(null);
-  }, []);
+    return () => {
+      cancelled = true;
+      channel?.close();
+    };
+  }, [ui]);
+
+  useEffect(() => {
+    void setSharedSelection(selectedItems);
+  }, [selectedItems, setSharedSelection]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -201,68 +180,24 @@ export default function FilesPage() {
     setLoading(false);
   }, [activeSearch, api, mountId, prefix, section]);
 
+  const broadcastDetailOpen = useCallback((open: boolean) => {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel(FILES_DETAIL_OPEN_CHANNEL);
+      channel.postMessage(open);
+      channel.close();
+    }
+  }, []);
+
   useEffect(() => {
     setSelectedKeys(new Set());
     setDetailOpen(false);
-  }, [section, mountId]);
+    void ui.setRightSidebarOpen(false);
+    broadcastDetailOpen(false);
+  }, [broadcastDetailOpen, section, mountId, ui]);
 
   useEffect(() => {
     void loadList();
   }, [loadList]);
-
-  useEffect(() => {
-    revokePreviewUrl();
-    setPreviewBlob(null);
-    setPreviewError(null);
-
-    if (!detailOpen || !primary || primary.kind !== 'file') {
-      setPreviewLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      setPreviewLoading(true);
-      const path = encodeBlobPath(primary.relativeKey);
-      const previewFormat = primary.exportFormats?.includes('pdf')
-        ? 'pdf'
-        : undefined;
-      const res = await api.fetch(
-        `/blobs/${path}?format=json${mountQuery(mountOf(primary), '&')}${exportQuery(primary, previewFormat)}`,
-      );
-      if (cancelled) return;
-      if (!res.ok) {
-        setPreviewError(parseErrorBody(res.body, 'Preview failed'));
-        setPreviewLoading(false);
-        return;
-      }
-      try {
-        const blob = JSON.parse(res.body) as FilesBlobJson;
-        setPreviewBlob(blob);
-        const binary = atob(blob.base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i += 1) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        const url = URL.createObjectURL(
-          new Blob([bytes], {
-            type: blob.contentType || 'application/octet-stream',
-          }),
-        );
-        previewUrlRef.current = url;
-        setPreviewUrl(url);
-        setPreviewError(null);
-      } catch {
-        setPreviewError('Could not decode file for preview');
-      }
-      setPreviewLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-      revokePreviewUrl();
-    };
-  }, [api, detailOpen, mountOf, primary, revokePreviewUrl]);
 
   async function downloadItem(item: FilesListItem, format?: string) {
     if (item.kind === 'folder') return;
@@ -537,7 +472,12 @@ export default function FilesPage() {
         setActiveSearch('');
       }}
       onViewModeChange={setViewMode}
-      onToggleDetail={() => setDetailOpen((open) => !open)}
+      onToggleDetail={() => {
+        void ui.toggleRightSidebar().then((next) => {
+          setDetailOpen(next);
+          broadcastDetailOpen(next);
+        });
+      }}
       onPrefixChange={(next) => void setPrefix(next)}
       onOpenItem={(item) => {
         if (section === 'files' && item.kind === 'folder') {
@@ -575,26 +515,6 @@ export default function FilesPage() {
     />
   );
 
-  const detail = (
-    <FilesDetail
-      open={detailOpen}
-      selection={selectedItems}
-      primary={primary}
-      blob={previewBlob}
-      blobUrl={previewUrl}
-      previewLoading={previewLoading}
-      previewError={previewError}
-      onDownload={(item, format) => void downloadItem(item, format)}
-      onOpenExternal={(url) =>
-        void navigation.openExternal(url).catch(() => undefined)
-      }
-      openInLabel={
-        driveCopy(mounts.find((m) => m.id === primary?.mountId)?.provider).app
-      }
-      onClose={() => setDetailOpen(false)}
-    />
-  );
-
   return (
     <div
       className="fixed inset-0 flex min-h-0 flex-col overflow-hidden bg-background text-foreground"
@@ -609,37 +529,7 @@ export default function FilesPage() {
           <span className="font-medium">/login</span> to access org files.
         </p>
       ) : null}
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="min-h-0 min-w-0 flex-1"
-        data-slot="files-layout"
-      >
-        <ResizablePanel
-          id="files-browser"
-          defaultSize="70%"
-          minSize="40%"
-          className="min-h-0 min-w-0"
-        >
-          {browser}
-        </ResizablePanel>
-        <ResizableHandle
-          withHandle
-          disabled={!detailOpen}
-          className={cn(!detailOpen && 'hidden')}
-        />
-        <ResizablePanel
-          id="files-detail"
-          panelRef={detailPanelRef}
-          collapsible
-          collapsedSize={0}
-          defaultSize={detailOpen ? DETAIL_DEFAULT_SIZE_PX : 0}
-          minSize={DETAIL_MIN_SIZE_PX}
-          maxSize={DETAIL_MAX_SIZE}
-          className="min-h-0"
-        >
-          {detail}
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{browser}</div>
     </div>
   );
 }

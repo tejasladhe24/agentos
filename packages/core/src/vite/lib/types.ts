@@ -53,7 +53,8 @@ export const DEFAULT_SERVICE_MOUNT = '/_service';
 /** Activity Bar vertical region (`meta.json` `activityBarSection`). */
 export type ActivityBarSection = 'primary' | 'secondary';
 
-export type UiViewName = 'page' | 'sidebar' | 'widget' | 'settings';
+export type UiViewName =
+  'page' | 'sidebar' | 'right-sidebar' | 'widget' | 'settings';
 export type AgentFileName = 'tools' | 'skills' | 'instructions';
 
 /**

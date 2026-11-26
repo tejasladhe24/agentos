@@ -53,6 +53,10 @@ export { HomeDashboard } from './home/home-dashboard';
 export { MainCanvas } from './chrome/main-canvas';
 export { ShellRoot, type ShellRootProps } from './chrome/shell-root';
 export type { HomeDashboardProps } from './home/home-dashboard';
+export {
+  RightSidebarSlot,
+  type RightSidebarSlotProps,
+} from './ui-contribs/right-sidebar-slot';
 export { SidebarSlot } from './ui-contribs/sidebar-slot';
 export { StatusBar } from './ui-contribs/status-bar';
 export { TopBar } from './ui-contribs/top-bar';

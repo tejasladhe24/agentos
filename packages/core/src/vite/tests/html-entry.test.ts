@@ -30,6 +30,12 @@ describe('html-entry helpers', () => {
       extensionId: 'bare',
       view: 'widget',
     });
+    expect(parseExtHtmlPath('/__agentos/ext/files/right-sidebar.html')).toEqual(
+      {
+        extensionId: 'files',
+        view: 'right-sidebar',
+      },
+    );
   });
 
   test('parseExtHtmlPath rejects non-entries', () => {
@@ -51,6 +57,9 @@ describe('html-entry helpers', () => {
     expect(
       parseVirtualExtEntryId('\0virtual:agentos-ext-entry/auth/page'),
     ).toEqual({ extensionId: 'auth', view: 'page' });
+    expect(
+      parseVirtualExtEntryId('virtual:agentos-ext-entry/files/right-sidebar'),
+    ).toEqual({ extensionId: 'files', view: 'right-sidebar' });
   });
 
   test('renderExtHtmlEntry boots virtual script and FOUC theme', () => {

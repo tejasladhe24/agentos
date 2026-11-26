@@ -74,6 +74,12 @@ export function hostApiFromRemote(
       openExternal: async (url, options) =>
         (await ns('navigation')).openExternal(url, options),
     },
+    ui: {
+      setRightSidebarOpen: async (open) =>
+        (await ns('ui')).setRightSidebarOpen(open),
+      toggleRightSidebar: async () => (await ns('ui')).toggleRightSidebar(),
+      isRightSidebarOpen: async () => (await ns('ui')).isRightSidebarOpen(),
+    },
   };
 }
 
@@ -126,6 +132,14 @@ function createLazyHostProxy(
     navigation: {
       openExternal: async (url, options) =>
         (await hostPromise).navigation.openExternal(url, options),
+    },
+    ui: {
+      setRightSidebarOpen: async (open) =>
+        (await hostPromise).ui.setRightSidebarOpen(open),
+      toggleRightSidebar: async () =>
+        (await hostPromise).ui.toggleRightSidebar(),
+      isRightSidebarOpen: async () =>
+        (await hostPromise).ui.isRightSidebarOpen(),
     },
   };
 }

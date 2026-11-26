@@ -8,9 +8,11 @@ An **extension** is a feature unit discovered by convention.
 extensions/<id>/
   meta.json
   ui/
-    page.tsx       # main slot → /ext/<id>
-    sidebar.tsx    # left sidebar (shown when this extension is activeView)
-    widget.tsx     # home widget card(s)
+    page.tsx          # main slot → /ext/<id>
+    sidebar.tsx       # left sidebar (shown when this extension is activeView)
+    right-sidebar.tsx # right sidebar (resizable, shown when open + extension is activeView)
+    widget.tsx        # home widget card(s)
+    settings.tsx      # Settings sidebar section(s) (paired with meta.json settings)
   agent/
     tools.json     # tool schemas → HTTP
     skills.ts      # /slash skills
@@ -265,18 +267,19 @@ The consumer app owns **`ui/dashboard.tsx`** next to `extensions/` and `services
 
 Optional **`ui/dashboard-sidebar.tsx`** is the Home sidebar entrypoint — also in-process via `mountShell(root, { dashboardSidebar })`. It is **not** a `UiViewName` / extension iframe.
 
-### Left sidebar host (active-extension)
+### Sidebar hosts (active-extension)
 
 Shell UI contribution hosts are either **active-extension** or **global**:
 
-| Host kind            | Example            | Shows                                                                                                     | When empty                           |
-| -------------------- | ------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| **Active-extension** | Left sidebar       | Only the active extension’s `ui/sidebar.tsx`, or Home’s `dashboardSidebar`                                | Column **collapses** — no empty pane |
-| **Global**           | Status bar, topbar | May aggregate all enabled extensions (topbar v1 is Shell chrome: sidebar toggle, branding, settings stub) | May stay visible with Shell chrome   |
+| Host kind            | Example            | Shows                                                                                                                | When empty                           |
+| -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **Active-extension** | Left sidebar       | Only the active extension’s `ui/sidebar.tsx`, or Home’s `dashboardSidebar`                                           | Column **collapses** — no empty pane |
+| **Active-extension** | Right sidebar      | Only the active extension’s `ui/right-sidebar.tsx` (resizable; defaults closed, toggled via TopBar or `useHostUi()`) | Column **collapses** — no empty pane |
+| **Global**           | Status bar, topbar | May aggregate all enabled extensions (topbar v1 is Shell chrome: sidebar toggles, branding)                          | May stay visible with Shell chrome   |
 
-`ui/sidebar.tsx` mounts in the Shell’s left column. Only the **active** extension’s sidebar is visible (`activeView === extensionId`). Home without `dashboardSidebar`, or an extension without `ui/sidebar.tsx`, hides the sidebar column.
+`ui/sidebar.tsx` mounts in the Shell’s left column and `ui/right-sidebar.tsx` mounts in the Shell’s right column. Only the **active** extension’s sidebar is visible (`activeView === extensionId`). Home without `dashboardSidebar`, or an extension without `ui/sidebar.tsx` / `ui/right-sidebar.tsx`, collapses that column.
 
-Opening **Extensions** or **Approvals** from the Activity Bar (secondary) swaps that column to the Shell Extension Manager or HITL panel (mutually exclusive with contribution sidebars). These are left-sidebar panels, not right-edge sheets.
+Opening **Extensions** or **Approvals** from the Activity Bar (secondary) swaps the left column to the Shell Extension Manager or HITL panel (mutually exclusive with contribution sidebars). These are left-sidebar panels, not right-edge sheets. Extensions can open, close, or toggle the right sidebar via `useHostUi()` (`@agentos/core/client`).
 
 ## Extension enable-state (durable)
 

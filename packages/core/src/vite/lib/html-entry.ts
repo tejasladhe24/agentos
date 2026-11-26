@@ -35,7 +35,7 @@ export function resolvedVirtualExtEntryId(
 export function parseVirtualExtEntryId(id: string): ParsedExtHtmlPath | null {
   const bare = id.startsWith('\0') ? id.slice(1) : id;
   const match =
-    /^virtual:agentos-ext-entry\/([^/]+)\/(page|sidebar|widget|settings)$/.exec(
+    /^virtual:agentos-ext-entry\/([^/]+)\/(page|sidebar|right-sidebar|widget|settings)$/.exec(
       bare,
     );
   if (!match) return null;

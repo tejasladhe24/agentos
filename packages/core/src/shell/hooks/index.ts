@@ -14,4 +14,5 @@ export {
 } from './ui-contribs/use-shell-contributions';
 export { useShellExtensions } from './ui-contribs/use-shell-extensions';
 export { useShellSidebarOpen } from './ui-contribs/use-shell-sidebar-open';
+export { useShellRightSidebarOpen } from './ui-contribs/use-shell-right-sidebar-open';
 export { useShellSidebarPanel } from './ui-contribs/use-shell-sidebar-panel';

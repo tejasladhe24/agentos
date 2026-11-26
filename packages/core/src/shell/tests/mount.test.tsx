@@ -123,4 +123,41 @@ describe('mountShell / ShellRoot', () => {
     expect(html).toContain('data-slot="main"');
     expect(html).toMatch(/data-active="true"[^>]*>[\s\S]*data-slot="main"/);
   });
+
+  test('right sidebar expands only when open and active view contributes right-sidebar', () => {
+    const filesRightSidebar: UiContribution = {
+      extensionId: 'files',
+      view: 'right-sidebar',
+      src: '/__agentos/ext/files/right-sidebar.html',
+    };
+
+    const closed = renderToStaticMarkup(
+      <ShellRoot
+        activeView="files"
+        rightSidebarOpen={false}
+        contributions={[filesRightSidebar]}
+      />,
+    );
+    expect(closed).toContain('data-right-sidebar-expanded="false"');
+    expect(closed).toContain('data-slot="right-sidebar"');
+
+    const open = renderToStaticMarkup(
+      <ShellRoot
+        activeView="files"
+        rightSidebarOpen
+        contributions={[filesRightSidebar]}
+      />,
+    );
+    expect(open).toContain('data-right-sidebar-expanded="true"');
+    expect(open).toContain('data-extension-id="files"');
+
+    const otherView = renderToStaticMarkup(
+      <ShellRoot
+        activeView="crm"
+        rightSidebarOpen
+        contributions={[filesRightSidebar]}
+      />,
+    );
+    expect(otherView).toContain('data-right-sidebar-expanded="false"');
+  });
 });

@@ -74,6 +74,14 @@ export interface HostAPI {
      */
     openExternal(url: string, options?: OpenExternalOptions): Promise<void>;
   };
+  ui: {
+    /** Open or close the Shell's right sidebar panel. */
+    setRightSidebarOpen(open: boolean): Promise<void>;
+    /** Toggle the Shell's right sidebar panel; returns the new open state. */
+    toggleRightSidebar(): Promise<boolean>;
+    /** Read whether the Shell's right sidebar panel is currently open. */
+    isRightSidebarOpen(): Promise<boolean>;
+  };
 }
 
 /**

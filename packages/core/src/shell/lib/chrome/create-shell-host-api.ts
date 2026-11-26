@@ -217,5 +217,15 @@ export function createShellHostApi(extensionId: string): HostAPI {
         window.open(target, '_blank', 'noopener,noreferrer');
       },
     },
+    ui: {
+      setRightSidebarOpen: async (open) => {
+        useShellStore.getState().setRightSidebarOpen(open);
+      },
+      toggleRightSidebar: async () => {
+        useShellStore.getState().toggleRightSidebar();
+        return useShellStore.getState().rightSidebarOpen;
+      },
+      isRightSidebarOpen: async () => useShellStore.getState().rightSidebarOpen,
+    },
   };
 }

@@ -2,10 +2,12 @@ import { useEffect, useRef, type ComponentType } from 'react';
 import {
   useShellActiveView,
   useShellContributions,
+  useShellRightSidebarOpen,
   useShellSidebarOpen,
   useShellSidebarPanel,
 } from '@agentos/core/shell/hooks';
 import {
+  rightSidebarColumnHasContent,
   sidebarColumnHasContent,
   type ShellView,
   type SidebarPanel,
@@ -27,6 +29,7 @@ import { HomeDashboard } from '../home/home-dashboard';
 import { SettingsView } from '../settings/settings-view';
 import { HiddenSlot } from '../ui-contribs/hidden-slot';
 import { KeepAlive } from '../ui-contribs/keep-alive';
+import { RightSidebarSlot } from '../ui-contribs/right-sidebar-slot';
 import { SidebarSlot } from '../ui-contribs/sidebar-slot';
 import { StatusBar } from '../ui-contribs/status-bar';
 import { TopBar } from '../ui-contribs/top-bar';
@@ -41,6 +44,10 @@ const SIDEBAR_DEFAULT_SIZE_PX = 256;
 const SIDEBAR_MIN_SIZE_PX = 180;
 const SIDEBAR_MAX_SIZE_PX = 480;
 
+const RIGHT_SIDEBAR_DEFAULT_SIZE_PX = 320;
+const RIGHT_SIDEBAR_MIN_SIZE_PX = 240;
+const RIGHT_SIDEBAR_MAX_SIZE_PX = 480;
+
 export type ShellRootProps = {
   /** App-owned Home page from `ui/dashboard.tsx`. */
   dashboard?: ComponentType;
@@ -50,6 +57,7 @@ export type ShellRootProps = {
   activeView?: ShellView;
   sidebarOpen?: boolean;
   sidebarPanel?: SidebarPanel;
+  rightSidebarOpen?: boolean;
   contributions?: UiContribution[];
 };
 
@@ -93,15 +101,21 @@ export function ShellRoot({
   activeView: activeViewProp,
   sidebarOpen: sidebarOpenProp,
   sidebarPanel: sidebarPanelProp,
+  rightSidebarOpen: rightSidebarOpenProp,
   contributions: contributionsProp,
 }: ShellRootProps = {}) {
   const activeView = useShellActiveView(activeViewProp);
   const sidebarOpen = useShellSidebarOpen(sidebarOpenProp);
+  const rightSidebarOpen = useShellRightSidebarOpen(rightSidebarOpenProp);
   const storePanel = useShellSidebarPanel();
   const sidebarPanel = sidebarPanelProp ?? storePanel;
   const sidebars = useShellContributions({
     contributions: contributionsProp,
     view: 'sidebar',
+  });
+  const rightSidebars = useShellContributions({
+    contributions: contributionsProp,
+    view: 'right-sidebar',
   });
   // The panel group is always rendered (collapsed when empty) so swapping the
   // layout tree never remounts MainWorkspace / extension pages.
@@ -112,9 +126,16 @@ export function ShellRoot({
     hasDashboardSidebar: dashboardSidebar != null,
   });
   const sidebarExpanded = sidebarOpen && hasSidebarContent;
+  const hasRightSidebarContent = rightSidebarColumnHasContent({
+    activeView,
+    rightSidebars,
+  });
+  const rightSidebarExpanded = rightSidebarOpen && hasRightSidebarContent;
   const sidebarPanelRef = usePanelRef();
+  const rightSidebarPanelRef = usePanelRef();
   /** Last expanded width so toggle-open restores a usable size (not min/collapsed). */
   const lastSidebarSizePxRef = useRef(SIDEBAR_DEFAULT_SIZE_PX);
+  const lastRightSidebarSizePxRef = useRef(RIGHT_SIDEBAR_DEFAULT_SIZE_PX);
 
   useEffect(() => {
     const panel = sidebarPanelRef.current;
@@ -134,6 +155,26 @@ export function ShellRoot({
     }
   }, [sidebarExpanded, sidebarPanelRef]);
 
+  useEffect(() => {
+    const panel = rightSidebarPanelRef.current;
+    if (!panel) return;
+    if (rightSidebarExpanded) {
+      if (panel.isCollapsed()) {
+        panel.expand();
+      }
+      panel.resize(lastRightSidebarSizePxRef.current);
+    } else if (!panel.isCollapsed()) {
+      const { inPixels } = panel.getSize();
+      if (inPixels >= RIGHT_SIDEBAR_MIN_SIZE_PX) {
+        lastRightSidebarSizePxRef.current = Math.min(
+          RIGHT_SIDEBAR_MAX_SIZE_PX,
+          inPixels,
+        );
+      }
+      panel.collapse();
+    }
+  }, [rightSidebarExpanded, rightSidebarPanelRef]);
+
   return (
     <ThemeProvider
       attribute="class"
@@ -147,13 +188,21 @@ export function ShellRoot({
           className="flex h-dvh max-h-dvh w-full flex-col overflow-hidden bg-background text-foreground"
           data-agentos-shell
         >
-          <TopBar />
+          <TopBar
+            sidebarOpen={sidebarOpenProp}
+            rightSidebarOpen={rightSidebarOpenProp}
+            activeView={activeViewProp}
+            contributions={contributionsProp}
+          />
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <ActivityBar />
             <ResizablePanelGroup
               orientation="horizontal"
               className="min-h-0 min-w-0 flex-1"
               data-sidebar-expanded={sidebarExpanded ? 'true' : 'false'}
+              data-right-sidebar-expanded={
+                rightSidebarExpanded ? 'true' : 'false'
+              }
             >
               <ResizablePanel
                 id="shell-sidebar"
@@ -185,6 +234,29 @@ export function ShellRoot({
                 className="min-h-0 min-w-0"
               >
                 <MainWorkspace activeView={activeView} dashboard={dashboard} />
+              </ResizablePanel>
+              <ResizableHandle
+                withHandle
+                disabled={!rightSidebarExpanded}
+                className={cn(!rightSidebarExpanded && 'hidden')}
+              />
+              <ResizablePanel
+                id="shell-right-sidebar"
+                panelRef={rightSidebarPanelRef}
+                collapsible
+                collapsedSize={0}
+                defaultSize={
+                  rightSidebarExpanded ? RIGHT_SIDEBAR_DEFAULT_SIZE_PX : 0
+                }
+                minSize={RIGHT_SIDEBAR_MIN_SIZE_PX}
+                maxSize={RIGHT_SIDEBAR_MAX_SIZE_PX}
+                className="min-h-0"
+              >
+                <RightSidebarSlot
+                  activeView={activeViewProp}
+                  rightSidebarOpen={rightSidebarOpenProp}
+                  contributions={contributionsProp}
+                />
               </ResizablePanel>
             </ResizablePanelGroup>
           </div>

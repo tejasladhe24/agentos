@@ -6,6 +6,7 @@ import { HostProvider } from '@agentos/core/client';
 import type { HostAPIClient } from '@agentos/core/sdk';
 
 import FilesPage from '../ui/page';
+import FilesRightSidebar from '../ui/right-sidebar';
 import FilesSettings from '../ui/settings';
 import { FilesBrowser } from '../ui/files-browser';
 import type { FilesMount } from '../ui/files-types';
@@ -65,6 +66,11 @@ function createTestHost(
     api: { fetch: fetchImpl },
     events: { publish: async () => {} },
     navigation: { openExternal: async () => {} },
+    ui: {
+      setRightSidebarOpen: async () => {},
+      toggleRightSidebar: async () => false,
+      isRightSidebarOpen: async () => false,
+    },
   };
 }
 
@@ -86,10 +92,33 @@ describe('FilesPage', () => {
     expect(html).not.toContain('Org-scoped storage');
     expect(html).toContain('data-slot="files-browser"');
     expect(html).toContain('Loading files');
+    expect(html).not.toContain('data-slot="files-layout"');
     expect(html).not.toContain('data-slot="files-detail"');
     expect(html).toContain('data-slot="files-info-button"');
     expect(html).toContain('data-slot="files-upload-zone"');
     expect(html).toContain('>Files</button>');
+  });
+
+  test('FilesRightSidebar renders details panel via Shell right sidebar slot', () => {
+    const html = renderToStaticMarkup(
+      createElement(HostProvider, {
+        host: createTestHost(async () => ({
+          ok: true,
+          status: 200,
+          body: JSON.stringify({
+            mounts: [PLATFORM],
+            defaultMountId: 'platform',
+            providers: [],
+            canManage: false,
+          }),
+        })),
+        children: createElement(FilesRightSidebar),
+      }),
+    );
+    expect(html).toContain('data-slot="files-right-sidebar"');
+    expect(html).toContain('data-slot="files-detail"');
+    expect(html).toContain('Details');
+    expect(html).toContain('Choose a row to see preview and file info.');
   });
 });
 
