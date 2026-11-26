@@ -1,6 +1,6 @@
 # 135 — Shell routing with TanStack Router (URL-addressable views, nested shell layout)
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 

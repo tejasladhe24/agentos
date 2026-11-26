@@ -1,6 +1,6 @@
 # 134 — Right sidebar UI contribution entrypoint (`ui/right-sidebar`) and Files details migration
 
-**Status:** in-progress
+**Status:** done
 
 ## Goal
 
@@ -46,6 +46,10 @@ Add a resizable **right sidebar** UI contribution entrypoint to the AgentOS Shel
 - [x] Builtin `files` uses `ui/right-sidebar.tsx` for its details/preview panel instead of an internal `ResizablePanelGroup`
 - [x] Unit tests cover scanner, gateway/vite HTML entries, Shell right sidebar, HostAPI `ui`, and `files`
 - [x] `bun run ci` passes
+
+## Follow-up
+
+- The Files selection, prefix, section, mount, and detail-open sync in this ticket uses raw `BroadcastChannel`. That pattern is superseded: ticket **143** replaces it with the Shell-brokered event bus from ticket **142**.
 
 ## Verify
 
