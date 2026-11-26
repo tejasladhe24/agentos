@@ -28,10 +28,31 @@ export {
   normalizePathname,
   readNextParam,
   readResetToken,
+  registerAppNavigator,
   type AuthRouteFlags,
   type PublicAuthRoute,
   type PublicExtensionRoute,
 } from './auth/auth-routes';
+export {
+  createRouteStoreSync,
+  storeTarget,
+  type RouteHistory,
+  type RouteStoreSync,
+} from './routing/route-store-sync';
+export {
+  parseSearchString,
+  stringifySearchRecord,
+  type SearchRecord,
+} from './routing/search';
+export {
+  EXTENSION_PATH_PREFIX,
+  pathToView,
+  targetFromLocation,
+  targetHref,
+  targetsEqual,
+  viewToPath,
+  type RouteTarget,
+} from './routing/view-paths';
 export {
   applyRegistry,
   hydrateEnableStateFromGateway,

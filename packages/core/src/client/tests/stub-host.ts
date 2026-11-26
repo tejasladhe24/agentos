@@ -71,6 +71,20 @@ export function createStubHost(
         calls.push('ui.isRightSidebarOpen');
         return false;
       },
+      openRightSheet: async (extensionId) => {
+        calls.push(`ui.openRightSheet:${extensionId ?? ''}`);
+      },
+      closeRightSheet: async () => {
+        calls.push('ui.closeRightSheet');
+      },
+      toggleRightSheet: async (extensionId) => {
+        calls.push(`ui.toggleRightSheet:${extensionId ?? ''}`);
+        return null;
+      },
+      getActiveRightSheet: async () => {
+        calls.push('ui.getActiveRightSheet');
+        return null;
+      },
     },
   };
 }

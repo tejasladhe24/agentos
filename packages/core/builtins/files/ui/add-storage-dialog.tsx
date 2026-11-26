@@ -184,7 +184,9 @@ export function AddStorageDialog({
         }),
       });
       if (!res.ok) {
-        setError(parseErrorBody(res.body, 'Could not add storage'));
+        const message = parseErrorBody(res.body, 'Could not add storage');
+        setError(message);
+        await notifications.show(message, 'error');
         return;
       }
       await notifications.show(`${value.name.trim()} connected`, 'info');

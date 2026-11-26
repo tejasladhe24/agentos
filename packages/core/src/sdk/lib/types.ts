@@ -6,7 +6,7 @@ import type {
 } from './contracts';
 
 /** Toast / notification severity. */
-export type NotificationType = 'info' | 'success' | 'error';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error';
 
 export interface HostFetchInit {
   method?: string;
@@ -81,6 +81,21 @@ export interface HostAPI {
     toggleRightSidebar(): Promise<boolean>;
     /** Read whether the Shell's right sidebar panel is currently open. */
     isRightSidebarOpen(): Promise<boolean>;
+    /**
+     * Open the global right sheet for `extensionId` (defaults to the calling
+     * extension). No-op when that extension has no enabled `ui/right-sheet`.
+     */
+    openRightSheet(extensionId?: string): Promise<void>;
+    /** Close the global right sheet if one is open. */
+    closeRightSheet(): Promise<void>;
+    /**
+     * Open or close the global right sheet for `extensionId` (defaults to the
+     * calling extension). Returns the active sheet extension id after toggling,
+     * or `null` when closed.
+     */
+    toggleRightSheet(extensionId?: string): Promise<string | null>;
+    /** Extension id whose right sheet is open, or `null` when closed. */
+    getActiveRightSheet(): Promise<string | null>;
   };
 }
 

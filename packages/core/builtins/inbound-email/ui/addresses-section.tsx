@@ -83,7 +83,9 @@ export function AddressesSection({ canProvision }: { canProvision: boolean }) {
         }),
       });
       if (!res.ok) {
-        setSubmitError(parseErrorBody(res.body, 'Provision failed'));
+        const message = parseErrorBody(res.body, 'Provision failed');
+        setSubmitError(message);
+        await toast.show(message, 'error');
         return;
       }
       form.reset({ address: '', purpose: '' });

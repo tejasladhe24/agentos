@@ -94,12 +94,12 @@ Secrets stay in `createEnv` / runtime env — never `agentos.config.ts`. Default
 
 **API**
 
-| Method | Path                                    | Role                                                                                                                                           |
-| ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST` | `/api/ext/notifications/notify`         | Enqueue: `channel` `in_app` \| `email` \| `sms` (default `in_app`); optional `templateId`, `vars`, `to`, `subject`, `message`, `type`, `orgId` |
-| `GET`  | `/api/ext/notifications/recent`         | In-app inbox only (Shell toasts)                                                                                                               |
-| `GET`  | `/api/ext/notifications/deliveries`     | Org-scoped deliveries (`?channel=email`, `limit`, `offset`) — Email manager Sent tab                                                           |
-| `GET`  | `/api/ext/notifications/deliveries/:id` | Delivery status (`queued` \| `sent` \| `failed`); org-scoped when `orgId` is set                                                               |
+| Method | Path                                    | Role                                                                                                                                                                                                                                                                  |
+| ------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/ext/notifications/notify`         | Enqueue: `channel` `in_app` \| `email` \| `sms` (default `in_app`); optional `templateId`, `vars`, `to`, `subject`, `message`, `type` (`info` \| `success` \| `warning` \| `error`), `extensionId` (source attribution, persisted and returned by `/recent`), `orgId` |
+| `GET`  | `/api/ext/notifications/recent`         | In-app inbox only (Shell toasts)                                                                                                                                                                                                                                      |
+| `GET`  | `/api/ext/notifications/deliveries`     | Org-scoped deliveries (`?channel=email`, `limit`, `offset`) — Email manager Sent tab                                                                                                                                                                                  |
+| `GET`  | `/api/ext/notifications/deliveries/:id` | Delivery status (`queued` \| `sent` \| `failed`); org-scoped when `orgId` is set                                                                                                                                                                                      |
 
 **Templates** (builtin catalog ids): `client-reminder` (`name`, `title`, `message`, `appName`), `digest` (`date`, `summary`). Placeholders use `{{var}}`; missing vars render as empty strings. Per-org custom templates are a follow-up.
 

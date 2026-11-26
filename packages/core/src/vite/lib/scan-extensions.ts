@@ -9,6 +9,7 @@ import type {
   ExtensionMeta,
   ExtensionMetaApi,
   ExtensionMetaPublic,
+  ExtensionMetaRightSheet,
   ExtensionMetaService,
   ExtensionPublicUiRoute,
   ExtensionSettingsEntryMeta,
@@ -31,6 +32,7 @@ const UI_VIEWS: UiViewName[] = [
   'page',
   'sidebar',
   'right-sidebar',
+  'right-sheet',
   'widget',
   'settings',
 ];
@@ -288,6 +290,24 @@ function parseMetaSettings(
   return sections.length > 0 ? sections : undefined;
 }
 
+function parseMetaRightSheet(
+  raw: unknown,
+): ExtensionMetaRightSheet | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  const result: ExtensionMetaRightSheet = {};
+  if (typeof obj.label === 'string' && obj.label.trim()) {
+    result.label = obj.label.trim();
+  }
+  if (typeof obj.description === 'string' && obj.description.trim()) {
+    result.description = obj.description.trim();
+  }
+  if (typeof obj.icon === 'string' && obj.icon.trim()) {
+    result.icon = obj.icon.trim();
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function readMeta(metaPath: string): ExtensionMeta | undefined {
   try {
     const text = readFileSync(metaPath, 'utf8');
@@ -316,6 +336,8 @@ function readMeta(metaPath: string): ExtensionMeta | undefined {
     if (pub) meta.public = pub;
     const settings = parseMetaSettings(obj.settings);
     if (settings) meta.settings = settings;
+    const rightSheet = parseMetaRightSheet(obj.rightSheet);
+    if (rightSheet) meta.rightSheet = rightSheet;
     return meta;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

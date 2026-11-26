@@ -180,6 +180,37 @@ describe('createShellHostApi notifications', () => {
     }
   });
 
+  test('notifications.show fan-out sends message, severity, and extensionId', async () => {
+    const originalFetch = globalThis.fetch;
+    const notifyBodies: unknown[] = [];
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      if (String(input) === '/api/ext/notifications/notify') {
+        notifyBodies.push(JSON.parse(String(init?.body)));
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const host = createShellHostApi('crm-helper');
+      await host.notifications.show('Search failed', 'error');
+      await host.notifications.show('Sync is degraded', 'warning');
+      await new Promise((r) => setTimeout(r, 0));
+      expect(notifyBodies).toEqual([
+        { message: 'Search failed', type: 'error', extensionId: 'crm-helper' },
+        {
+          message: 'Sync is degraded',
+          type: 'warning',
+          extensionId: 'crm-helper',
+        },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test('events.publish posts to events builtin', async () => {
     const originalFetch = globalThis.fetch;
     const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -253,5 +284,56 @@ describe('createShellHostApi notifications', () => {
     expect(await host.ui.isRightSidebarOpen()).toBe(true);
     expect(await host.ui.toggleRightSidebar()).toBe(false);
     expect(useShellStore.getState().rightSidebarOpen).toBe(false);
+  });
+
+  test('ui right sheet controls default to the calling extension', async () => {
+    useShellStore.setState({
+      activeRightSheet: null,
+      contributions: [
+        {
+          extensionId: 'notes',
+          view: 'right-sheet',
+          src: '/__agentos/ext/notes/right-sheet.html',
+        },
+        {
+          extensionId: 'reports',
+          view: 'right-sheet',
+          src: '/__agentos/ext/reports/right-sheet.html',
+        },
+      ],
+    });
+    const host = createShellHostApi('notes');
+
+    expect(await host.ui.getActiveRightSheet()).toBeNull();
+    await host.ui.openRightSheet();
+    expect(await host.ui.getActiveRightSheet()).toBe('notes');
+
+    await host.ui.closeRightSheet();
+    expect(await host.ui.getActiveRightSheet()).toBeNull();
+
+    expect(await host.ui.toggleRightSheet()).toBe('notes');
+    expect(await host.ui.toggleRightSheet()).toBeNull();
+  });
+
+  test('ui right sheet accepts an explicit extension id and ignores unknown ones', async () => {
+    useShellStore.setState({
+      activeRightSheet: null,
+      contributions: [
+        {
+          extensionId: 'reports',
+          view: 'right-sheet',
+          src: '/__agentos/ext/reports/right-sheet.html',
+        },
+      ],
+    });
+    const host = createShellHostApi('notes');
+
+    await host.ui.openRightSheet('reports');
+    expect(await host.ui.getActiveRightSheet()).toBe('reports');
+
+    await host.ui.openRightSheet('missing');
+    expect(await host.ui.getActiveRightSheet()).toBe('reports');
+
+    expect(await host.ui.toggleRightSheet('missing')).toBe('reports');
   });
 });

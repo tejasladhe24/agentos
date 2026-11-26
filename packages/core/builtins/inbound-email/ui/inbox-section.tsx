@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useHostApi } from '@agentos/core/client';
+import { useHostApi, useHostNotifications } from '@agentos/core/client';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import { Input } from '@agentos/ui/components/input';
@@ -15,6 +15,7 @@ import {
 
 export function InboxSection() {
   const api = useHostApi();
+  const notifications = useHostNotifications();
   const [messages, setMessages] = useState<InboundMessage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<InboundMessage | null>(null);
@@ -32,7 +33,9 @@ export function InboxSection() {
     const res = await api.fetch(`/messages?${params.toString()}`);
     setBusy(false);
     if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Failed to load inbox'));
+      const message = parseErrorBody(res.body, 'Failed to load inbox');
+      setError(message);
+      void notifications.show(message, 'error');
       setMessages([]);
       return;
     }
@@ -45,7 +48,9 @@ export function InboxSection() {
     setShowHtml(false);
     const res = await api.fetch(`/messages/${encodeURIComponent(id)}`);
     if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Failed to load message'));
+      const message = parseErrorBody(res.body, 'Failed to load message');
+      setError(message);
+      void notifications.show(message, 'error');
       setDetail(null);
       return;
     }

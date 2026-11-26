@@ -118,7 +118,12 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
         body: JSON.stringify(receivingDraftBody(value)),
       });
       if (!res.ok) {
-        setError(errorMessage(res.body, 'Could not save email receiving.'));
+        const message = errorMessage(
+          res.body,
+          'Could not save email receiving.',
+        );
+        setError(message);
+        await notifications.show(message, 'error');
         return;
       }
       await notifications.show('Email receiving saved', 'info');
@@ -133,7 +138,12 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
     ]);
     setLoading(false);
     if (!receive.ok) {
-      setError(errorMessage(receive.body, 'Could not load email receiving.'));
+      const message = errorMessage(
+        receive.body,
+        'Could not load email receiving.',
+      );
+      setError(message);
+      void notifications.show(message, 'error');
       return;
     }
     try {
@@ -159,7 +169,7 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
         setSendingUsesResend(false);
       }
     }
-  }, [api, form]);
+  }, [api, form, notifications]);
 
   useEffect(() => {
     void load();
@@ -184,7 +194,12 @@ export function ReceivingCard({ entryId }: { entryId?: string }) {
     });
     setBusy(false);
     if (!res.ok) {
-      setError(errorMessage(res.body, 'Could not remove email receiving.'));
+      const message = errorMessage(
+        res.body,
+        'Could not remove email receiving.',
+      );
+      setError(message);
+      await notifications.show(message, 'error');
       return;
     }
     await notifications.show('Email receiving removed', 'info');

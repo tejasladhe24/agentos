@@ -193,6 +193,7 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
         'page',
         'sidebar',
         'right-sidebar',
+        'right-sheet',
         'widget',
         'settings',
       ] as const) {

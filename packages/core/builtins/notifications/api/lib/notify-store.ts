@@ -22,6 +22,7 @@ export type EnqueueInput = {
   templateId?: string;
   subject?: string;
   orgId?: string;
+  extensionId?: string;
 };
 
 /** Durable notifications inbox + delivery records backed by db-store. */
@@ -41,6 +42,7 @@ export function createNotifyStore(db: DbStoreClient, max = NOTIFICATIONS_MAX) {
       if (input.templateId) entry.templateId = input.templateId;
       if (input.subject) entry.subject = input.subject;
       if (input.orgId) entry.orgId = input.orgId;
+      if (input.extensionId) entry.extensionId = input.extensionId;
 
       await db.insert(entry);
 

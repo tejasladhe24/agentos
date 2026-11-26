@@ -1,10 +1,14 @@
 export { ActivityBar } from './chrome/activity-bar';
 export {
-  AuthGate,
-  type AuthGateBranding,
-  type AuthGateConfig,
-  type AuthGateProps,
-} from './auth/auth-gate';
+  AppRouter,
+  createAppRouter,
+  type AppRouterBranding,
+  type AppRouterConfig,
+  type AppRouterInstance,
+  type AppRouterProps,
+  type CreateAppRouterOptions,
+  type SessionFetcher,
+} from './routing/app-router';
 export {
   AuthFormCard,
   AuthFormPanel,
@@ -57,6 +61,12 @@ export {
   RightSidebarSlot,
   type RightSidebarSlotProps,
 } from './ui-contribs/right-sidebar-slot';
+export {
+  resolveRightSheetState,
+  RightSheetSlot,
+  type RightSheetSlotProps,
+  type RightSheetState,
+} from './ui-contribs/right-sheet-slot';
 export { SidebarSlot } from './ui-contribs/sidebar-slot';
 export { StatusBar } from './ui-contribs/status-bar';
 export { TopBar } from './ui-contribs/top-bar';

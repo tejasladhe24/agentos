@@ -80,7 +80,9 @@ export default function FilesPage() {
   const [section] = useFilesSection();
   const [selectedMountId, setSelectedMountId] = useFilesMount();
   const [, setSharedSelection] = useFilesSelection();
-  const { data: mountsData, loading: mountsLoading } = useFilesMounts();
+  const { data: mountsData, loading: mountsLoading } = useFilesMounts({
+    reportErrors: true,
+  });
   const mounts = mountsData.mounts;
   const mount = resolveSelectedMount(mounts, selectedMountId);
   const mountId = mount?.id ?? PLATFORM_MOUNT_ID;
@@ -169,7 +171,9 @@ export default function FilesPage() {
       return;
     }
     if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Failed to load files'));
+      const message = parseErrorBody(res.body, 'Failed to load files');
+      setError(message);
+      void notifications.show(message, 'error');
       setItems([]);
       setLoading(false);
       if (isReconnectError(res.body)) broadcastMountsChanged();
@@ -178,7 +182,7 @@ export default function FilesPage() {
     const list = parseListResponse(res.body);
     setItems(list.items);
     setLoading(false);
-  }, [activeSearch, api, mountId, prefix, section]);
+  }, [activeSearch, api, mountId, notifications, prefix, section]);
 
   const broadcastDetailOpen = useCallback((open: boolean) => {
     if (typeof BroadcastChannel !== 'undefined') {

@@ -1,6 +1,6 @@
 import { NOTIFICATIONS_COLLECTION } from './constants';
 
-export type NotificationType = 'info' | 'success' | 'error';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error';
 export type DeliveryChannel = 'in_app' | 'email' | 'sms';
 export type DeliveryStatus = 'queued' | 'sent' | 'failed';
 
@@ -15,6 +15,8 @@ export type NotificationEntry = {
   templateId?: string;
   subject?: string;
   orgId?: string;
+  /** Extension that emitted the notification (absent for legacy rows). */
+  extensionId?: string;
   provider?: string;
   /** Who sent it: the org's own provider (BYOK) or the platform env. */
   source?: 'org' | 'platform';
@@ -42,13 +44,25 @@ function parseStatus(value: unknown): DeliveryStatus {
   return 'sent';
 }
 
+function parseType(value: unknown): NotificationType | null {
+  if (
+    value === 'info' ||
+    value === 'success' ||
+    value === 'warning' ||
+    value === 'error'
+  ) {
+    return value;
+  }
+  return null;
+}
+
 function parseEntry(
   id: string,
   data: Record<string, unknown>,
 ): NotificationEntry | null {
   const message = typeof data.message === 'string' ? data.message : '';
-  const type = data.type;
-  if (!message || (type !== 'info' && type !== 'success' && type !== 'error')) {
+  const type = parseType(data.type);
+  if (!message || !type) {
     return null;
   }
   const entry: NotificationEntry = {
@@ -63,6 +77,9 @@ function parseEntry(
   if (typeof data.templateId === 'string') entry.templateId = data.templateId;
   if (typeof data.subject === 'string') entry.subject = data.subject;
   if (typeof data.orgId === 'string') entry.orgId = data.orgId;
+  if (typeof data.extensionId === 'string' && data.extensionId) {
+    entry.extensionId = data.extensionId;
+  }
   if (typeof data.provider === 'string') entry.provider = data.provider;
   if (data.source === 'org' || data.source === 'platform') {
     entry.source = data.source;

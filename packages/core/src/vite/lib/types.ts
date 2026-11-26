@@ -54,7 +54,7 @@ export const DEFAULT_SERVICE_MOUNT = '/_service';
 export type ActivityBarSection = 'primary' | 'secondary';
 
 export type UiViewName =
-  'page' | 'sidebar' | 'right-sidebar' | 'widget' | 'settings';
+  'page' | 'sidebar' | 'right-sidebar' | 'right-sheet' | 'widget' | 'settings';
 export type AgentFileName = 'tools' | 'skills' | 'instructions';
 
 /**
@@ -122,6 +122,18 @@ export type ExtensionMetaPublic = {
   openApiPrefixes?: string[];
 };
 
+/**
+ * Optional `meta.json` `rightSheet` block for `ui/right-sheet.tsx`.
+ * Drives the TopBar trigger tooltip/icon and the Sheet header; missing fields
+ * fall back to the extension `name` and `meta.icon`.
+ */
+export type ExtensionMetaRightSheet = {
+  label?: string;
+  description?: string;
+  /** Phosphor icon basename (`"Bell"` → `BellIcon`). */
+  icon?: string;
+};
+
 /** Parsed `meta.json` (tolerant subset). */
 export type ExtensionMeta = {
   name?: string;
@@ -145,6 +157,8 @@ export type ExtensionMeta = {
   public?: ExtensionMetaPublic;
   /** Optional settings sidebar sections backed by `ui/settings.tsx`. */
   settings?: ExtensionSettingsSectionMeta[];
+  /** Optional global right sheet metadata (`ui/right-sheet.tsx`). */
+  rightSheet?: ExtensionMetaRightSheet;
 };
 
 /**

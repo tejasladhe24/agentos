@@ -48,6 +48,15 @@ export type ExtensionEntry = {
   activityBarSection?: ActivityBarSection;
   /** Optional settings sidebar sections backed by `ui/settings.tsx`. */
   settings?: ExtensionSettingsSection[];
+  /** Optional global right sheet labels/icon (`meta.json` `rightSheet`). */
+  rightSheet?: ExtensionRightSheetMeta;
+};
+
+/** Mirrors `ExtensionMetaRightSheet` from the registry (Shell-facing copy). */
+export type ExtensionRightSheetMeta = {
+  label?: string;
+  description?: string;
+  icon?: string;
 };
 
 /** Builtins that own Activity Bar secondary chrome when meta omits a section. */

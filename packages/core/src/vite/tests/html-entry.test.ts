@@ -36,6 +36,10 @@ describe('html-entry helpers', () => {
         view: 'right-sidebar',
       },
     );
+    expect(parseExtHtmlPath('/__agentos/ext/notes/right-sheet.html')).toEqual({
+      extensionId: 'notes',
+      view: 'right-sheet',
+    });
   });
 
   test('parseExtHtmlPath rejects non-entries', () => {
@@ -60,6 +64,9 @@ describe('html-entry helpers', () => {
     expect(
       parseVirtualExtEntryId('virtual:agentos-ext-entry/files/right-sidebar'),
     ).toEqual({ extensionId: 'files', view: 'right-sidebar' });
+    expect(
+      parseVirtualExtEntryId('virtual:agentos-ext-entry/notes/right-sheet'),
+    ).toEqual({ extensionId: 'notes', view: 'right-sheet' });
   });
 
   test('renderExtHtmlEntry boots virtual script and FOUC theme', () => {

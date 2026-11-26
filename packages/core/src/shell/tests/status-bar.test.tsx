@@ -16,6 +16,20 @@ describe('StatusBar', () => {
     expect(html).toContain('done');
   });
 
+  test('warning and error tones get distinct status text styling', () => {
+    const warning = renderToStaticMarkup(
+      <StatusBar statusText="slow" statusTone="warning" />,
+    );
+    expect(warning).toContain('data-tone="warning"');
+    expect(warning).toContain('text-amber-500');
+
+    const error = renderToStaticMarkup(
+      <StatusBar statusText="failed" statusTone="error" />,
+    );
+    expect(error).toContain('data-tone="error"');
+    expect(error).toContain('text-destructive');
+  });
+
   test('shows enabled customer badge', () => {
     const html = renderToStaticMarkup(
       <StatusBar

@@ -1,5 +1,5 @@
 /**
- * UI contribution view kinds (maps to `ui/page|sidebar|right-sidebar|widget|settings.tsx`).
+ * UI contribution view kinds (maps to `ui/page|sidebar|right-sidebar|right-sheet|widget|settings.tsx`).
  *
  * ## Host kinds
  *
@@ -11,12 +11,15 @@
  *   aggregate all enabled extensions and stay visible with Shell chrome even
  *   when some extensions contribute nothing. Topbar v1 is Shell chrome only
  *   (`top-bar-start` / `top-bar-center` / `top-bar-end` reserved for later).
+ * - **Global overlay** host (`right-sheet`): one Sheet over the workspace.
+ *   TopBar exposes a trigger per enabled `ui/right-sheet.tsx`; the open
+ *   extension is tracked in the store (`activeRightSheet`), not the URL.
  *
  * App Home surfaces (`ui/dashboard.tsx`, `ui/dashboard-sidebar.tsx`) are
  * in-process via `mountShell` — not `ExtensionView` / iframe entries.
  */
 export type ExtensionView =
-  'page' | 'sidebar' | 'right-sidebar' | 'widget' | 'settings';
+  'page' | 'sidebar' | 'right-sidebar' | 'right-sheet' | 'widget' | 'settings';
 
 /** Runtime lifecycle status for one mounted contribution frame. */
 export type ContributionRuntimeStatus = 'loading' | 'active' | 'crashed';
