@@ -8,7 +8,10 @@ import type {
 
 export type Step = 'provider' | 'form';
 
-export type Choice = { provider: StorageProviderInfo; preset?: StorageProviderPreset };
+export type Choice = {
+  provider: StorageProviderInfo;
+  preset?: StorageProviderPreset;
+};
 
 export type TestState =
   | { status: 'idle' }
@@ -62,3 +65,10 @@ export function createAddStorageSchema(
       }
     });
 }
+
+export type AddStorageDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  providers: StorageProviderInfo[];
+  onAdded: () => Promise<void> | void;
+};

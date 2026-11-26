@@ -30,10 +30,11 @@ import {
 import { Input } from '@agentos/ui/components/input';
 import { RadioGroup, RadioGroupItem } from '@agentos/ui/components/radio-group';
 
-import { parseErrorBody, type StorageProviderInfo } from '../lib/files-types';
+import { parseErrorBody } from '../lib/files-types';
 import { MountIcon } from './mount-icon';
 
 import {
+  type AddStorageDialogProps,
   choiceId,
   createAddStorageSchema,
   visibleFields,
@@ -42,13 +43,6 @@ import {
   type Step,
   type TestState,
 } from '../lib/add-storage-form';
-
-export type AddStorageDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  providers: StorageProviderInfo[];
-  onAdded: () => Promise<void> | void;
-};
 
 /** Settings › Files › Add storage: pick provider / preset → form → test → add. */
 export function AddStorageDialog({

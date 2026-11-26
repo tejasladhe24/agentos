@@ -1,3 +1,4 @@
+import { parseErrorBody } from '@agentos/core/client/lib/host-json';
 import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -34,17 +35,6 @@ type AuthSettingsSectionId = 'profile' | 'organization';
 function parseAuthSettingsSection(raw: string): AuthSettingsSectionId {
   if (raw === 'organization' || raw === 'roles') return 'organization';
   return 'profile';
-}
-
-function parseErrorBody(body: string, fallback: string): string {
-  try {
-    const data = JSON.parse(body) as { error?: string; message?: string };
-    if (typeof data.error === 'string' && data.error) return data.error;
-    if (typeof data.message === 'string' && data.message) return data.message;
-  } catch {
-    // ignore non-JSON
-  }
-  return body.trim() || fallback;
 }
 
 function parseSession(body: string): AccountSessionView {

@@ -48,6 +48,8 @@ export function FilesUploadZone({
     [disabled, onUploadFiles],
   );
 
+  // agentos-allow-native: hidden <input type="file"> is the platform file
+  // picker; @agentos/ui has no equivalent control.
   const fileInput = (
     <input
       ref={inputRef}

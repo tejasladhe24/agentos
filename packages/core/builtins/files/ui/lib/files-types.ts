@@ -187,16 +187,7 @@ export function exportQuery(item: FilesListItem, format?: string): string {
   return pick ? `&export=${encodeURIComponent(pick)}` : '';
 }
 
-export function parseErrorBody(body: string, fallback: string): string {
-  try {
-    const data = JSON.parse(body) as { error?: string; message?: string };
-    if (typeof data.error === 'string' && data.error) return data.error;
-    if (typeof data.message === 'string' && data.message) return data.message;
-  } catch {
-    // ignore
-  }
-  return body.trim() || fallback;
-}
+export { parseErrorBody } from '@agentos/core/client/lib/host-json';
 
 export function parseListResponse(body: string): FilesListResponse {
   const data = JSON.parse(body) as Partial<FilesListResponse>;

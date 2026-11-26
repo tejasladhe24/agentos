@@ -564,8 +564,7 @@ describe('FilesSidebarNav', () => {
 
 describe('AddStorageDialog fields', () => {
   test('preset fields filter non-secret inputs; secrets always shown', async () => {
-    const { visibleFields } =
-      await import('../ui/lib/add-storage-form');
+    const { visibleFields } = await import('../ui/lib/add-storage-form');
     const provider = {
       id: 's3',
       label: 'S3',

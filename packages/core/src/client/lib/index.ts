@@ -28,6 +28,14 @@ export { useHostAuth } from './use-host-auth';
 export { useFilesBlobUrl, useHostFiles } from './use-host-files';
 export { extensionPath } from './ext-path';
 export {
+  hostJson,
+  parseErrorBody,
+  parseHostJson,
+  useHostJson,
+  type HostJsonResult,
+  type HostResponse,
+} from './host-json';
+export {
   useHostEvent,
   useHostPublish,
   type HostPublish,
