@@ -6,6 +6,10 @@
     "language": "bun",
     "port": 6121
   },
+  "events": {
+    "publishes": ["inbound-email.section.changed"],
+    "subscribes": ["inbound-email.section.changed"]
+  },
   "public": {
     "openApiPrefixes": ["/webhooks/"]
   },

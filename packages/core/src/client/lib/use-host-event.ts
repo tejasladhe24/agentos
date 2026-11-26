@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { EventPayload, HostAPIClient } from '@agentos/core/sdk';
-import { subscribeHostEvent, type HostEventHandler } from './host-events';
+import {
+  publishLocalEvent,
+  subscribeHostEvent,
+  type HostEventHandler,
+} from './host-events';
 import { useHost } from './use-host';
 
 /**
@@ -26,7 +30,10 @@ export function useHostEvent(topic: string, handler: HostEventHandler): void {
 export type HostPublish = {
   /** Durable publish via the `events` builtin (also reaches other tabs). */
   publish: (topic: string, payload: EventPayload) => Promise<void>;
-  /** In-process, UI-only publish (no server round trip). */
+  /**
+   * In-process, UI-only publish (no server round trip). Reaches subscribers in
+   * other frames and in this frame.
+   */
   publishLocal: (topic: string, payload: EventPayload) => Promise<void>;
 };
 
@@ -39,8 +46,7 @@ export function useHostPublish(): HostPublish {
   return useMemo(
     () => ({
       publish: (topic, payload) => host.events.publish(topic, payload),
-      publishLocal: (topic, payload) =>
-        host.events.publishLocal(topic, payload),
+      publishLocal: (topic, payload) => publishLocalEvent(host, topic, payload),
     }),
     [host],
   );

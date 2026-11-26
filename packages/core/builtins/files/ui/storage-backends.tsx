@@ -63,7 +63,7 @@ import {
 import { AddStorageDialog } from './add-storage-dialog';
 import { MountIcon } from './mount-icon';
 import { readDriveConnectResult, startDriveConnect } from './personal-drives';
-import { broadcastMountsChanged } from './use-files-mounts';
+import { useNotifyMountsChanged } from './use-files-mounts';
 
 type StorageBackendsProps = {
   data: FilesMountsResponse;
@@ -106,6 +106,7 @@ export function StorageBackends({
 }: StorageBackendsProps) {
   const api = useHostApi();
   const notifications = useHostNotifications();
+  const notifyMountsChanged = useNotifyMountsChanged();
   const [busy, setBusy] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FilesMount | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -153,7 +154,7 @@ export function StorageBackends({
     setBusy(false);
     if (!res.ok) return { ok: false, body: res.body };
     await notifications.show(success, 'info');
-    broadcastMountsChanged();
+    notifyMountsChanged();
     await reload();
     return { ok: true, body: res.body };
   }
@@ -319,7 +320,7 @@ export function StorageBackends({
         onOpenChange={setAddOpen}
         providers={addable}
         onAdded={async () => {
-          broadcastMountsChanged();
+          notifyMountsChanged();
           await reload();
         }}
       />
@@ -465,6 +466,7 @@ export function ConnectedDrives({
   const api = useHostApi();
   const navigation = useHostNavigation();
   const notifications = useHostNotifications();
+  const notifyMountsChanged = useNotifyMountsChanged();
   const [busy, setBusy] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<FilesMount | null>(null);
   const personal = data.mounts.filter((m) => m.kind === 'personal');
@@ -507,7 +509,7 @@ export function ConnectedDrives({
         : parseErrorBody(res.body, `${mount.name}: connection failed`),
       ok ? 'info' : 'error',
     );
-    broadcastMountsChanged();
+    notifyMountsChanged();
     await reload();
   }
 
@@ -528,7 +530,7 @@ export function ConnectedDrives({
     }
     await notifications.show(`${removeTarget.name} disconnected`, 'info');
     setRemoveTarget(null);
-    broadcastMountsChanged();
+    notifyMountsChanged();
     await reload();
   }
 

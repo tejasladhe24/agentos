@@ -30,10 +30,20 @@ export {
   type HostPublish,
 } from './use-host-event';
 export {
+  useHostSharedState,
+  type HostSharedStateOptions,
+} from './use-host-shared-state';
+export {
+  createHostEventDispatcher,
   dispatchHostEvent,
   subscribeHostEvent,
+  type HostEventDispatcher,
   type HostEventHandler,
 } from './host-events';
+export {
+  connectHostSharedState,
+  type HostSharedState,
+} from './host-shared-state';
 export {
   parseSettingsTarget,
   useSettingsTarget,

@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useHostStorage } from '@agentos/core/client';
+import { useHostSharedState } from '@agentos/core/client';
 
 import {
-  FILES_SELECTION_CHANNEL,
   FILES_SELECTION_STORAGE_KEY,
+  FILES_SELECTION_TOPIC,
   type FilesListItem,
 } from './files-types';
 
@@ -21,53 +20,14 @@ function parseSelection(value: unknown): FilesListItem[] {
 
 /**
  * Selected items shared across Files page + right-sidebar iframes.
- * Persists via host storage; live-syncs with BroadcastChannel.
+ * Persists via host storage; live-syncs over the Shell event bus.
  */
 export function useFilesSelection(): [
   FilesListItem[],
   (items: FilesListItem[]) => Promise<void>,
 ] {
-  const storage = useHostStorage();
-  const [selection, setSelection] = useState<FilesListItem[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const stored = await storage.get(FILES_SELECTION_STORAGE_KEY);
-      if (!cancelled) setSelection(parseSelection(stored));
-    })();
-
-    const channel =
-      typeof BroadcastChannel !== 'undefined'
-        ? new BroadcastChannel(FILES_SELECTION_CHANNEL)
-        : null;
-
-    if (channel) {
-      channel.onmessage = (event: MessageEvent) => {
-        setSelection(parseSelection(event.data));
-      };
-    }
-
-    return () => {
-      cancelled = true;
-      channel?.close();
-    };
-  }, [storage]);
-
-  const updateSelection = useCallback(
-    async (items: FilesListItem[]) => {
-      setSelection(items);
-      const serialized = JSON.stringify(items);
-      await storage.set(FILES_SELECTION_STORAGE_KEY, serialized);
-      if (typeof BroadcastChannel !== 'undefined') {
-        const channel = new BroadcastChannel(FILES_SELECTION_CHANNEL);
-        channel.postMessage(serialized);
-        channel.close();
-      }
-    },
-    [storage],
-  );
-
-  return [selection, updateSelection];
+  return useHostSharedState<FilesListItem[]>(FILES_SELECTION_STORAGE_KEY, [], {
+    topic: FILES_SELECTION_TOPIC,
+    parse: parseSelection,
+  });
 }

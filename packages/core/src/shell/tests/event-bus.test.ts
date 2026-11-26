@@ -42,6 +42,28 @@ describe('shell event bus', () => {
     expect(received['other-1']).toEqual([]);
   });
 
+  test('a local publish skips the publishing frame itself', () => {
+    const decl: Record<string, EventDeclarations> = {
+      files: {
+        publishes: ['files.selection.changed'],
+        subscribes: ['files.selection.changed'],
+      },
+    };
+    const bus = createShellEventBus((id) => decl[id]);
+    const got: string[] = [];
+    for (const frame of ['files-page', 'files-sidebar']) {
+      bus.attachFrame(frame, 'files', () => {
+        got.push(frame);
+      });
+      bus.subscribe(frame, 'files', ['files.selection.changed']);
+    }
+
+    expect(
+      bus.publishLocal('files', 'files.selection.changed', {}, 'files-page'),
+    ).toBe(1);
+    expect(got).toEqual(['files-sidebar']);
+  });
+
   test('undeclared publish is rejected and nothing is delivered', () => {
     const { bus, received, attach } = setup();
     attach('viewer-1', 'viewer');

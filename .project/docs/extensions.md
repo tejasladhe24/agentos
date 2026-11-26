@@ -331,6 +331,17 @@ await publishLocal('files.selection.changed', { keys }); // in-process
 | `events.publish` / `publish`           | Durable: `POST /api/ext/events/publish` (org-scoped, ticket 141). It reaches UI subscribers (this and other tabs) through the SSE bridge below. |
 | `events.subscribe` / `useHostEvent`    | Registers the calling frame for declared topics; returns a subscription id. Frame disposal drops its subscriptions automatically.               |
 
+**Shared state across an extension's frames** (page + sidebar + right sidebar, …): use `useHostSharedState(key, initial, { topic, parse })`. It persists the value in host storage, announces each change on `topic`, and updates every other frame live — the replacement for per-feature `BroadcastChannel` hooks (a guard test fails the build if `BroadcastChannel` reappears under an extension's `ui/`). Declare `topic` under both `events.publishes` and `events.subscribes`.
+
+```tsx
+const [section, setSection] = useHostSharedState('email.section', 'inbox', {
+  topic: 'inbound-email.section.changed',
+  parse: parseEmailSection,
+});
+```
+
+Local publishes skip the publishing frame (the SDK notifies that frame's own subscribers directly), and subscribers read the stored value only after their subscription is registered, so no update is lost in between.
+
 **Server events:** the Shell keeps **one** `GET /api/ext/events/subscribe` SSE connection per session, opened only while some frame is subscribed and closed when the last one leaves. The `events` builtin scopes it to the signed-in org, and the Shell re-emits each message on the in-memory bus to frames that declared the topic. Host implementation: `packages/core/src/shell/lib/chrome/event-bus.ts` and `events-bridge.ts`.
 
 ## Extension enable-state (durable)
@@ -382,7 +393,7 @@ export const POST: RouteHandlers['POST'] = async (c) => {
 
 ## UI
 
-Import `@agentos/core/client` for host SDK hooks (`HostProvider`, `useHostStorage`, `useHostAI`, `useHostHITL`, `useHostNotifications`, `useHostApi`, `useHostNavigation`, `useHostEvent`, `useHostPublish`). Iframes are sandboxed without popups or top navigation, so open external pages (OAuth consent, "Open in Google") with `useHostNavigation().openExternal(url, { sameTab? })`; the Shell accepts only absolute `http(s)` URLs. **`@agentos/core/client` is for `ui/*.tsx` only** — never import it from `api/routes/**` or Python services (use `@agentos/core/api/*` / `agentos.*` there). For base controls (buttons, inputs, checkboxes, selects, dropdowns, …) import from **`@agentos/ui/components/*`** (shadcn) — do not use native HTML controls unless specifically required. Views are wrapped by framework iframe bootstrap — no Comlink / handshake boilerplate in FDE code.
+Import `@agentos/core/client` for host SDK hooks (`HostProvider`, `useHostStorage`, `useHostAI`, `useHostHITL`, `useHostNotifications`, `useHostApi`, `useHostNavigation`, `useHostEvent`, `useHostPublish`, `useHostSharedState`). Iframes are sandboxed without popups or top navigation, so open external pages (OAuth consent, "Open in Google") with `useHostNavigation().openExternal(url, { sameTab? })`; the Shell accepts only absolute `http(s)` URLs. **`@agentos/core/client` is for `ui/*.tsx` only** — never import it from `api/routes/**` or Python services (use `@agentos/core/api/*` / `agentos.*` there). For base controls (buttons, inputs, checkboxes, selects, dropdowns, …) import from **`@agentos/ui/components/*`** (shadcn) — do not use native HTML controls unless specifically required. Views are wrapped by framework iframe bootstrap — no Comlink / handshake boilerplate in FDE code.
 
 ## Builtins
 

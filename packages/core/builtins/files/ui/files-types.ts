@@ -91,9 +91,10 @@ export type FilesMountsResponse = {
 export const PLATFORM_MOUNT_ID = 'platform';
 
 export const FILES_MOUNT_STORAGE_KEY = 'files:mount';
-export const FILES_MOUNT_CHANNEL = 'agentos-files-mount';
-/** Broadcast after mounts change (Settings) so the sidebar reloads. */
-export const FILES_MOUNTS_CHANGED_CHANNEL = 'agentos-files-mounts-changed';
+/** Bus topic: the selected mount changed (declared in `meta.json` events). */
+export const FILES_MOUNT_TOPIC = 'files.mount.changed';
+/** Bus topic: mounts were added/removed/reconnected so views reload. */
+export const FILES_MOUNTS_CHANGED_TOPIC = 'files.mounts.changed';
 
 export function parseMountsResponse(body: string): FilesMountsResponse {
   const data = JSON.parse(body) as Partial<FilesMountsResponse>;
@@ -168,15 +169,16 @@ export type UploadProgressItem = {
 };
 
 export const FILES_PREFIX_STORAGE_KEY = 'files:prefix';
-export const FILES_PREFIX_CHANNEL = 'agentos-files-prefix';
+export const FILES_PREFIX_TOPIC = 'files.prefix.changed';
 
 export const FILES_SECTION_STORAGE_KEY = 'files:section';
-export const FILES_SECTION_CHANNEL = 'agentos-files-section';
+export const FILES_SECTION_TOPIC = 'files.section.changed';
 
 export const FILES_SELECTION_STORAGE_KEY = 'files:selection';
-export const FILES_SELECTION_CHANNEL = 'agentos-files-selection';
+export const FILES_SELECTION_TOPIC = 'files.selection.changed';
 
-export const FILES_DETAIL_OPEN_CHANNEL = 'agentos-files-detail-open';
+/** Bus topic: the detail panel opened/closed (payload: boolean). */
+export const FILES_DETAIL_OPEN_TOPIC = 'files.detail-open.changed';
 
 /** `&export=` for provider-native documents (Google Docs…). */
 export function exportQuery(item: FilesListItem, format?: string): string {

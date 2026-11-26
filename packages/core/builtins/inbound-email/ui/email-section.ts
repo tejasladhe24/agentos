@@ -9,8 +9,8 @@ export type EmailSection = (typeof EMAIL_SECTIONS)[number];
 
 export const EMAIL_SECTION_STORAGE_KEY = 'email.section';
 
-/** Same-origin channel so Email page + sidebar iframes stay in sync. */
-export const EMAIL_SECTION_CHANNEL = 'agentos.inbound-email.section';
+/** Bus topic so Email page + sidebar iframes stay in sync (see `meta.json`). */
+export const EMAIL_SECTION_TOPIC = 'inbound-email.section.changed';
 
 export const EMAIL_SECTION_LABELS: Record<EmailSection, string> = {
   inbox: 'Inbox',

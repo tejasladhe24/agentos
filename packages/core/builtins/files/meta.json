@@ -6,6 +6,24 @@
     "language": "bun",
     "port": 6116
   },
+  "events": {
+    "publishes": [
+      "files.mount.changed",
+      "files.mounts.changed",
+      "files.prefix.changed",
+      "files.section.changed",
+      "files.selection.changed",
+      "files.detail-open.changed"
+    ],
+    "subscribes": [
+      "files.mount.changed",
+      "files.mounts.changed",
+      "files.prefix.changed",
+      "files.section.changed",
+      "files.selection.changed",
+      "files.detail-open.changed"
+    ]
+  },
   "settings": [
     {
       "id": "files",

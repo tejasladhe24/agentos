@@ -10,9 +10,6 @@ export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
 
 export const ACCOUNT_SECTION_STORAGE_KEY = 'account.section';
 
-/** Same-origin channel so auth page + sidebar iframes stay in sync. */
-export const ACCOUNT_SECTION_CHANNEL = 'agentos.auth.account.section';
-
 export const ACCOUNT_SECTION_LABELS: Record<AccountSection, string> = {
   profile: 'Profile',
   organization: 'Organization',
