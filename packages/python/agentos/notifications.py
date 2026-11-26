@@ -11,7 +11,7 @@ from agentos.http import EnvMap, get_json, post_json, resolve_ext_api_base
 
 NOTIFICATIONS_ORG_ID_HEADER = "x-agentos-org-id"
 
-NotificationType = Literal["info", "success", "error"]
+NotificationType = Literal["info", "success", "warning", "error"]
 DeliveryChannel = Literal["in_app", "email", "sms"]
 DeliveryStatus = Literal["queued", "sent", "failed"]
 
@@ -36,6 +36,7 @@ class NotificationEntry(BaseModel):
     templateId: str | None = None
     subject: str | None = None
     orgId: str | None = None
+    extensionId: str | None = None
     provider: str | None = None
     source: str | None = None
     error: str | None = None
@@ -47,6 +48,7 @@ class NotifyInput(BaseModel):
     message: str | None = None
     subject: str | None = None
     type: NotificationType | None = None
+    extensionId: str | None = None
     templateId: str | None = None
     vars: dict[str, str] | None = None
     to: str | None = None

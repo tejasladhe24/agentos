@@ -211,7 +211,9 @@ export function UserSmsFromCard({
     const res = await api.fetch(USER_SMS_PREFS_PATH);
     setLoading(false);
     if (!res.ok) {
-      setError(parseError(res.body, 'Could not load sender number.'));
+      const message = parseError(res.body, 'Could not load sender number.');
+      setError(message);
+      void notifications.show(message, 'error');
       return;
     }
     try {
@@ -220,7 +222,7 @@ export function UserSmsFromCard({
     } catch {
       setError('Invalid sender preference response.');
     }
-  }, [api]);
+  }, [api, notifications]);
 
   useEffect(() => {
     void load();
@@ -236,7 +238,9 @@ export function UserSmsFromCard({
     });
     setBusy(false);
     if (!res.ok) {
-      setError(parseError(res.body, 'Could not save sender number.'));
+      const message = parseError(res.body, 'Could not save sender number.');
+      setError(message);
+      await notifications.show(message, 'error');
       return;
     }
     try {

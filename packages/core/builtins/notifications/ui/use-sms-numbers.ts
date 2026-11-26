@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useHostApi } from '@agentos/core/client';
+import { useHostApi, useHostNotifications } from '@agentos/core/client';
 
 export const SMS_NUMBERS_PATH = '/sms/numbers';
 
@@ -47,25 +47,26 @@ export function smsNumberLabel(number: SmsNumber): string {
 /** SMS-capable Twilio numbers for the sender dropdowns (`GET /sms/numbers`). */
 export function useSmsNumbers(): SmsNumbersState {
   const api = useHostApi();
+  const notifications = useHostNotifications();
   const [data, setData] = useState<SmsNumbersData>(EMPTY);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
+    const failure = 'Could not load phone numbers from Twilio.';
     try {
       const res = await api.fetch(SMS_NUMBERS_PATH);
       if (!res.ok) {
-        setData({
-          ...EMPTY,
-          error: 'Could not load phone numbers from Twilio.',
-        });
+        setData({ ...EMPTY, error: failure });
+        void notifications.show(failure, 'error');
       } else {
         setData(parseSmsNumbers(res.body));
       }
     } catch {
-      setData({ ...EMPTY, error: 'Could not load phone numbers from Twilio.' });
+      setData({ ...EMPTY, error: failure });
+      void notifications.show(failure, 'error');
     }
     setLoading(false);
-  }, [api]);
+  }, [api, notifications]);
 
   useEffect(() => {
     void reload();

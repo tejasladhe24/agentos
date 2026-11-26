@@ -118,7 +118,10 @@ export default function ActivityPage() {
   async function loadPage(
     mode: 'replace' | 'append',
     filters: ActivityFilters,
+    /** Auto-refresh passes `false` so a persistent failure does not toast every tick. */
+    options: { reportErrors?: boolean } = {},
   ) {
+    const reportErrors = options.reportErrors !== false;
     const isAppend = mode === 'append';
     if (isAppend) setLoadingMore(true);
     else setBusy(true);
@@ -145,6 +148,7 @@ export default function ActivityPage() {
           /* ignore */
         }
         setError(message);
+        if (reportErrors) void notifications.show(message, 'error');
         if (!isAppend) setEntries([]);
         return;
       }
@@ -156,7 +160,9 @@ export default function ActivityPage() {
       setEntries((prev) => (isAppend ? [...prev, ...page] : page));
       setNextCursor(body.nextCursor);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      if (reportErrors) void notifications.show(message, 'error');
       if (!isAppend) setEntries([]);
     } finally {
       setBusy(false);
@@ -172,7 +178,7 @@ export default function ActivityPage() {
   useEffect(() => {
     if (!autoRefresh || !booted) return;
     const id = window.setInterval(() => {
-      void loadPage('replace', appliedRef.current);
+      void loadPage('replace', appliedRef.current, { reportErrors: false });
     }, autoRefresh * 1000);
     return () => window.clearInterval(id);
   }, [autoRefresh, booted]);

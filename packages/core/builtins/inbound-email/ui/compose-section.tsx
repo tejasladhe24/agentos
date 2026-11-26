@@ -105,7 +105,9 @@ export function ComposeSection({ canSend }: { canSend: boolean }) {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        setSubmitError(parseErrorBody(res.body, 'Send failed'));
+        const message = parseErrorBody(res.body, 'Send failed');
+        setSubmitError(message);
+        await toast.show(message, 'error');
         return;
       }
       const payload = JSON.parse(res.body) as { notification: DeliveryEntry };

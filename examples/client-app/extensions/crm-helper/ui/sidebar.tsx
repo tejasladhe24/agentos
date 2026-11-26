@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useHostApi } from '@agentos/core/client';
+import { useHostApi, useHostNotifications } from '@agentos/core/client';
 import { Button } from '@agentos/ui/components/button';
 import { Input } from '@agentos/ui/components/input';
 import { Label } from '@agentos/ui/components/label';
@@ -16,6 +16,7 @@ type ContactRow = {
 
 export default function Sidebar() {
   const api = useHostApi();
+  const notifications = useHostNotifications();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<ContactRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -48,6 +49,7 @@ export default function Sidebar() {
         }
         setItems([]);
         setError(message);
+        void notifications.show(message, 'error');
         setSearched(true);
         return;
       }
@@ -56,7 +58,9 @@ export default function Sidebar() {
       setSearched(true);
     } catch (err) {
       setItems([]);
-      setError(err instanceof Error ? err.message : 'Search failed');
+      const message = err instanceof Error ? err.message : 'Search failed';
+      setError(message);
+      void notifications.show(message, 'error');
       setSearched(true);
     } finally {
       setBusy(false);

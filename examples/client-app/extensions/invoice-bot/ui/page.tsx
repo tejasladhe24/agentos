@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useHostApi } from '@agentos/core/client';
+import { useHostApi, useHostNotifications } from '@agentos/core/client';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import { LoadingState } from '@agentos/ui/components/loading-state';
@@ -58,6 +58,7 @@ function formatAmount(amount: unknown, currency: unknown): string {
 
 export default function Page() {
   const api = useHostApi();
+  const notifications = useHostNotifications();
   const [items, setItems] = useState<InvoiceRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,13 +92,17 @@ export default function Page() {
         }
         setItems([]);
         setError(message);
+        void notifications.show(message, 'error');
         return;
       }
       const body = JSON.parse(res.body) as { items?: InvoiceRow[] };
       setItems(Array.isArray(body.items) ? body.items : []);
     } catch (err) {
       setItems([]);
-      setError(err instanceof Error ? err.message : 'Failed to load invoices');
+      const message =
+        err instanceof Error ? err.message : 'Failed to load invoices';
+      setError(message);
+      void notifications.show(message, 'error');
     } finally {
       setBusy(false);
     }

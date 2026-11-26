@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useHostApi } from '@agentos/core/client';
+import { useHostApi, useHostNotifications } from '@agentos/core/client';
 
 import {
   FILES_MOUNTS_CHANGED_CHANNEL,
@@ -25,29 +25,45 @@ export function broadcastMountsChanged(): void {
 }
 
 /** Visible mounts from `GET /mounts`; reloads when another view changes them. */
-export function useFilesMounts(options: { usage?: boolean } = {}): {
+export function useFilesMounts(
+  options: {
+    usage?: boolean;
+    /**
+     * Toast load failures via the host notifications inbox. Enable on one
+     * consumer per page: each Files iframe mounts this hook, so unconditional
+     * reporting would toast once per iframe.
+     */
+    reportErrors?: boolean;
+  } = {},
+): {
   data: FilesMountsResponse;
   loading: boolean;
   error: string | null;
   reload: () => Promise<void>;
 } {
   const api = useHostApi();
+  const notifications = useHostNotifications();
   const [data, setData] = useState<FilesMountsResponse>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const usage = options.usage === true;
+  const reportErrors = options.reportErrors === true;
 
   const reload = useCallback(async () => {
     let res: Awaited<ReturnType<typeof api.fetch>>;
     try {
       res = await api.fetch(`/mounts${usage ? '?usage=1' : ''}`);
     } catch {
-      setError('Could not reach storage. Reload the page to retry.');
+      const message = 'Could not reach storage. Reload the page to retry.';
+      setError(message);
+      if (reportErrors) void notifications.show(message, 'error');
       setLoading(false);
       return;
     }
     if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Could not load storage'));
+      const message = parseErrorBody(res.body, 'Could not load storage');
+      setError(message);
+      if (reportErrors) void notifications.show(message, 'error');
       setLoading(false);
       return;
     }
@@ -55,10 +71,12 @@ export function useFilesMounts(options: { usage?: boolean } = {}): {
       setData(parseMountsResponse(res.body));
       setError(null);
     } catch {
-      setError('Invalid storage response');
+      const message = 'Invalid storage response';
+      setError(message);
+      if (reportErrors) void notifications.show(message, 'error');
     }
     setLoading(false);
-  }, [api, usage]);
+  }, [api, notifications, reportErrors, usage]);
 
   useEffect(() => {
     void reload();

@@ -56,6 +56,7 @@ export default function SecretsPage() {
           );
         } else {
           setError(listed.message);
+          void notifications.show(listed.message, 'error');
         }
         return;
       }
@@ -63,8 +64,11 @@ export default function SecretsPage() {
       setCanWrite(listed.data.canWrite);
       setKeys(listed.data.keys);
     } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to load secrets';
       setKeys([]);
-      setError(err instanceof Error ? err.message : 'Failed to load secrets');
+      setError(message);
+      void notifications.show(message, 'error');
     } finally {
       setLoading(false);
     }
@@ -120,6 +124,23 @@ export default function SecretsPage() {
     return revealVaultSecret((path, init) => api.fetch(path, init), key);
   }
 
+  /**
+   * Dialogs render failed mutations inline; also toast them so operational
+   * errors reach the notifications inbox. The error is rethrown so the
+   * dialog still shows its inline message.
+   */
+  async function toastFailures<T>(action: () => Promise<T>): Promise<T> {
+    try {
+      return await action();
+    } catch (err) {
+      void notifications.show(
+        err instanceof Error ? err.message : 'Secret action failed',
+        'error',
+      );
+      throw err;
+    }
+  }
+
   return (
     <SecretsManager
       loading={loading}
@@ -138,10 +159,10 @@ export default function SecretsPage() {
       onRotateKeyChange={setRotateKey}
       deleteKey={deleteKey}
       onDeleteKeyChange={setDeleteKey}
-      onCreate={onCreate}
-      onRotate={onRotate}
-      onDelete={onDelete}
-      onReveal={onReveal}
+      onCreate={(input) => toastFailures(() => onCreate(input))}
+      onRotate={(input) => toastFailures(() => onRotate(input))}
+      onDelete={(key) => toastFailures(() => onDelete(key))}
+      onReveal={(key) => toastFailures(() => onReveal(key))}
     />
   );
 }

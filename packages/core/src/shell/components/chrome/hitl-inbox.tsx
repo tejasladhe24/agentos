@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useShellStore } from '@agentos/core/shell/lib';
+import { createShellHostApi, useShellStore } from '@agentos/core/shell/lib';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import { LoadingState } from '@agentos/ui/components/loading-state';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
+
+/** Shell-hosted builtin; resolve failures reach the notifications inbox as `hitl`. */
+const hitlHost = createShellHostApi('hitl');
 
 type Approval = {
   id: string;
@@ -81,7 +84,10 @@ export function HitlInbox() {
       await resolveApproval(id, decision);
       await refresh(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      // Only user-initiated resolves toast; background polling stays silent.
+      void hitlHost.notifications.show(message, 'error');
     } finally {
       setBusyId(null);
     }
