@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useHostStorage } from '@agentos/core/client';
+import { useHostSharedState } from '@agentos/core/client';
 
-import { FILES_MOUNT_CHANNEL, FILES_MOUNT_STORAGE_KEY } from './files-types';
+import { FILES_MOUNT_STORAGE_KEY, FILES_MOUNT_TOPIC } from './files-types';
 
 /** `''` = nothing chosen yet → callers fall back to the org default mount. */
 function parseMountId(value: unknown): string {
@@ -10,49 +9,11 @@ function parseMountId(value: unknown): string {
 
 /**
  * Selected mount shared across Files page + sidebar iframes (browse root).
- * Persists via host storage; live-syncs with BroadcastChannel.
+ * Persists via host storage; live-syncs over the Shell event bus.
  */
 export function useFilesMount(): [string, (mountId: string) => Promise<void>] {
-  const storage = useHostStorage();
-  const [mountId, setMountId] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const stored = await storage.get(FILES_MOUNT_STORAGE_KEY);
-      if (!cancelled) setMountId(parseMountId(stored));
-    })();
-
-    const channel =
-      typeof BroadcastChannel !== 'undefined'
-        ? new BroadcastChannel(FILES_MOUNT_CHANNEL)
-        : null;
-
-    if (channel) {
-      channel.onmessage = (event: MessageEvent) => {
-        setMountId(parseMountId(event.data));
-      };
-    }
-
-    return () => {
-      cancelled = true;
-      channel?.close();
-    };
-  }, [storage]);
-
-  const selectMount = useCallback(
-    async (next: string) => {
-      setMountId(next);
-      await storage.set(FILES_MOUNT_STORAGE_KEY, next);
-      if (typeof BroadcastChannel !== 'undefined') {
-        const channel = new BroadcastChannel(FILES_MOUNT_CHANNEL);
-        channel.postMessage(next);
-        channel.close();
-      }
-    },
-    [storage],
-  );
-
-  return [mountId, selectMount];
+  return useHostSharedState<string>(FILES_MOUNT_STORAGE_KEY, '', {
+    topic: FILES_MOUNT_TOPIC,
+    parse: parseMountId,
+  });
 }

@@ -228,7 +228,7 @@ export function createShellHostApi(
         }
       },
       publishLocal: async (topic, payload) => {
-        bus.publishLocal(extensionId, topic, payload);
+        bus.publishLocal(extensionId, topic, payload, frameId);
       },
       subscribe: async (topics) => bus.subscribe(frameId, extensionId, topics),
       unsubscribe: async (subscriptionId) => {

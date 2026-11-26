@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import {
+  useHostApi,
+  useHostEvent,
+  useHostNotifications,
+  useHostPublish,
+} from '@agentos/core/client';
 
 import {
-  FILES_MOUNTS_CHANGED_CHANNEL,
+  FILES_MOUNTS_CHANGED_TOPIC,
   parseErrorBody,
   parseMountsResponse,
   PLATFORM_MOUNT_ID,
@@ -16,12 +21,15 @@ const EMPTY: FilesMountsResponse = {
   canManage: false,
 };
 
-/** Tell other Files iframes (sidebar, page) that mounts changed. */
-export function broadcastMountsChanged(): void {
-  if (typeof BroadcastChannel === 'undefined') return;
-  const channel = new BroadcastChannel(FILES_MOUNTS_CHANGED_CHANNEL);
-  channel.postMessage('changed');
-  channel.close();
+/**
+ * Returns a function that tells every Files iframe (sidebar, page, settings)
+ * over the Shell event bus that mounts changed, so they reload.
+ */
+export function useNotifyMountsChanged(): () => void {
+  const { publishLocal } = useHostPublish();
+  return useCallback(() => {
+    void publishLocal(FILES_MOUNTS_CHANGED_TOPIC, null).catch(() => {});
+  }, [publishLocal]);
 }
 
 /** Visible mounts from `GET /mounts`; reloads when another view changes them. */
@@ -80,13 +88,11 @@ export function useFilesMounts(
 
   useEffect(() => {
     void reload();
-    const channel =
-      typeof BroadcastChannel !== 'undefined'
-        ? new BroadcastChannel(FILES_MOUNTS_CHANGED_CHANNEL)
-        : null;
-    if (channel) channel.onmessage = () => void reload();
-    return () => channel?.close();
   }, [reload]);
+
+  useHostEvent(FILES_MOUNTS_CHANGED_TOPIC, () => {
+    void reload();
+  });
 
   return { data, loading, error, reload };
 }

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useHostApi,
+  useHostEvent,
   useHostNavigation,
   useHostNotifications,
+  useHostPublish,
   useHostUi,
 } from '@agentos/core/client';
 
@@ -10,7 +12,7 @@ import { FilesBrowser } from './files-browser';
 import {
   encodeBlobPath,
   exportQuery,
-  FILES_DETAIL_OPEN_CHANNEL,
+  FILES_DETAIL_OPEN_TOPIC,
   fileToBase64,
   formatBytes,
   itemId,
@@ -28,7 +30,7 @@ import {
 } from './files-types';
 import { driveCopy, startDriveConnect } from './personal-drives';
 import { useFilesMount } from './use-files-mount';
-import { broadcastMountsChanged, useFilesMounts } from './use-files-mounts';
+import { useFilesMounts, useNotifyMountsChanged } from './use-files-mounts';
 import { useFilesPrefix } from './use-files-prefix';
 import { useFilesSection } from './use-files-section';
 import { useFilesSelection } from './use-files-selection';
@@ -76,6 +78,8 @@ export default function FilesPage() {
   const navigation = useHostNavigation();
   const notifications = useHostNotifications();
   const ui = useHostUi();
+  const { publishLocal } = useHostPublish();
+  const notifyMountsChanged = useNotifyMountsChanged();
   const [prefix, setPrefix] = useFilesPrefix();
   const [section] = useFilesSection();
   const [selectedMountId, setSelectedMountId] = useFilesMount();
@@ -125,22 +129,14 @@ export default function FilesPage() {
     void ui.isRightSidebarOpen().then((open) => {
       if (!cancelled) setDetailOpen(open);
     });
-    const channel =
-      typeof BroadcastChannel !== 'undefined'
-        ? new BroadcastChannel(FILES_DETAIL_OPEN_CHANNEL)
-        : null;
-    if (channel) {
-      channel.onmessage = (event: MessageEvent) => {
-        if (typeof event.data === 'boolean') {
-          setDetailOpen(event.data);
-        }
-      };
-    }
     return () => {
       cancelled = true;
-      channel?.close();
     };
   }, [ui]);
+
+  useHostEvent(FILES_DETAIL_OPEN_TOPIC, (open) => {
+    if (typeof open === 'boolean') setDetailOpen(open);
+  });
 
   useEffect(() => {
     void setSharedSelection(selectedItems);
@@ -176,21 +172,28 @@ export default function FilesPage() {
       void notifications.show(message, 'error');
       setItems([]);
       setLoading(false);
-      if (isReconnectError(res.body)) broadcastMountsChanged();
+      if (isReconnectError(res.body)) notifyMountsChanged();
       return;
     }
     const list = parseListResponse(res.body);
     setItems(list.items);
     setLoading(false);
-  }, [activeSearch, api, mountId, notifications, prefix, section]);
+  }, [
+    activeSearch,
+    api,
+    mountId,
+    notifications,
+    notifyMountsChanged,
+    prefix,
+    section,
+  ]);
 
-  const broadcastDetailOpen = useCallback((open: boolean) => {
-    if (typeof BroadcastChannel !== 'undefined') {
-      const channel = new BroadcastChannel(FILES_DETAIL_OPEN_CHANNEL);
-      channel.postMessage(open);
-      channel.close();
-    }
-  }, []);
+  const broadcastDetailOpen = useCallback(
+    (open: boolean) => {
+      void publishLocal(FILES_DETAIL_OPEN_TOPIC, open).catch(() => {});
+    },
+    [publishLocal],
+  );
 
   useEffect(() => {
     setSelectedKeys(new Set());

@@ -1,6 +1,6 @@
 # 143 — Replace `BroadcastChannel` hooks with bus-backed shared state
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -8,7 +8,7 @@ Remove raw `BroadcastChannel` usage from extension UIs. Shared UI state (Files s
 
 ## Depends on
 
-- Ticket **142** (Extension UI event bus) — todo
+- Ticket **142** (Extension UI event bus) — merged
 - Ticket **134** (Right sidebar + Files migration) — done (introduced most of these channels)
 
 ## Current state (to replace)
@@ -27,6 +27,14 @@ Remove raw `BroadcastChannel` usage from extension UIs. Shared UI state (Files s
 
 Channel names are defined in `files-types.ts`, `email-section.ts`, and `account-section.ts`.
 
+## As built
+
+- `useHostSharedState(key, initial, { topic, parse })` takes an explicit per-feature `topic` (for example `files.selection.changed`) instead of a generic `shared-state.changed`, because topics must be namespaced and declared per extension (ticket 142).
+- The Shell bus skips the publishing frame on `publishLocal`; the SDK dispatches to that frame's own hook instances directly, so same-frame and cross-frame sync both work without echo loops.
+- Subscribers read host storage only after their subscription is registered, closing the read-then-subscribe gap.
+- `ACCOUNT_SECTION_CHANNEL` had no consumers (the account section hook no longer exists), so the constant was removed; there is no auth topic to declare.
+- `broadcastMountsChanged()` became the `useNotifyMountsChanged()` hook (it needs the host).
+
 ## Scope
 
 1. **Shared-state hook:** add `useHostSharedState<T>(key, initial)` to `@agentos/core/client`. It reads and writes host storage and publishes `shared-state.changed` with the key on the bus; subscribers update on change.
@@ -42,12 +50,12 @@ Channel names are defined in `files-types.ts`, `email-section.ts`, and `account-
 
 ## Done when
 
-- [ ] `rg "BroadcastChannel" packages/core/builtins examples` returns no matches
-- [ ] `useHostSharedState` is exported from `@agentos/core/client` and documented
-- [ ] Files selection, prefix, section, mounts, and detail-open state sync across frames as before
-- [ ] Email section and Account section sync via the bus
-- [ ] A guard test fails the build if `BroadcastChannel` reappears in extension UI
-- [ ] `bun run ci` passes
+- [x] `rg "BroadcastChannel" packages/core/builtins examples` returns no matches
+- [x] `useHostSharedState` is exported from `@agentos/core/client` and documented
+- [x] Files selection, prefix, section, mounts, and detail-open state sync across frames as before (multi-frame integration test)
+- [x] Email section syncs via the bus (Account section had no consumer left; constant removed)
+- [x] A guard test fails the build if `BroadcastChannel` reappears in extension UI
+- [x] `bun run ci` passes
 
 ## Verify
 

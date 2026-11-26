@@ -55,12 +55,16 @@ export interface ShellEventBus {
   unsubscribe(frameId: string, subscriptionId: string): void;
   /**
    * UI-only publish from an extension. Validates `events.publishes`, then
-   * delivers in-process to subscribed frames. Returns the delivery count.
+   * delivers in-process to subscribed frames. The publishing frame
+   * (`fromFrameId`) is skipped: it already knows what it published, and the
+   * client SDK notifies its own in-frame subscribers directly. Returns the
+   * delivery count.
    */
   publishLocal(
     extensionId: string,
     topic: string,
     payload: EventPayload,
+    fromFrameId?: string,
   ): number;
   /** Throws {@link EventDeclarationError} if `extensionId` may not publish. */
   assertCanPublish(extensionId: string, topic: string): void;
@@ -127,10 +131,14 @@ export function createShellEventBus(
     }
   }
 
-  function fanOut(topic: string, payload: EventPayload): number {
+  function fanOut(
+    topic: string,
+    payload: EventPayload,
+    skipFrameId?: string,
+  ): number {
     let delivered = 0;
-    for (const frame of frames.values()) {
-      if (!frame.deliver) continue;
+    for (const [frameId, frame] of frames) {
+      if (frameId === skipFrameId || !frame.deliver) continue;
       let matches = false;
       for (const topics of frame.subscriptions.values()) {
         if (topics.has(topic)) {
@@ -190,9 +198,9 @@ export function createShellEventBus(
       assertTopic(extensionId, topic, 'publish');
     },
 
-    publishLocal(extensionId, topic, payload) {
+    publishLocal(extensionId, topic, payload, fromFrameId) {
       assertTopic(extensionId, topic, 'publish');
-      return fanOut(topic, payload);
+      return fanOut(topic, payload, fromFrameId);
     },
 
     emit(topic, payload) {

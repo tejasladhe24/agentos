@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   useHostApi,
+  useHostEvent,
   useHostNavigation,
   useHostNotifications,
+  useHostPublish,
   useHostUi,
 } from '@agentos/core/client';
 
@@ -10,7 +12,7 @@ import { FilesDetail } from './files-detail';
 import {
   encodeBlobPath,
   exportQuery,
-  FILES_DETAIL_OPEN_CHANNEL,
+  FILES_DETAIL_OPEN_TOPIC,
   mountQuery,
   parseErrorBody,
   PLATFORM_MOUNT_ID,
@@ -32,6 +34,7 @@ export default function FilesRightSidebar() {
   const navigation = useHostNavigation();
   const notifications = useHostNotifications();
   const ui = useHostUi();
+  const { publishLocal } = useHostPublish();
   const [selection] = useFilesSelection();
   const [selectedMountId] = useFilesMount();
   const { data: mountsData } = useFilesMounts();
@@ -68,18 +71,6 @@ export default function FilesRightSidebar() {
       if (!cancelled) setPanelVisible(open);
     });
 
-    const channel =
-      typeof BroadcastChannel !== 'undefined'
-        ? new BroadcastChannel(FILES_DETAIL_OPEN_CHANNEL)
-        : null;
-    if (channel) {
-      channel.onmessage = (event: MessageEvent) => {
-        if (typeof event.data === 'boolean') {
-          setPanelVisible(event.data);
-        }
-      };
-    }
-
     const el = rootRef.current;
     const observer =
       el && typeof IntersectionObserver !== 'undefined'
@@ -92,10 +83,13 @@ export default function FilesRightSidebar() {
 
     return () => {
       cancelled = true;
-      channel?.close();
       observer?.disconnect();
     };
   }, [ui]);
+
+  useHostEvent(FILES_DETAIL_OPEN_TOPIC, (open) => {
+    if (typeof open === 'boolean') setPanelVisible(open);
+  });
 
   useEffect(() => {
     revokePreviewUrl();
@@ -187,11 +181,7 @@ export default function FilesRightSidebar() {
   function closeDetail() {
     setPanelVisible(false);
     void ui.setRightSidebarOpen(false);
-    if (typeof BroadcastChannel !== 'undefined') {
-      const channel = new BroadcastChannel(FILES_DETAIL_OPEN_CHANNEL);
-      channel.postMessage(false);
-      channel.close();
-    }
+    void publishLocal(FILES_DETAIL_OPEN_TOPIC, false).catch(() => {});
   }
 
   return (
