@@ -1,6 +1,10 @@
 {
   "name": "Notifications",
   "icon": "Bell",
+  "rightSheet": {
+    "label": "Notifications",
+    "description": "Recent in-app notifications and alerts"
+  },
   "api": {
     "language": "bun",
     "port": 6117
