@@ -1,4 +1,5 @@
 import type { RegistryModel, UiViewName } from '@agentos/core/vite/lib/types';
+import { pathToView } from '../routing/view-paths';
 
 export type PublicAuthRoute =
   'login' | 'register' | 'forgot-password' | 'reset-password';
@@ -60,11 +61,12 @@ export function isPublicAuthPath(
 }
 
 /**
- * Known SPA workspace path (Shell Home). Public auth paths are matched
- * separately; everything else is a client Not Found.
+ * Known SPA workspace path: Home (`/`), Settings (`/settings`), or an
+ * extension page (`/ext/<id>`). Public auth paths are matched separately;
+ * everything else is a client Not Found.
  */
 export function isKnownAppPath(pathname: string): boolean {
-  return normalizePathname(pathname) === '/';
+  return pathToView(pathname) !== null;
 }
 
 /**
@@ -118,8 +120,28 @@ export function matchPublicExtensionRoute(
   return null;
 }
 
-/** Client navigation that keeps AuthGate in sync via popstate. */
+/** Router-backed navigation, registered by `AppRouter` while it is mounted. */
+let appNavigator: ((to: string) => void) | null = null;
+
+/**
+ * Register (or clear with `null`) the router navigator used by
+ * {@link navigateApp}. `AppRouter` owns this for the lifetime of the Shell.
+ */
+export function registerAppNavigator(
+  navigator: ((to: string) => void) | null,
+): void {
+  appNavigator = navigator;
+}
+
+/**
+ * Client navigation. Goes through the active router when one is registered;
+ * otherwise falls back to `pushState` + a synthetic `popstate`.
+ */
 export function navigateApp(to: string): void {
+  if (appNavigator) {
+    appNavigator(to);
+    return;
+  }
   const url = new URL(to, window.location.origin);
   if (
     url.pathname === window.location.pathname &&
@@ -132,29 +154,27 @@ export function navigateApp(to: string): void {
 }
 
 /**
- * Build `/login` with optional `?next=`. Unknown SPA paths are never encoded —
- * AuthGate shows Not Found for those URLs. Today only `/` is a known workspace
- * path, so `next` is never attached.
+ * Build `/login` with an optional `?next=` so a deep link survives sign-in.
+ * Only known workspace paths (other than Home, the default) are carried;
+ * unknown SPA paths show Not Found and are never parked in `?next=`.
+ * `nextPath` may include a search string (`/settings?section=…`).
  */
 export function loginPathWithNext(nextPath?: string | null): string {
-  if (
-    !nextPath ||
-    isKnownAppPath(nextPath) ||
-    matchPublicAuthRoute(nextPath, {
-      allowSignUp: true,
-      allowPasswordReset: true,
-    })
-  ) {
+  if (!nextPath) return '/login';
+  const pathname = nextPath.split(/[?#]/, 1)[0] ?? '';
+  if (!isKnownAppPath(pathname) || normalizePathname(pathname) === '/') {
     return '/login';
   }
-  // Unknown path → do not park in ?next=
-  return '/login';
+  return `/login?next=${encodeURIComponent(nextPath)}`;
 }
 
 export function readNextParam(search: string): string | null {
   const params = new URLSearchParams(search);
   const next = params.get('next');
-  return next && next.startsWith('/') ? next : null;
+  if (!next || !next.startsWith('/')) return null;
+  // Reject protocol-relative (`//host`) and backslash tricks (`/\host`).
+  if (next.startsWith('//') || next.startsWith('/\\')) return null;
+  return next;
 }
 
 export function readResetToken(search: string): string | null {
