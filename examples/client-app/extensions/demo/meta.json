@@ -1,6 +1,11 @@
 {
   "name": "Demo",
   "icon": "Sparkle",
+  "rightSheet": {
+    "label": "Demo sheet",
+    "description": "Global right sheet sample (ui/right-sheet.tsx).",
+    "icon": "Sparkle"
+  },
   "api": {
     "language": "bun",
     "port": 6103,

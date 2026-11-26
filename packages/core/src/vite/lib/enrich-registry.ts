@@ -12,6 +12,7 @@ const UI_VIEWS: UiViewName[] = [
   'page',
   'sidebar',
   'right-sidebar',
+  'right-sheet',
   'widget',
   'settings',
 ];

@@ -11,6 +11,7 @@ extensions/<id>/
     page.tsx          # main slot → /ext/<id>
     sidebar.tsx       # left sidebar (shown when this extension is activeView)
     right-sidebar.tsx # right sidebar (resizable, shown when open + extension is activeView)
+    right-sheet.tsx   # global right sheet (overlay; TopBar trigger, any workspace page)
     widget.tsx        # home widget card(s)
     settings.tsx      # Settings sidebar section(s) (paired with meta.json settings)
   agent/
@@ -24,6 +25,20 @@ extensions/<id>/
       tools/
         search_contacts/index.ts
 ```
+
+## Right sidebar vs right sheet
+
+Both are optional iframe entrypoints, but they live in different Shell hosts:
+
+| File                   | Host                                                        | Visibility                                                            | Controlled by                                                                                       |
+| ---------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `ui/right-sidebar.tsx` | Inline resizable column beside the workspace                | Only while the **active** extension is open and the column is open    | TopBar right-sidebar toggle, `useHostUi().setRightSidebarOpen`                                      |
+| `ui/right-sheet.tsx`   | Global `@agentos/ui` `Sheet` (`side="right"`) over any page | Any time the user opens it from the TopBar trigger for that extension | TopBar trigger per extension, `useHostUi().openRightSheet` / `closeRightSheet` / `toggleRightSheet` |
+
+- Optional `meta.json` `rightSheet: { label?, description?, icon? }` sets the TopBar tooltip and icon and the Sheet header. Missing fields fall back to the extension `name` and `icon`.
+- Use `right-sidebar` for context tied to the page you are on (for example Files details). Use `right-sheet` for a workspace-wide panel (for example notifications) that should stay reachable from Home, Settings, and other extensions.
+- Only one right sheet is open at a time. Disabling the extension that owns the open sheet closes it. Frames stay mounted while the sheet is closed, so reopening does not re-run the extension handshake.
+- `openRightSheet(extensionId?)`, `toggleRightSheet(extensionId?)`, and `getActiveRightSheet()` default to the calling extension. A missing or disabled `right-sheet` contribution is a no-op.
 
 ## Env (`api/env.ts`)
 
