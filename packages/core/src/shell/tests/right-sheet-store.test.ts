@@ -46,7 +46,6 @@ function resetStore(desired: UiContribution[] = contributions) {
   useShellStore.setState({
     activeView: 'home',
     sidebarOpen: true,
-    sidebarPanel: 'contribution',
     rightSidebarOpen: false,
     activeRightSheet: null,
     chatOpen: false,
