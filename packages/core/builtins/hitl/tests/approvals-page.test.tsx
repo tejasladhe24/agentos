@@ -62,7 +62,7 @@ const PENDING: Approval = {
   id: 'p1',
   title: 'Pay invoice INV-7',
   body: 'Vendor: Acme\nAmount: 120 USD',
-  metadata: { invoiceId: 'INV-7' },
+  metadata: { invoiceId: 'INV-7', source: 'invoice-bot' },
   status: 'pending',
   createdAt: '2026-11-26T10:00:00.000Z',
 };
@@ -143,7 +143,7 @@ describe('resolveApproval', () => {
 });
 
 describe('ApprovalCard', () => {
-  test('pending requests show full body, metadata, timestamps, and both actions', () => {
+  test('pending card shows message, source, relative time, and hover Approve/Cancel; no badge, icon, or metadata JSON', () => {
     const html = renderToStaticMarkup(
       createElement(ApprovalCard, {
         approval: PENDING,
@@ -153,14 +153,22 @@ describe('ApprovalCard', () => {
     );
     expect(html).toContain('Pay invoice INV-7');
     expect(html).toContain('Vendor: Acme');
-    expect(html).toContain('INV-7');
-    expect(html).toContain('data-slot="approval-metadata"');
+    expect(html).toContain('Requested');
+    expect(html).toContain('via invoice-bot');
+    expect(html).toContain('data-slot="alert"');
+    expect(html).toContain('data-slot="alert-action"');
+    expect(html).toContain('group-hover/alert:opacity-100');
     expect(html).toContain('Approve');
-    expect(html).toContain('Reject');
+    expect(html).toContain('Cancel');
     expect(html).toContain('data-status="pending"');
+    expect(html).not.toContain('data-slot="badge"');
+    expect(html).not.toContain('<svg');
+    // Raw metadata is never shown to users.
+    expect(html).not.toContain('invoiceId');
+    expect(html).not.toContain('Metadata');
   });
 
-  test('resolved requests show the resolve time and no actions', () => {
+  test('resolved card shows the outcome badge and resolve time, with no actions', () => {
     const html = renderToStaticMarkup(
       createElement(ApprovalCard, {
         approval: APPROVED,
@@ -169,12 +177,13 @@ describe('ApprovalCard', () => {
       }),
     );
     expect(html).toContain('Resolved');
+    expect(html).toContain('data-slot="badge"');
+    expect(html).toContain('>Approved<');
     expect(html).not.toContain('>Approve<');
-    expect(html).not.toContain('>Reject<');
-    expect(html).not.toContain('data-slot="approval-metadata"');
+    expect(html).not.toContain('>Cancel<');
   });
 
-  test('busy pending request disables both actions', () => {
+  test('busy pending card disables both actions and keeps them visible', () => {
     const html = renderToStaticMarkup(
       createElement(ApprovalCard, {
         approval: PENDING,
@@ -184,11 +193,12 @@ describe('ApprovalCard', () => {
     );
     // Match the native attribute only (not `data-disabled`).
     expect(html.match(/ disabled=""/g)?.length).toBe(2);
+    expect(html).not.toContain('opacity-0');
   });
 });
 
 describe('ApprovalsPage', () => {
-  test('renders the status tabs and the loading state before the first load', () => {
+  test('renders max-w-screen-md container, fuzzy search, status tabs, and loading state', () => {
     const html = renderToStaticMarkup(
       createElement(HostProvider, {
         host: createTestHost(() => ({ ok: true, status: 200, body: '{}' })),
@@ -196,6 +206,8 @@ describe('ApprovalsPage', () => {
       }),
     );
     expect(html).toContain('data-slot="approvals-page"');
+    expect(html).toContain('max-w-screen-md');
+    expect(html).toContain('Search approvals');
     expect(html).toContain('Approvals');
     expect(html).toContain('Loading approvals…');
     for (const label of ['Pending', 'Approved', 'Rejected', 'All']) {

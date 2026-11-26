@@ -1,9 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  approvalSource,
   approvalsPath,
+  formatRelativeTime,
   errorMessage,
+  filterApprovals,
   formatMetadata,
+  fuzzyMatch,
   parseApprovals,
   resolvePath,
   sortNewestFirst,
@@ -108,6 +112,43 @@ describe('sortNewestFirst', () => {
   });
 });
 
+describe('fuzzy search', () => {
+  const items: Approval[] = [
+    {
+      id: 'p1',
+      title: 'Pay invoice INV-7',
+      body: 'Vendor: Acme Corp',
+      metadata: { source: 'invoice-bot' },
+      status: 'pending',
+      createdAt: '2026-11-26T10:00:00.000Z',
+    },
+    {
+      id: 'p2',
+      title: 'Send contract',
+      body: 'MSA renewal for Globex',
+      status: 'pending',
+      createdAt: '2026-11-26T09:00:00.000Z',
+    },
+  ];
+
+  test('fuzzyMatch matches ordered character subsequences across tokens', () => {
+    expect(fuzzyMatch('py inv', 'Pay invoice INV-7')).toBe(true);
+    expect(fuzzyMatch('acm 7', 'Pay invoice INV-7 Vendor: Acme Corp')).toBe(
+      true,
+    );
+    expect(fuzzyMatch('xyz', 'Pay invoice')).toBe(false);
+  });
+
+  test('filterApprovals searches title, body, and metadata', () => {
+    expect(filterApprovals(items, '').map((a) => a.id)).toEqual(['p1', 'p2']);
+    expect(filterApprovals(items, 'acme corp').map((a) => a.id)).toEqual([
+      'p1',
+    ]);
+    expect(filterApprovals(items, 'invbt').map((a) => a.id)).toEqual(['p1']);
+    expect(filterApprovals(items, 'glbx').map((a) => a.id)).toEqual(['p2']);
+  });
+});
+
 describe('errorMessage', () => {
   test('prefers the API error and detail', () => {
     expect(
@@ -124,6 +165,46 @@ describe('errorMessage', () => {
     );
     expect(errorMessage(500, 'boom')).toBe('boom');
     expect(errorMessage(500, '  ')).toBe('Request failed (500)');
+  });
+});
+
+describe('formatRelativeTime and approvalSource', () => {
+  const now = Date.parse('2026-11-26T12:00:00.000Z');
+
+  test('formats seconds, minutes, hours, and days relative to now', () => {
+    expect(formatRelativeTime('2026-11-26T11:59:30.000Z', now)).toBe(
+      '30 seconds ago',
+    );
+    expect(formatRelativeTime('2026-11-26T11:55:00.000Z', now)).toBe(
+      '5 minutes ago',
+    );
+    expect(formatRelativeTime('2026-11-26T09:00:00.000Z', now)).toBe(
+      '3 hours ago',
+    );
+    expect(formatRelativeTime('2026-11-25T12:00:00.000Z', now)).toBe(
+      'yesterday',
+    );
+    expect(formatRelativeTime(undefined, now)).toBe('');
+    expect(formatRelativeTime('not a date', now)).toBe('not a date');
+  });
+
+  test('approvalSource reads a non-empty string metadata.source only', () => {
+    const base = {
+      id: 'a',
+      title: 't',
+      status: 'pending' as const,
+      createdAt: '',
+    };
+    expect(
+      approvalSource({ ...base, metadata: { source: ' invoice-bot ' } }),
+    ).toBe('invoice-bot');
+    expect(approvalSource({ ...base, metadata: { source: 42 } })).toBe(
+      undefined,
+    );
+    expect(approvalSource({ ...base, metadata: { source: ' ' } })).toBe(
+      undefined,
+    );
+    expect(approvalSource(base)).toBe(undefined);
   });
 });
 

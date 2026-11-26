@@ -83,6 +83,43 @@ export function sortNewestFirst(approvals: Approval[]): Approval[] {
   return [...approvals].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/**
+ * Case-insensitive fuzzy subsequence match across whitespace-separated tokens.
+ * Every token in `query` must match as an ordered subsequence in `haystack`.
+ */
+export function fuzzyMatch(query: string, haystack: string): boolean {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const target = haystack.toLowerCase();
+  return tokens.every((token) => {
+    let pos = 0;
+    for (let i = 0; i < token.length; i += 1) {
+      const found = target.indexOf(token[i]!, pos);
+      if (found === -1) return false;
+      pos = found + 1;
+    }
+    return true;
+  });
+}
+
+function approvalSearchText(approval: Approval): string {
+  const parts = [approval.title];
+  if (approval.body) parts.push(approval.body);
+  if (approval.metadata) parts.push(JSON.stringify(approval.metadata));
+  return parts.join(' ');
+}
+
+/** Fuzzy-filter approvals by title, body, and metadata content. */
+export function filterApprovals(
+  approvals: ReadonlyArray<Approval>,
+  query: string,
+): Approval[] {
+  if (!query.trim()) return [...approvals];
+  return approvals.filter((item) =>
+    fuzzyMatch(query, approvalSearchText(item)),
+  );
+}
+
 /** Human message for a failed response (`{ error, detail }` or plain text). */
 export function errorMessage(status: number, body: string): string {
   try {
@@ -105,4 +142,30 @@ export function formatTimestamp(iso: string | undefined): string {
 
 export function formatMetadata(metadata: Record<string, unknown>): string {
   return JSON.stringify(metadata, null, 2);
+}
+
+/** "5 minutes ago" / "yesterday"; falls back to a short date after 30 days. */
+export function formatRelativeTime(
+  iso: string | undefined,
+  now: number = Date.now(),
+): string {
+  if (!iso) return '';
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return iso;
+  const diffSec = Math.round((ts - now) / 1000);
+  const abs = Math.abs(diffSec);
+  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+  if (abs < 60) return rtf.format(diffSec, 'second');
+  if (abs < 3600) return rtf.format(Math.round(diffSec / 60), 'minute');
+  if (abs < 86_400) return rtf.format(Math.round(diffSec / 3600), 'hour');
+  if (abs < 30 * 86_400) return rtf.format(Math.round(diffSec / 86_400), 'day');
+  return new Date(ts).toLocaleDateString();
+}
+
+/** What raised the request, when the caller set `metadata.source` (extension, service, or agent name). */
+export function approvalSource(approval: Approval): string | undefined {
+  const source = approval.metadata?.source;
+  return typeof source === 'string' && source.trim()
+    ? source.trim()
+    : undefined;
 }

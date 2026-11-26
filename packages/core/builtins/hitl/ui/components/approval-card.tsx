@@ -1,17 +1,19 @@
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from '@agentos/ui/components/alert';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
+import { cn } from '@agentos/ui/lib/utils';
 import {
-  formatMetadata,
+  approvalSource,
+  formatRelativeTime,
   formatTimestamp,
   type Approval,
   type ApprovalDecision,
 } from '../lib/approvals';
-
-const STATUS_VARIANT = {
-  pending: 'outline',
-  approved: 'secondary',
-  rejected: 'destructive',
-} as const;
 
 export type ApprovalCardProps = {
   approval: Approval;
@@ -19,75 +21,99 @@ export type ApprovalCardProps = {
   onResolve: (decision: ApprovalDecision) => void;
 };
 
-/** One approval request: full body, metadata, timestamps, and decision buttons when pending. */
+/**
+ * One approval request as a shadcn `Alert`: title, message, and a quiet meta
+ * line. Pending requests reveal Approve / Cancel in `AlertAction` on hover
+ * (and on keyboard focus, or while a decision is in flight). Resolved requests
+ * show their outcome as a badge.
+ */
 export function ApprovalCard({ approval, busy, onResolve }: ApprovalCardProps) {
   const pending = approval.status === 'pending';
-  const hasMetadata =
-    approval.metadata !== undefined &&
-    Object.keys(approval.metadata).length > 0;
+  const source = approvalSource(approval);
 
   return (
-    <li
-      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
-      data-approval-id={approval.id}
-      data-status={approval.status}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-sm font-medium text-foreground">
-            {approval.title}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Requested {formatTimestamp(approval.createdAt)}
-            {approval.resolvedAt
-              ? ` · Resolved ${formatTimestamp(approval.resolvedAt)}`
-              : ''}
-          </p>
-        </div>
-        <Badge variant={STATUS_VARIANT[approval.status]}>
-          {approval.status}
-        </Badge>
-      </div>
+    <li>
+      <Alert
+        data-approval-id={approval.id}
+        data-status={approval.status}
+        className={cn(
+          'gap-1 py-3 transition-colors hover:bg-muted/30',
+          pending
+            ? 'has-data-[slot=alert-action]:pr-44'
+            : 'has-data-[slot=alert-action]:pr-24',
+        )}
+      >
+        <AlertTitle className="text-sm break-words">
+          {approval.title}
+        </AlertTitle>
 
-      {approval.body ? (
-        <p className="whitespace-pre-wrap text-sm text-foreground">
-          {approval.body}
-        </p>
-      ) : null}
+        {approval.body ? (
+          <AlertDescription className="text-sm whitespace-pre-wrap">
+            {approval.body}
+          </AlertDescription>
+        ) : null}
 
-      {hasMetadata ? (
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium text-muted-foreground">Metadata</p>
-          <pre
-            className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs text-foreground"
-            data-slot="approval-metadata"
+        <AlertDescription className="text-xs text-muted-foreground/80">
+          <time
+            dateTime={approval.createdAt}
+            title={formatTimestamp(approval.createdAt)}
           >
-            {formatMetadata(approval.metadata ?? {})}
-          </pre>
-        </div>
-      ) : null}
+            Requested {formatRelativeTime(approval.createdAt)}
+          </time>
+          {source ? ` · via ${source}` : ''}
+          {approval.resolvedAt ? (
+            <>
+              {' · '}
+              <time
+                dateTime={approval.resolvedAt}
+                title={formatTimestamp(approval.resolvedAt)}
+              >
+                Resolved {formatRelativeTime(approval.resolvedAt)}
+              </time>
+            </>
+          ) : null}
+        </AlertDescription>
 
-      {pending ? (
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={busy}
-            onClick={() => onResolve('approved')}
-          >
-            Approve
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => onResolve('rejected')}
-          >
-            Reject
-          </Button>
-        </div>
-      ) : null}
+        <AlertAction className="top-2.5 right-2.5">
+          {pending ? (
+            <div
+              data-slot="approval-actions"
+              className={cn(
+                'flex items-center gap-1.5 transition-opacity',
+                busy
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover/alert:opacity-100 group-focus-within/alert:opacity-100',
+              )}
+            >
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                onClick={() => onResolve('approved')}
+              >
+                Approve
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => onResolve('rejected')}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Badge
+              variant={
+                approval.status === 'approved' ? 'secondary' : 'destructive'
+              }
+            >
+              {approval.status === 'approved' ? 'Approved' : 'Rejected'}
+            </Badge>
+          )}
+        </AlertAction>
+      </Alert>
     </li>
   );
 }

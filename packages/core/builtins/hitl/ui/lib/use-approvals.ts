@@ -71,7 +71,7 @@ export function useApprovals(filter: ApprovalFilter): UseApprovalsResult {
           decision,
         );
         void notificationsRef.current.show(
-          `${decision === 'approved' ? 'Approved' : 'Rejected'}: ${approval.title}`,
+          `${decision === 'approved' ? 'Approved' : 'Cancelled'}: ${approval.title}`,
           decision === 'approved' ? 'success' : 'info',
         );
         await load();
