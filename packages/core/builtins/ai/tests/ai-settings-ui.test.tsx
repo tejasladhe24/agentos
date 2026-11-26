@@ -24,6 +24,11 @@ function testHost(): HostAPIClient {
     },
     events: { publish: async () => {} },
     navigation: { openExternal: async () => {} },
+    ui: {
+      setRightSidebarOpen: async () => {},
+      toggleRightSidebar: async () => false,
+      isRightSidebarOpen: async () => false,
+    },
   };
 }
 

@@ -151,8 +151,9 @@ Agents must never promote tickets to `done/` themselves.
 131. Docker builder runs pnpm on Node 24 — **superseded** by 132
 132. Upgrade to pnpm 12 and drop Node from the Docker builder — **done**
 133. Ticket reconciliation: promote covered in-progress → done — **done** (127–130, 132 → `done/`)
+134. Right sidebar UI contribution entrypoint (`ui/right-sidebar`) and Files details migration
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — empty.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — **134**.
 
 **BYOK + storage mounts:** **103**–**114** done (reconciled in **122**). Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
 

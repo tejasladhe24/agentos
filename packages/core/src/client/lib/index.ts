@@ -23,6 +23,7 @@ export { useHostHITL } from './use-host-hitl';
 export { useHostNotifications } from './use-host-notifications';
 export { useHostApi } from './use-host-api';
 export { useHostNavigation } from './use-host-navigation';
+export { useHostUi } from './use-host-ui';
 export {
   parseSettingsTarget,
   useSettingsTarget,

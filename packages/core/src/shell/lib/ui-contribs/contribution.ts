@@ -1,12 +1,12 @@
 /**
- * UI contribution view kinds (maps to `ui/page|sidebar|widget.tsx`).
+ * UI contribution view kinds (maps to `ui/page|sidebar|right-sidebar|widget|settings.tsx`).
  *
  * ## Host kinds
  *
- * - **Active-extension** hosts (e.g. left sidebar): show only the active
- *   extension’s contribution (`ui/sidebar.tsx`), or Home’s in-process
- *   `dashboardSidebar`. When empty, the Shell collapses the host chrome —
- *   no empty column.
+ * - **Active-extension** hosts (e.g. left sidebar, right sidebar): show only
+ *   the active extension’s contribution (`ui/sidebar.tsx`, `ui/right-sidebar.tsx`),
+ *   or Home’s in-process `dashboardSidebar` on the left. When empty, the Shell
+ *   collapses the host chrome — no empty column.
  * - **Global / multi-extension** hosts (e.g. status bar, topbar): may
  *   aggregate all enabled extensions and stay visible with Shell chrome even
  *   when some extensions contribute nothing. Topbar v1 is Shell chrome only
@@ -15,7 +15,8 @@
  * App Home surfaces (`ui/dashboard.tsx`, `ui/dashboard-sidebar.tsx`) are
  * in-process via `mountShell` — not `ExtensionView` / iframe entries.
  */
-export type ExtensionView = 'page' | 'sidebar' | 'widget' | 'settings';
+export type ExtensionView =
+  'page' | 'sidebar' | 'right-sidebar' | 'widget' | 'settings';
 
 /** Runtime lifecycle status for one mounted contribution frame. */
 export type ContributionRuntimeStatus = 'loading' | 'active' | 'crashed';

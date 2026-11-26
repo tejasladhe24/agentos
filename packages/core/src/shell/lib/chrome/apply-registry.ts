@@ -37,7 +37,13 @@ export function mapRegistry(registry: RegistryModel): AppliedRegistry {
   const skillsByExtension: Record<string, string[]> = {};
 
   for (const ext of registry.extensions) {
-    for (const view of ['page', 'sidebar', 'widget', 'settings'] as const) {
+    for (const view of [
+      'page',
+      'sidebar',
+      'right-sidebar',
+      'widget',
+      'settings',
+    ] as const) {
       const src = ext.uiEntries[view];
       if (src) {
         contributions.push({

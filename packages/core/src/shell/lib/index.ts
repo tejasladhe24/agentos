@@ -57,6 +57,12 @@ export {
   type SidebarColumnVisibleInput,
 } from './ui-contribs/sidebar-column-visible';
 export {
+  rightSidebarColumnHasContent,
+  rightSidebarColumnVisible,
+  type RightSidebarColumnContentInput,
+  type RightSidebarColumnVisibleInput,
+} from './ui-contribs/right-sidebar-column-visible';
+export {
   createShellHostApi,
   resetShellHostApiStorage,
 } from './chrome/create-shell-host-api';

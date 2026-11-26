@@ -39,6 +39,11 @@ function stubHostApi(calls: string[]): HostAPI {
     navigation: {
       openExternal: async () => {},
     },
+    ui: {
+      setRightSidebarOpen: async () => {},
+      toggleRightSidebar: async () => false,
+      isRightSidebarOpen: async () => false,
+    },
   };
 }
 

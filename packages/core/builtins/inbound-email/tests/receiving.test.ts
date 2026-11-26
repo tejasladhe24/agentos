@@ -66,6 +66,11 @@ describe('email receiving settings helpers', () => {
       api: { fetch: async () => ({ ok: true, status: 200, body: '{}' }) },
       events: { publish: async () => {} },
       navigation: { openExternal: async () => {} },
+      ui: {
+        setRightSidebarOpen: async () => {},
+        toggleRightSidebar: async () => false,
+        isRightSidebarOpen: async () => false,
+      },
     };
     const html = renderToStaticMarkup(
       createElement(HostProvider, {

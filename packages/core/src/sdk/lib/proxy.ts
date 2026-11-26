@@ -14,5 +14,6 @@ export function proxyHostApi(api: HostAPI): HostAPI {
     api: proxy(api.api),
     events: proxy(api.events),
     navigation: proxy(api.navigation),
+    ui: proxy(api.ui),
   };
 }

@@ -47,4 +47,38 @@ describe('TopBar', () => {
     useShellStore.getState().toggleSidebar();
     expect(useShellStore.getState().sidebarOpen).toBe(true);
   });
+
+  test('right sidebar toggle renders only when active view has a right-sidebar contribution', () => {
+    const filesRightSidebar = [
+      {
+        extensionId: 'files',
+        view: 'right-sidebar' as const,
+        src: '/__agentos/ext/files/right-sidebar.html',
+      },
+    ];
+
+    const onHome = renderToStaticMarkup(
+      <TopBar activeView="home" contributions={filesRightSidebar} />,
+    );
+    expect(onHome).not.toContain('data-slot="topbar-right-sidebar-toggle"');
+
+    const closed = renderToStaticMarkup(
+      <TopBar
+        activeView="files"
+        rightSidebarOpen={false}
+        contributions={filesRightSidebar}
+      />,
+    );
+    expect(closed).toContain('data-slot="topbar-right-sidebar-toggle"');
+    expect(closed).toContain('Expand right sidebar');
+
+    const open = renderToStaticMarkup(
+      <TopBar
+        activeView="files"
+        rightSidebarOpen
+        contributions={filesRightSidebar}
+      />,
+    );
+    expect(open).toContain('Collapse right sidebar');
+  });
 });

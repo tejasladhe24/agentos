@@ -189,7 +189,13 @@ export function agentos(options: AgentosPluginOptions = {}): Plugin {
     fn: (ext: ScannedExtension, view: UiViewName, filePath: string) => void,
   ): void => {
     for (const ext of model.extensions) {
-      for (const view of ['page', 'sidebar', 'widget', 'settings'] as const) {
+      for (const view of [
+        'page',
+        'sidebar',
+        'right-sidebar',
+        'widget',
+        'settings',
+      ] as const) {
         const filePath = ext.ui[view];
         if (filePath) fn(ext, view, filePath);
       }

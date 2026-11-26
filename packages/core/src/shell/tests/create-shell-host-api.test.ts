@@ -13,6 +13,7 @@ function resetStore() {
     activeView: 'home',
     sidebarOpen: true,
     sidebarPanel: 'contribution',
+    rightSidebarOpen: false,
     chatOpen: false,
     chatMessages: [],
     chatBusy: false,
@@ -242,5 +243,15 @@ describe('createShellHostApi notifications', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  test('ui right sidebar controls read and update Shell store', async () => {
+    const host = createShellHostApi('files');
+    expect(await host.ui.isRightSidebarOpen()).toBe(false);
+    await host.ui.setRightSidebarOpen(true);
+    expect(useShellStore.getState().rightSidebarOpen).toBe(true);
+    expect(await host.ui.isRightSidebarOpen()).toBe(true);
+    expect(await host.ui.toggleRightSidebar()).toBe(false);
+    expect(useShellStore.getState().rightSidebarOpen).toBe(false);
   });
 });

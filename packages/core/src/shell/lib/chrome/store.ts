@@ -56,6 +56,8 @@ export type ShellUiState = {
   sidebarOpen: boolean;
   /** Left sidebar host mode — Shell panels or active extension contribution. */
   sidebarPanel: SidebarPanel;
+  /** Right sidebar open state (active-extension `ui/right-sidebar.tsx`). */
+  rightSidebarOpen: boolean;
   chatOpen: boolean;
   chatMessages: ChatMessage[];
   chatBusy: boolean;
@@ -93,6 +95,8 @@ export type ShellUiState = {
   setActiveView: (view: ShellView) => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarPanel: (panel: SidebarPanel) => void;
+  setRightSidebarOpen: (open: boolean) => void;
+  toggleRightSidebar: () => void;
   setChatOpen: (open: boolean) => void;
   toggleChat: () => void;
   appendChatMessage: (message: ChatMessage) => void;
@@ -122,6 +126,7 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
   activeView: 'home',
   sidebarOpen: true,
   sidebarPanel: 'contribution',
+  rightSidebarOpen: false,
   chatOpen: false,
   chatMessages: [],
   chatBusy: false,
@@ -149,6 +154,9 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
         ? { sidebarPanel: 'contribution' }
         : { sidebarPanel: panel, sidebarOpen: true },
     ),
+  setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),
+  toggleRightSidebar: () =>
+    set((s) => ({ rightSidebarOpen: !s.rightSidebarOpen })),
   setChatOpen: (open) => set({ chatOpen: open }),
   toggleChat: () => set((s) => ({ chatOpen: !s.chatOpen })),
   appendChatMessage: (message) =>

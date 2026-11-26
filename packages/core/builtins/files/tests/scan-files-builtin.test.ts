@@ -27,6 +27,10 @@ describe('scan builtin files', () => {
     });
     expect(files?.ui.page).toBeTruthy();
     expect(files?.ui.sidebar).toBeTruthy();
+    expect(files?.ui['right-sidebar']).toBeTruthy();
     expect(files?.uiEntries.page).toBe('/__agentos/ext/files/page.html');
+    expect(files?.uiEntries['right-sidebar']).toBe(
+      '/__agentos/ext/files/right-sidebar.html',
+    );
   });
 });

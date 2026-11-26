@@ -6,6 +6,7 @@ export const EXT_HTML_PREFIX = '/__agentos/ext';
 const VIEW_NAMES = new Set<UiViewName>([
   'page',
   'sidebar',
+  'right-sidebar',
   'widget',
   'settings',
 ]);
@@ -22,7 +23,7 @@ export type ParsedExtHtmlPath = {
 export function parseExtHtmlPath(pathname: string): ParsedExtHtmlPath | null {
   const path = pathname.split('?')[0] ?? pathname;
   const match =
-    /^\/__agentos\/ext\/([^/]+)\/(page|sidebar|widget|settings)\.html$/.exec(
+    /^\/__agentos\/ext\/([^/]+)\/(page|sidebar|right-sidebar|widget|settings)\.html$/.exec(
       path,
     );
   if (!match) return null;

@@ -27,7 +27,13 @@ type RawScannedExtension = Omit<
   'driven' | 'toggleable' | 'uiEntries' | 'agentDescriptors'
 >;
 
-const UI_VIEWS: UiViewName[] = ['page', 'sidebar', 'widget', 'settings'];
+const UI_VIEWS: UiViewName[] = [
+  'page',
+  'sidebar',
+  'right-sidebar',
+  'widget',
+  'settings',
+];
 const UI_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const;
 
 const AGENT_FILES: ReadonlyArray<{ key: AgentFileName; file: string }> = [
@@ -171,7 +177,10 @@ function parsePublicUiRoute(raw: unknown): ExtensionPublicUiRoute | undefined {
     return undefined;
   }
   const view =
-    entry.view === 'page' || entry.view === 'sidebar' || entry.view === 'widget'
+    entry.view === 'page' ||
+    entry.view === 'sidebar' ||
+    entry.view === 'right-sidebar' ||
+    entry.view === 'widget'
       ? entry.view
       : 'page';
   return { path: entry.path, view };

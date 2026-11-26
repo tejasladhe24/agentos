@@ -8,7 +8,13 @@ import type {
   UiViewName,
 } from './types';
 
-const UI_VIEWS: UiViewName[] = ['page', 'sidebar', 'widget', 'settings'];
+const UI_VIEWS: UiViewName[] = [
+  'page',
+  'sidebar',
+  'right-sidebar',
+  'widget',
+  'settings',
+];
 
 /** Iframe entry URL convention (ticket 12 serves these). */
 export function uiEntryUrl(extensionId: string, view: UiViewName): string {
