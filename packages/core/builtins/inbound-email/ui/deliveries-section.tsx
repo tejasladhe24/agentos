@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import {
+  extensionPath,
+  useHostApi,
+  useHostNotifications,
+} from '@agentos/core/client';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
@@ -31,7 +35,7 @@ export function DeliveriesSection() {
     setBusy(true);
     setError(null);
     const res = await api.fetch(
-      '/api/ext/notifications/deliveries?channel=email&limit=50',
+      extensionPath('notifications', '/deliveries?channel=email&limit=50'),
     );
     setBusy(false);
     if (!res.ok) {
@@ -47,7 +51,7 @@ export function DeliveriesSection() {
 
   async function openDelivery(id: string) {
     const res = await api.fetch(
-      `/api/ext/notifications/deliveries/${encodeURIComponent(id)}`,
+      extensionPath('notifications', `/deliveries/${encodeURIComponent(id)}`),
     );
     if (!res.ok) {
       const message = parseErrorBody(res.body, 'Failed to load delivery');

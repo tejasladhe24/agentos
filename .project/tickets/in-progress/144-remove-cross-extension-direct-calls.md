@@ -1,6 +1,6 @@
 # 144 — Remove direct cross-extension calls from extension UIs
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -8,7 +8,7 @@ Extension UIs must not call other extensions' routes. Today `inbound-email` call
 
 ## Depends on
 
-- Ticket **142** (Extension UI event bus) — todo
+- Ticket **142** (Extension UI event bus) — merged
 
 ## Current call sites
 
@@ -20,6 +20,15 @@ Extension UIs must not call other extensions' routes. Today `inbound-email` call
 - `packages/core/builtins/inbound-email/ui/email-types.ts`: `/api/ext/files/blobs/…`
 - `packages/core/builtins/notifications/ui/*` and `auth/ui/settings.tsx` for the same pattern (review and list in this ticket)
 - `packages/core/src/shell/lib/chrome/create-shell-host-api.ts`: the `api.fetch` absolute-path branch
+
+## As built
+
+- Host capabilities: `auth.can`, `files.blobUrl`, `notifications.send`, `notifications.getEmailPreferences` / `setEmailPreferences`. Preferences are flat methods on `notifications` (not a nested `notifications.preferences` namespace) because Comlink only keeps top-level namespaces live; nested plain objects are structured-cloned and lose their functions.
+- Deliveries, the `email.send` integration form, and receiving config have no dedicated capability. They use the declared-dependency path: `meta.json` `dependsOn: ["notifications"]` plus the client `extensionPath()` helper, so no UI hardcodes an `/api/ext/<other>/` literal.
+- `api.fetch` enforcement returns `{ ok: false, status: 403 }` for undeclared targets (no network call).
+- `auth.can` fails closed to `false` on 401 and rejects when auth is unreachable; the Email page treats a rejection as "keep Compose visible, the API still enforces" (unchanged behaviour). The old explicit "Sign in to use Email." message was dropped; the Shell only mounts extension frames for signed-in sessions.
+- No bus event was needed for the call sites in this ticket (none reacted to another extension), so nothing was added to `meta.json` `events` here.
+- A guard test (`extension-ui-gateway-paths.test.ts`) fails the build if a builtin UI hardcodes another extension's gateway path without declaring it.
 
 ## Scope
 
@@ -41,11 +50,11 @@ Extension UIs must not call other extensions' routes. Today `inbound-email` call
 
 ## Done when
 
-- [ ] `rg "/api/ext/(notifications|auth|files)" packages/core/builtins/*/ui` returns no matches outside the owning extension
-- [ ] `host.auth.can`, `host.notifications`, and `host.files.blobUrl` exist in the SDK and client
-- [ ] `api.fetch` enforces the own-extension / `dependsOn` allowlist, with tests
-- [ ] `meta.json` `dependsOn` is documented in `.project/docs/extensions.md`
-- [ ] `bun run ci` passes
+- [x] `rg "/api/ext/(notifications|auth|files)" packages/core/builtins/*/ui` returns no matches outside the owning extension
+- [x] `host.auth.can`, `host.notifications` (send + email preferences), and `host.files.blobUrl` exist in the SDK and client
+- [x] `api.fetch` enforces the own-extension / `dependsOn` allowlist, with tests
+- [x] `meta.json` `dependsOn` is documented in `.project/docs/extensions.md`
+- [x] `bun run ci` passes
 
 ## Verify
 

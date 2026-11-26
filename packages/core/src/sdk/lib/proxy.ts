@@ -9,6 +9,8 @@ export function proxyHostApi(api: HostAPI): HostAPI {
   return {
     storage: proxy(api.storage),
     notifications: proxy(api.notifications),
+    auth: proxy(api.auth),
+    files: proxy(api.files),
     ai: proxy(api.ai),
     hitl: proxy(api.hitl),
     api: proxy(api.api),

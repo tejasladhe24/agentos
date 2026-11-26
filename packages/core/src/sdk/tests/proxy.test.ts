@@ -23,7 +23,15 @@ function stubHostApi(calls: string[]): HostAPI {
       show: async (message, type = 'info') => {
         calls.push(`show:${message}:${type}`);
       },
+      send: async () => ({ id: 'n1', status: 'sent' }),
+      getEmailPreferences: async () => ({ from: null, orgFrom: null }),
+      setEmailPreferences: async (from: string | null) => ({
+        from,
+        orgFrom: null,
+      }),
     },
+    auth: { can: async () => true },
+    files: { blobUrl: async (key: string) => `/b/${key}` },
     ai: {
       generateText: async () => ({ text: '' }),
     },

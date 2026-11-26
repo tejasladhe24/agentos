@@ -7,6 +7,15 @@ import type {
 } from '@agentos/core/sdk';
 import { toast } from '@agentos/ui/components/toast';
 import type { ShellEventBus } from './event-bus';
+import {
+  canPermission,
+  extensionIdOfPath,
+  filesBlobUrl,
+  getEmailPreferences,
+  mayCallExtension,
+  sendNotification,
+  setEmailPreferences,
+} from './platform-capabilities';
 import { shellEventBus } from './shell-event-bus';
 import { useShellStore } from './store';
 
@@ -131,6 +140,11 @@ export type CreateShellHostApiOptions = {
   frameId?: string;
   /** Event bus (defaults to the Shell singleton; override in tests). */
   eventBus?: ShellEventBus;
+  /**
+   * Extensions this one may call by absolute `/api/ext/<id>/…` path. Defaults
+   * to the registry's `meta.json` `dependsOn` for `extensionId`.
+   */
+  dependsOn?: readonly string[];
 };
 
 /**
@@ -164,6 +178,15 @@ export function createShellHostApi(
         showNotification(message, type);
         void fanOutNotification(message, type, extensionId);
       },
+      send: async (input) => sendNotification(input),
+      getEmailPreferences: async () => getEmailPreferences(),
+      setEmailPreferences: async (from) => setEmailPreferences(from),
+    },
+    auth: {
+      can: async (permission) => canPermission(permission),
+    },
+    files: {
+      blobUrl: async (key) => filesBlobUrl(key),
     },
     ai: {
       generateText: async (prompt, options) => {
@@ -196,7 +219,28 @@ export function createShellHostApi(
     api: {
       fetch: async (path, init) => {
         const normalized = path.startsWith('/') ? path : `/${path}`;
-        // Absolute gateway paths let Email UI call notifications/files/auth.
+        // Absolute gateway paths reach another extension only when this one
+        // declared it in `meta.json` `dependsOn`.
+        if (normalized.startsWith('/api/ext/')) {
+          const target = extensionIdOfPath(normalized);
+          const dependsOn =
+            options.dependsOn ??
+            useShellStore
+              .getState()
+              .extensions.find((e) => e.id === extensionId)?.dependsOn;
+          if (
+            target === null ||
+            !mayCallExtension(extensionId, target, dependsOn)
+          ) {
+            return {
+              ok: false,
+              status: 403,
+              body: JSON.stringify({
+                error: `Extension "${extensionId}" may not call "${target ?? normalized}"; declare it in meta.json dependsOn.`,
+              }),
+            };
+          }
+        }
         const url = normalized.startsWith('/api/ext/')
           ? normalized
           : `/api/ext/${encodeURIComponent(extensionId)}${normalized}`;

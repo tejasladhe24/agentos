@@ -95,6 +95,14 @@ export {
   type ShellEventBus,
 } from './chrome/event-bus';
 export {
+  canPermission,
+  errorMessageFromBody,
+  extensionIdOfPath,
+  filesBlobUrl,
+  mayCallExtension,
+  resetPermissionCache,
+} from './chrome/platform-capabilities';
+export {
   createEventsBridge,
   EVENTS_SUBSCRIBE_URL,
   type EventSourceLike,

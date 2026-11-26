@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import {
+  useFilesBlobUrl,
+  useHostApi,
+  useHostNotifications,
+} from '@agentos/core/client';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import { Input } from '@agentos/ui/components/input';
@@ -8,10 +12,35 @@ import { Separator } from '@agentos/ui/components/separator';
 
 import {
   authenticationSummary,
-  filesBlobUrl,
   parseErrorBody,
   type InboundMessage,
 } from './email-types';
+
+/** Attachment download link; the host resolves the blob URL (no direct files call). */
+function AttachmentLink({
+  blobKey,
+  filename,
+  bytes,
+}: {
+  blobKey: string;
+  filename: string;
+  bytes: number;
+}) {
+  const href = useFilesBlobUrl(blobKey);
+  const label = `${filename} (${bytes} bytes)`;
+  if (!href) {
+    return <span className="text-sm text-muted-foreground">{label}</span>;
+  }
+  return (
+    <a
+      className="text-sm text-primary underline-offset-2 hover:underline"
+      href={href}
+      download={filename}
+    >
+      {label}
+    </a>
+  );
+}
 
 export function InboxSection() {
   const api = useHostApi();
@@ -202,13 +231,11 @@ export function InboxSection() {
                   <ul className="flex flex-col gap-1">
                     {detail.attachments.map((att) => (
                       <li key={att.key}>
-                        <a
-                          className="text-sm text-primary underline-offset-2 hover:underline"
-                          href={filesBlobUrl(att.ref ?? att.key)}
-                          download={att.filename}
-                        >
-                          {att.filename} ({att.bytes} bytes)
-                        </a>
+                        <AttachmentLink
+                          blobKey={att.ref ?? att.key}
+                          filename={att.filename}
+                          bytes={att.bytes}
+                        />
                       </li>
                     ))}
                   </ul>

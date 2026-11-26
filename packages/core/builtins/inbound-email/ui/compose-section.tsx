@@ -4,7 +4,6 @@ import { z } from 'zod';
 import {
   isFieldInvalid,
   toFieldErrors,
-  useHostApi,
   useHostNotifications,
 } from '@agentos/core/client';
 import { Button } from '@agentos/ui/components/button';
@@ -17,7 +16,7 @@ import {
 import { Input } from '@agentos/ui/components/input';
 import { Textarea } from '@agentos/ui/components/textarea';
 
-import { parseErrorBody, type DeliveryEntry } from './email-types';
+import type { DeliveryEntry } from './email-types';
 
 const TEMPLATES = [
   { id: '', label: 'None' },
@@ -68,7 +67,6 @@ const composeSchema = z
   });
 
 export function ComposeSection({ canSend }: { canSend: boolean }) {
-  const api = useHostApi();
   const toast = useHostNotifications();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [lastDelivery, setLastDelivery] = useState<DeliveryEntry | null>(null);
@@ -99,22 +97,19 @@ export function ComposeSection({ canSend }: { canSend: boolean }) {
         body.vars = parseTemplateVars(value.varsJson) ?? {};
       }
 
-      const res = await api.fetch('/api/ext/notifications/notify', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const message = parseErrorBody(res.body, 'Send failed');
+      let delivery: DeliveryEntry;
+      try {
+        delivery = (await toast.send(body)) as DeliveryEntry;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Send failed';
         setSubmitError(message);
         await toast.show(message, 'error');
         return;
       }
-      const payload = JSON.parse(res.body) as { notification: DeliveryEntry };
-      setLastDelivery(payload.notification);
+      setLastDelivery(delivery);
       await toast.show(
-        `Email ${payload.notification.status} (${payload.notification.id})`,
-        payload.notification.status === 'failed' ? 'error' : 'success',
+        `Email ${delivery.status} (${delivery.id})`,
+        delivery.status === 'failed' ? 'error' : 'success',
       );
     },
   });

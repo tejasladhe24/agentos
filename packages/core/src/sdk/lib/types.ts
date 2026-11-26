@@ -2,6 +2,7 @@ import type {
   AiGenerateOptions,
   EventPayload,
   HitlMetadata,
+  JsonObject,
   StorageValue,
 } from './contracts';
 
@@ -39,6 +40,30 @@ export interface AiGenerateResult {
   text: string;
 }
 
+/** Input for `HostAPI.notifications.send` (the notifications builtin `notify`). */
+export interface NotificationSendInput {
+  /** Delivery channel (`email`, `sms`, …); omit for the in-app inbox. */
+  channel?: string;
+  to?: string;
+  subject?: string;
+  message?: string;
+  templateId?: string;
+  vars?: JsonObject;
+}
+
+/** One delivery record returned by `notifications.send`. */
+export interface NotificationDelivery {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+/** The caller's email sender preference plus the organization default. */
+export interface EmailPreferences {
+  from: string | null;
+  orgFrom: string | null;
+}
+
 /**
  * Host → extension RPC surface (exposed by the shell via Comlink).
  * Nested namespaces must be wrapped with `Comlink.proxy` on the host.
@@ -51,6 +76,29 @@ export interface HostAPI {
   };
   notifications: {
     show(message: string, type?: NotificationType): Promise<void>;
+    /**
+     * Send a notification through the notifications builtin (email, sms, …).
+     * Rejects with the server's error message on failure.
+     */
+    send(input: NotificationSendInput): Promise<NotificationDelivery>;
+    /** Read the signed-in user's email sender preference. */
+    getEmailPreferences(): Promise<EmailPreferences>;
+    /** Set (or with `null`, clear) the user's email sender address. */
+    setEmailPreferences(from: string | null): Promise<EmailPreferences>;
+  };
+  /** Platform authorization checks (no direct calls to the auth builtin). */
+  auth: {
+    /**
+     * Whether the signed-in user holds `permission` in the active org.
+     * `false` when signed out; rejects when the auth service is unreachable.
+     * Answers are cached per session.
+     */
+    can(permission: string): Promise<boolean>;
+  };
+  /** Platform file references (no direct calls to the files builtin). */
+  files: {
+    /** Same-origin URL that downloads a stored blob by key or `files://` ref. */
+    blobUrl(key: string): Promise<string>;
   };
   ai: {
     generateText(

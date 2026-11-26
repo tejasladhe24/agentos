@@ -28,6 +28,30 @@ export function createStubHost(
       show: async (message, type = 'info') => {
         calls.push(`notifications.show:${type}:${message}`);
       },
+      send: async (input) => {
+        calls.push(`notifications.send:${input.channel ?? 'inbox'}`);
+        return { id: 'notif-1', status: 'sent' };
+      },
+      getEmailPreferences: async () => {
+        calls.push('notifications.getEmailPreferences');
+        return { from: null, orgFrom: null };
+      },
+      setEmailPreferences: async (from) => {
+        calls.push(`notifications.setEmailPreferences:${from ?? ''}`);
+        return { from, orgFrom: null };
+      },
+    },
+    auth: {
+      can: async (permission) => {
+        calls.push(`auth.can:${permission}`);
+        return true;
+      },
+    },
+    files: {
+      blobUrl: async (key) => {
+        calls.push(`files.blobUrl:${key}`);
+        return `/blobs/${encodeURIComponent(key)}`;
+      },
     },
     ai: {
       generateText: async (prompt) => {
