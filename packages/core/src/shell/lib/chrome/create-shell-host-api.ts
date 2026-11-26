@@ -42,13 +42,14 @@ function showNotification(
 async function fanOutNotification(
   message: string,
   type: NotificationType,
+  extensionId: string,
 ): Promise<void> {
   try {
     await fetch('/api/ext/notifications/notify', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ message, type }),
+      body: JSON.stringify({ message, type, extensionId }),
     });
   } catch {
     // Toast path already succeeded; fan-out is best-effort.
@@ -142,7 +143,7 @@ export function createShellHostApi(extensionId: string): HostAPI {
     notifications: {
       show: async (message, type = 'info') => {
         showNotification(message, type);
-        void fanOutNotification(message, type);
+        void fanOutNotification(message, type, extensionId);
       },
     },
     ai: {

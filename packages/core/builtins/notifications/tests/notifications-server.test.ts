@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import type {
-  DbStoreClient,
-  NotificationEntry,
+import {
+  createDbStoreClient,
+  type DbStoreClient,
+  type NotificationEntry,
 } from '@agentos/core/builtins/notifications/api/lib/db-store-client';
 import { handleNotificationsRequest } from '@agentos/core/builtins/notifications/api/lib/handle-request';
 import { createNotifyStore } from '@agentos/core/builtins/notifications/api/lib/notify-store';
@@ -100,6 +101,96 @@ describe('builtin notifications server', () => {
       providers,
     );
     expect(bad.status).toBe(400);
+  });
+
+  test('warning + extensionId round-trip through notify → recent', async () => {
+    const store = createNotifyStore(mockDb());
+    const providers = createProviders();
+
+    const warn = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Invoice sync is degraded',
+          type: 'warning',
+          extensionId: 'invoice-bot',
+        }),
+      }),
+      providers,
+    );
+    expect(warn.status).toBe(200);
+    expect(await warn.json()).toMatchObject({
+      notification: { type: 'warning', extensionId: 'invoice-bot' },
+    });
+
+    // No extensionId (e.g. Shell-less callers) must still persist and omit it.
+    const err = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/notify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: 'Save failed', type: 'error' }),
+      }),
+      providers,
+    );
+    expect(err.status).toBe(200);
+
+    const recent = await handleNotificationsRequest(
+      store,
+      new Request('http://127.0.0.1:6117/recent'),
+      providers,
+    );
+    const body = (await recent.json()) as {
+      notifications: NotificationEntry[];
+    };
+    const warning = body.notifications.find(
+      (n) => n.message === 'Invoice sync is degraded',
+    );
+    const error = body.notifications.find((n) => n.message === 'Save failed');
+    expect(warning).toMatchObject({
+      type: 'warning',
+      extensionId: 'invoice-bot',
+    });
+    expect(error?.type).toBe('error');
+    expect(error?.extensionId).toBeUndefined();
+  });
+
+  test('db-store client parses warning rows and extensionId', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      Response.json({
+        items: [
+          {
+            id: 'w1',
+            data: {
+              id: 'w1',
+              message: 'Degraded',
+              type: 'warning',
+              channel: 'in_app',
+              status: 'sent',
+              at: '2026-01-01T00:00:00.000Z',
+              extensionId: 'crm-helper',
+            },
+          },
+          // Unknown severities are still dropped rather than coerced.
+          {
+            id: 'x1',
+            data: { message: 'Bogus', type: 'critical', at: '2026-01-01' },
+          },
+        ],
+      })) as unknown as typeof fetch;
+    try {
+      const rows = await createDbStoreClient('http://db.test').query();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        type: 'warning',
+        extensionId: 'crm-helper',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   test('notify → restart → recent', async () => {

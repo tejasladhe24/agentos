@@ -13,6 +13,7 @@ import { Button } from '@agentos/ui/components/button';
 import { Spinner } from '@agentos/ui/components/spinner';
 import { Switch } from '@agentos/ui/components/switch';
 import { useTheme } from '@agentos/ui/components/theme-provider';
+import { cn } from '@agentos/ui/lib/utils';
 import { config as agentosConfig } from 'virtual:agentos-config';
 import { EnsureMounted } from './ensure-mounted';
 
@@ -132,7 +133,14 @@ export function StatusBar(props: StatusBarProps = {}) {
         ) : null}
         {statusText ? (
           <span
-            className="min-w-0 truncate text-foreground"
+            className={cn(
+              'min-w-0 truncate',
+              statusTone === 'error'
+                ? 'text-destructive'
+                : statusTone === 'warning'
+                  ? 'text-amber-500 dark:text-amber-400'
+                  : 'text-foreground',
+            )}
             data-slot="status-text"
             data-tone={statusTone ?? undefined}
             title={statusText}

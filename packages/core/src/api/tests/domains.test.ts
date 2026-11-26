@@ -588,6 +588,42 @@ describe('notifications client', () => {
     });
     expect(await getDelivery('n1', env)).toEqual(notification);
   });
+
+  test('notify forwards warning severity and extensionId', async () => {
+    const env = { AGENT_OS_NOTIFICATIONS_API_BASE: 'http://notify.test' };
+    const notification = {
+      id: 'n2',
+      message: 'CRM API is slow',
+      type: 'warning' as const,
+      channel: 'in_app' as const,
+      status: 'sent' as const,
+      at: '2026-01-01T00:00:00.000Z',
+      extensionId: 'crm-helper',
+    };
+
+    mockFetch(({ url, method, body }) => {
+      expect(method).toBe('POST');
+      expect(url).toBe('http://notify.test/notify');
+      expect(body).toEqual({
+        channel: 'in_app',
+        message: 'CRM API is slow',
+        type: 'warning',
+        extensionId: 'crm-helper',
+      });
+      return Response.json({ ok: true, notification });
+    });
+    expect(
+      await notify(
+        {
+          channel: 'in_app',
+          message: 'CRM API is slow',
+          type: 'warning',
+          extensionId: 'crm-helper',
+        },
+        env,
+      ),
+    ).toEqual({ ok: true, notification });
+  });
 });
 
 describe('secrets client', () => {

@@ -195,9 +195,16 @@ export async function handleNotify(
 
   const typeRaw = body?.type;
   const type: NotificationType =
-    typeRaw === 'success' || typeRaw === 'error' || typeRaw === 'info'
+    typeRaw === 'success' ||
+    typeRaw === 'warning' ||
+    typeRaw === 'error' ||
+    typeRaw === 'info'
       ? typeRaw
       : 'info';
+  const extensionId =
+    typeof body?.extensionId === 'string' && body.extensionId.trim()
+      ? body.extensionId.trim()
+      : undefined;
 
   const templateId =
     typeof body?.templateId === 'string' ? body.templateId.trim() : undefined;
@@ -255,6 +262,7 @@ export async function handleNotify(
       templateId: rendered.value.templateId,
       subject: rendered.value.subject,
       orgId: orgId || undefined,
+      extensionId,
     });
 
     if (channel === 'in_app') {

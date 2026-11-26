@@ -201,7 +201,9 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
     const res = await api.fetch(USER_EMAIL_PREFS_PATH);
     setLoading(false);
     if (!res.ok) {
-      setError(parseError(res.body, 'Could not load sender address.'));
+      const message = parseError(res.body, 'Could not load sender address.');
+      setError(message);
+      void notifications.show(message, 'error');
       return;
     }
     try {
@@ -211,7 +213,7 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
     } catch {
       setError('Invalid sender preference response.');
     }
-  }, [api]);
+  }, [api, notifications]);
 
   useEffect(() => {
     void load();
@@ -227,7 +229,9 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
     });
     setBusy(false);
     if (!res.ok) {
-      setError(parseError(res.body, 'Could not save sender address.'));
+      const message = parseError(res.body, 'Could not save sender address.');
+      setError(message);
+      await notifications.show(message, 'error');
       return;
     }
     try {

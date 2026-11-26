@@ -452,7 +452,9 @@ export function IntegrationSection({
   const load = useCallback(async () => {
     const res = await api.fetch(path);
     if (!res.ok) {
-      setError(errorMessage(res.body, 'Could not load integration.'));
+      const message = errorMessage(res.body, 'Could not load integration.');
+      setError(message);
+      void notifications.show(message, 'error');
       setLoading(false);
       return;
     }
@@ -463,9 +465,10 @@ export function IntegrationSection({
       setError(null);
     } catch {
       setError('Invalid integration response.');
+      void notifications.show('Invalid integration response.', 'error');
     }
     setLoading(false);
-  }, [api, path]);
+  }, [api, notifications, path]);
 
   useEffect(() => {
     void load();
@@ -497,7 +500,9 @@ export function IntegrationSection({
         });
         setBusy(false);
         if (!res.ok) {
-          setError(errorMessage(res.body, 'Could not save integration.'));
+          const message = errorMessage(res.body, 'Could not save integration.');
+          setError(message);
+          await notifications.show(message, 'error');
           return;
         }
         await notifications.show(`${data.definition.label} saved`, 'info');
@@ -509,7 +514,12 @@ export function IntegrationSection({
         const res = await api.fetch(path, { method: 'DELETE' });
         setBusy(false);
         if (!res.ok) {
-          setError(errorMessage(res.body, 'Could not remove integration.'));
+          const message = errorMessage(
+            res.body,
+            'Could not remove integration.',
+          );
+          setError(message);
+          await notifications.show(message, 'error');
           return;
         }
         await notifications.show(`${data.definition.label} removed`, 'info');

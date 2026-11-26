@@ -140,9 +140,10 @@ export default function AuthSettings() {
     if (!res.ok) {
       setSession({ user: null, roles: [], orgId: null, orgs: [] });
       if (res.status === 502) {
-        setError(
-          'Auth API unreachable (502). Run: pnpm --filter @agentos/core run auth:dev',
-        );
+        const message =
+          'Auth API unreachable (502). Run: pnpm --filter @agentos/core run auth:dev';
+        setError(message);
+        void notifications.show(message, 'error');
       }
       return;
     }
@@ -156,7 +157,7 @@ export default function AuthSettings() {
       setMembers([]);
       setInvites([]);
     }
-  }, [api, refreshOrgDetails]);
+  }, [api, notifications, refreshOrgDetails]);
 
   useEffect(() => {
     void refreshSession();
@@ -352,6 +353,25 @@ export default function AuthSettings() {
     }
   }
 
+  /**
+   * Account children render failures inline; also toast them so operational
+   * errors reach the notifications inbox. The error is rethrown so the child
+   * still shows its inline message.
+   */
+  const toastFailures =
+    <A extends unknown[], R>(action: (...args: A) => Promise<R>) =>
+    async (...args: A): Promise<R> => {
+      try {
+        return await action(...args);
+      } catch (err) {
+        void notifications.show(
+          err instanceof Error ? err.message : 'Account action failed',
+          'error',
+        );
+        throw err;
+      }
+    };
+
   const isAdmin = session ? isAdminSessionRoles(session.roles) : false;
 
   return (
@@ -380,15 +400,18 @@ export default function AuthSettings() {
                 email={session.user.email}
                 name={session.user.name}
                 busy={busy}
-                onSaveName={onSaveName}
+                onSaveName={toastFailures(onSaveName)}
               />
               <FieldSeparator />
               <AccountSecuritySection
                 busy={busy}
-                onChangePassword={onChangePassword}
+                onChangePassword={toastFailures(onChangePassword)}
               />
               <FieldSeparator />
-              <AccountSessionSection busy={busy} onSignOut={onSignOut} />
+              <AccountSessionSection
+                busy={busy}
+                onSignOut={toastFailures(onSignOut)}
+              />
             </>
           ) : (
             <>
@@ -397,10 +420,10 @@ export default function AuthSettings() {
                 orgs={session.orgs}
                 isAdmin={isAdmin}
                 busy={busy}
-                onCreateOrg={onCreateOrg}
-                onSwitchOrg={onSwitchOrg}
-                onUpdateOrg={onUpdateOrg}
-                onDeleteOrg={onDeleteOrg}
+                onCreateOrg={toastFailures(onCreateOrg)}
+                onSwitchOrg={toastFailures(onSwitchOrg)}
+                onUpdateOrg={toastFailures(onUpdateOrg)}
+                onDeleteOrg={toastFailures(onDeleteOrg)}
               />
               <FieldSeparator />
               <AccountRolesSection
@@ -408,8 +431,8 @@ export default function AuthSettings() {
                 availableRoles={availableRoles}
                 isAdmin={isAdmin}
                 busy={busy}
-                onSaveRole={onSaveRole}
-                onDeleteRole={onDeleteRole}
+                onSaveRole={toastFailures(onSaveRole)}
+                onDeleteRole={toastFailures(onDeleteRole)}
               />
               <FieldSeparator />
               <AccountMembersSection
@@ -419,10 +442,10 @@ export default function AuthSettings() {
                 availableRoles={availableRoles.map((r) => r.role)}
                 isAdmin={isAdmin}
                 busy={busy}
-                onInviteMember={onInviteMember}
-                onRevokeInvite={onRevokeInvite}
-                onChangeMemberRole={onChangeMemberRole}
-                onRemoveMember={onRemoveMember}
+                onInviteMember={toastFailures(onInviteMember)}
+                onRevokeInvite={toastFailures(onRevokeInvite)}
+                onChangeMemberRole={toastFailures(onChangeMemberRole)}
+                onRemoveMember={toastFailures(onRemoveMember)}
               />
             </>
           )}

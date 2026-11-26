@@ -16,7 +16,7 @@ export function resolveNotificationsApiBase(env: EnvMap = Bun.env): string {
 /** Trusted peer / FDE header for active org (matches notifications + db-store). */
 export const NOTIFICATIONS_ORG_ID_HEADER = 'x-agentos-org-id';
 
-export type NotificationType = 'info' | 'success' | 'error';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error';
 export type DeliveryChannel = 'in_app' | 'email' | 'sms';
 export type DeliveryStatus = 'queued' | 'sent' | 'failed';
 
@@ -31,6 +31,8 @@ export type NotificationEntry = {
   templateId?: string;
   subject?: string;
   orgId?: string;
+  /** Extension that emitted the notification (Shell host or server API). */
+  extensionId?: string;
   provider?: string;
   /** `org` when sent with the org's own provider (BYOK), else `platform`. */
   source?: 'org' | 'platform';
@@ -43,6 +45,8 @@ export type NotifyInput = {
   message?: string;
   subject?: string;
   type?: NotificationType;
+  /** Source extension id; persisted on in-app entries for the Notifications inbox. */
+  extensionId?: string;
   templateId?: string;
   vars?: Record<string, string>;
   to?: string;

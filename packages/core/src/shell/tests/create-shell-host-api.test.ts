@@ -180,6 +180,37 @@ describe('createShellHostApi notifications', () => {
     }
   });
 
+  test('notifications.show fan-out sends message, severity, and extensionId', async () => {
+    const originalFetch = globalThis.fetch;
+    const notifyBodies: unknown[] = [];
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      if (String(input) === '/api/ext/notifications/notify') {
+        notifyBodies.push(JSON.parse(String(init?.body)));
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const host = createShellHostApi('crm-helper');
+      await host.notifications.show('Search failed', 'error');
+      await host.notifications.show('Sync is degraded', 'warning');
+      await new Promise((r) => setTimeout(r, 0));
+      expect(notifyBodies).toEqual([
+        { message: 'Search failed', type: 'error', extensionId: 'crm-helper' },
+        {
+          message: 'Sync is degraded',
+          type: 'warning',
+          extensionId: 'crm-helper',
+        },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test('events.publish posts to events builtin', async () => {
     const originalFetch = globalThis.fetch;
     const calls: Array<{ url: string; init?: RequestInit }> = [];

@@ -6,7 +6,7 @@ import type {
 } from './contracts';
 
 /** Toast / notification severity. */
-export type NotificationType = 'info' | 'success' | 'error';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error';
 
 export interface HostFetchInit {
   method?: string;

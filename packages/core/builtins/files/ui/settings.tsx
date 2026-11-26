@@ -73,7 +73,7 @@ export default function FilesSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const mounts = useFilesMounts({ usage: true });
+  const mounts = useFilesMounts({ usage: true, reportErrors: true });
 
   useEffect(() => {
     let cancelled = false;
@@ -85,13 +85,18 @@ export default function FilesSettings() {
         res = await api.fetch('/org-settings');
       } catch {
         if (cancelled) return;
-        setError('Could not reach Files settings. Reload the page to retry.');
+        const message =
+          'Could not reach Files settings. Reload the page to retry.';
+        setError(message);
+        void notifications.show(message, 'error');
         setLoading(false);
         return;
       }
       if (cancelled) return;
       if (!res.ok) {
-        setError('Could not load Files settings.');
+        const message = 'Could not load Files settings.';
+        setError(message);
+        void notifications.show(message, 'error');
         setLoading(false);
         return;
       }
@@ -101,14 +106,16 @@ export default function FilesSettings() {
         };
         setValue(toValue(data.binRetentionDays));
       } catch {
-        setError('Invalid Files settings response.');
+        const message = 'Invalid Files settings response.';
+        setError(message);
+        void notifications.show(message, 'error');
       }
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [api]);
+  }, [api, notifications]);
 
   async function onChange(next: RetentionValue) {
     setValue(next);

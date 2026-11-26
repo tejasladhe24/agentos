@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useHostApi } from '@agentos/core/client';
+import { useHostApi, useHostNotifications } from '@agentos/core/client';
 import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
@@ -21,6 +21,7 @@ function statusVariant(
 
 export function DeliveriesSection() {
   const api = useHostApi();
+  const notifications = useHostNotifications();
   const [items, setItems] = useState<DeliveryEntry[]>([]);
   const [selected, setSelected] = useState<DeliveryEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +35,9 @@ export function DeliveriesSection() {
     );
     setBusy(false);
     if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Failed to load deliveries'));
+      const message = parseErrorBody(res.body, 'Failed to load deliveries');
+      setError(message);
+      void notifications.show(message, 'error');
       setItems([]);
       return;
     }
@@ -47,7 +50,9 @@ export function DeliveriesSection() {
       `/api/ext/notifications/deliveries/${encodeURIComponent(id)}`,
     );
     if (!res.ok) {
-      setError(parseErrorBody(res.body, 'Failed to load delivery'));
+      const message = parseErrorBody(res.body, 'Failed to load delivery');
+      setError(message);
+      void notifications.show(message, 'error');
       return;
     }
     const body = JSON.parse(res.body) as { notification: DeliveryEntry };
