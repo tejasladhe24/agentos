@@ -75,6 +75,13 @@ function mockReqRes(
     setHeader(name: string, value: string) {
       resHeaders[name.toLowerCase()] = value;
     },
+    write(chunk: string | Buffer) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+      return true;
+    },
+    on() {},
+    once() {},
+    off() {},
     end(body?: string | Buffer) {
       if (body != null) {
         chunks.push(typeof body === 'string' ? Buffer.from(body) : body);

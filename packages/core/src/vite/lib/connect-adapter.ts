@@ -69,7 +69,14 @@ export function connectToFetchRequest(req: IncomingMessage): Request {
   return new Request(url, init);
 }
 
-/** Write a Fetch `Response` onto a Connect/Node server response. */
+/**
+ * Write a Fetch `Response` onto a Connect/Node server response.
+ *
+ * Streams chunk by chunk. Buffering with `arrayBuffer()` would hold SSE
+ * (`/api/ext/events/subscribe`) until upstream closed, so events never reached
+ * the browser in dev. When the browser disconnects, the upstream reader is
+ * cancelled so the upstream subscription closes too.
+ */
 export async function writeFetchResponse(
   res: ServerResponse,
   response: Response,
@@ -82,8 +89,32 @@ export async function writeFetchResponse(
     res.end();
     return;
   }
-  const buf = Buffer.from(await response.arrayBuffer());
-  res.end(buf);
+
+  const reader = response.body.getReader();
+  res.on('close', () => {
+    void reader.cancel().catch(() => undefined);
+  });
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!res.write(value)) {
+        await new Promise<void>((resolve) => {
+          const done = () => {
+            res.off('drain', done);
+            res.off('close', done);
+            resolve();
+          };
+          res.once('drain', done);
+          res.once('close', done);
+        });
+      }
+    }
+  } catch {
+    // Upstream dropped mid-stream. End below; EventSource clients reconnect.
+  }
+  res.end();
 }
 
 /**
