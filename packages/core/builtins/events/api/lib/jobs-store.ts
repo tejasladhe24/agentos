@@ -1,3 +1,4 @@
+import { PLATFORM_ORG_ID } from './constants';
 import { initialNextRun, nextCronRun, parseEveryMs } from './cron';
 import type {
   DbStoreClient,
@@ -19,11 +20,18 @@ export type CreateJobInput = {
   enabled?: boolean;
 };
 
+/** Tenant a read is limited to; `null` reads every org (service callers). */
+export type OrgScope = string | null;
+
+function inScope(job: JobRecord, scope: OrgScope): boolean {
+  return scope === null || (job.orgId ?? PLATFORM_ORG_ID) === scope;
+}
+
 export type JobsStore = {
-  create: (input: CreateJobInput) => Promise<JobRecord>;
-  list: () => Promise<JobRecord[]>;
-  get: (id: string) => Promise<JobRecord | undefined>;
-  remove: (id: string) => Promise<boolean>;
+  create: (input: CreateJobInput, orgId?: string) => Promise<JobRecord>;
+  list: (scope?: OrgScope) => Promise<JobRecord[]>;
+  get: (id: string, scope?: OrgScope) => Promise<JobRecord | undefined>;
+  remove: (id: string, scope?: OrgScope) => Promise<boolean>;
   due: () => Promise<JobRecord[]>;
   markRan: (
     job: JobRecord,
@@ -34,7 +42,7 @@ export type JobsStore = {
 /** Scheduled jobs store (cron / run-at) backed by db-store. */
 export function createJobsStore(db: DbStoreClient, clock: Clock): JobsStore {
   return {
-    async create(input) {
+    async create(input, orgId = PLATFORM_ORG_ID) {
       const now = clock();
       if (input.kind === 'at' && !input.runAt) {
         throw new Error('runAt required for kind "at"');
@@ -64,6 +72,7 @@ export function createJobsStore(db: DbStoreClient, clock: Clock): JobsStore {
 
       const record: JobRecord = {
         id: crypto.randomUUID(),
+        orgId,
         kind: input.kind,
         action: input.action,
         enabled: input.enabled !== false,
@@ -79,9 +88,20 @@ export function createJobsStore(db: DbStoreClient, clock: Clock): JobsStore {
       return db.insertJob(record);
     },
 
-    list: () => db.listJobs(),
-    get: (id) => db.getJob(id),
-    remove: (id) => db.deleteJob(id),
+    async list(scope = null) {
+      return (await db.listJobs()).filter((job) => inScope(job, scope));
+    },
+
+    async get(id, scope = null) {
+      const job = await db.getJob(id);
+      return job && inScope(job, scope) ? job : undefined;
+    },
+
+    async remove(id, scope = null) {
+      const job = await db.getJob(id);
+      if (!job || !inScope(job, scope)) return false;
+      return db.deleteJob(id);
+    },
 
     async due() {
       const nowIso = clock().toISOString();

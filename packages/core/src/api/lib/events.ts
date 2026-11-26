@@ -2,13 +2,31 @@
  * @agentos/core/api/events — HTTP client for builtin `events` (tickets 23 / 74).
  */
 
-import {
-  getJson,
-  jsonFetch,
-  postJson,
-  resolveExtApiBase,
-  type EnvMap,
-} from './http';
+import { jsonFetch, resolveExtApiBase, type EnvMap } from './http';
+
+/**
+ * Shared secret between in-stack callers and builtin `events`. `agentos dev` /
+ * `agentos start` generate one per stack; browsers never receive it.
+ */
+export const EVENTS_SERVICE_TOKEN_ENV = 'AGENT_OS_EVENTS_SERVICE_TOKEN';
+
+/** Peer header naming the org a service call acts for (service callers only). */
+export const EVENTS_ORG_HEADER = 'x-agentos-org-id';
+
+/**
+ * Auth headers for service-to-service calls to builtin `events`.
+ * Pass `orgId` to scope the call to one tenant; omit for platform scope.
+ */
+export function eventsServiceHeaders(
+  env: EnvMap = Bun.env,
+  orgId?: string,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = env[EVENTS_SERVICE_TOKEN_ENV]?.trim();
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (orgId) headers[EVENTS_ORG_HEADER] = orgId;
+  return headers;
+}
 
 /** Resolve builtin events API base (`…/api/ext/events` or test override). */
 export function resolveEventsApiBase(env: EnvMap = Bun.env): string {
@@ -62,22 +80,34 @@ export type ScheduledJob = ScheduleJobInput & {
   lastError?: string;
 };
 
+export type PublishOptions = {
+  /** Tenant the event belongs to; omit for a platform-scoped event. */
+  orgId?: string;
+};
+
 export async function publish(
   topic: string,
   payload: unknown = null,
   env?: EnvMap,
+  options: PublishOptions = {},
 ): Promise<PublishResult> {
-  const base = resolveEventsApiBase(env ?? Bun.env);
-  return postJson<PublishResult>(
+  const resolved = env ?? Bun.env;
+  const base = resolveEventsApiBase(resolved);
+  return jsonFetch<PublishResult>(
     `${base}/publish`,
-    { topic, payload },
+    {
+      method: 'POST',
+      body: { topic, payload },
+      headers: eventsServiceHeaders(resolved, options.orgId),
+    },
     'events publish',
   );
 }
 
 /**
  * Build SSE subscribe URL (long-lived connection left to the caller).
- * Pass one topic string or multiple via `topics`.
+ * Pass one topic string or multiple via `topics`. Send
+ * {@link eventsServiceHeaders} with the request — `subscribe` requires auth.
  */
 export function subscribeUrl(topics: string | string[], env?: EnvMap): string {
   const base = resolveEventsApiBase(env ?? Bun.env);
@@ -98,10 +128,15 @@ export async function claim(
   limit = 1,
   env?: EnvMap,
 ): Promise<{ messages: OutboxMessage[] }> {
-  const base = resolveEventsApiBase(env ?? Bun.env);
-  return postJson<{ messages: OutboxMessage[] }>(
+  const resolved = env ?? Bun.env;
+  const base = resolveEventsApiBase(resolved);
+  return jsonFetch<{ messages: OutboxMessage[] }>(
     `${base}/queue/claim`,
-    { limit },
+    {
+      method: 'POST',
+      body: { limit },
+      headers: eventsServiceHeaders(resolved),
+    },
     'events claim',
   );
 }
@@ -110,10 +145,15 @@ export async function ack(
   id: string,
   env?: EnvMap,
 ): Promise<{ message: OutboxMessage }> {
-  const base = resolveEventsApiBase(env ?? Bun.env);
-  return postJson<{ message: OutboxMessage }>(
+  const resolved = env ?? Bun.env;
+  const base = resolveEventsApiBase(resolved);
+  return jsonFetch<{ message: OutboxMessage }>(
     `${base}/queue/ack`,
-    { id },
+    {
+      method: 'POST',
+      body: { id },
+      headers: eventsServiceHeaders(resolved),
+    },
     'events ack',
   );
 }
@@ -123,10 +163,15 @@ export async function nack(
   error?: string,
   env?: EnvMap,
 ): Promise<{ message: OutboxMessage }> {
-  const base = resolveEventsApiBase(env ?? Bun.env);
-  return postJson<{ message: OutboxMessage }>(
+  const resolved = env ?? Bun.env;
+  const base = resolveEventsApiBase(resolved);
+  return jsonFetch<{ message: OutboxMessage }>(
     `${base}/queue/nack`,
-    { id, ...(error ? { error } : {}) },
+    {
+      method: 'POST',
+      body: { id, ...(error ? { error } : {}) },
+      headers: eventsServiceHeaders(resolved),
+    },
     'events nack',
   );
 }
@@ -135,25 +180,40 @@ export async function scheduleJob(
   input: ScheduleJobInput,
   env?: EnvMap,
 ): Promise<ScheduledJob> {
-  const base = resolveEventsApiBase(env ?? Bun.env);
-  return postJson<ScheduledJob>(`${base}/jobs`, input, 'events schedule');
+  const resolved = env ?? Bun.env;
+  const base = resolveEventsApiBase(resolved);
+  return jsonFetch<ScheduledJob>(
+    `${base}/jobs`,
+    {
+      method: 'POST',
+      body: input,
+      headers: eventsServiceHeaders(resolved),
+    },
+    'events schedule',
+  );
 }
 
 export async function listJobs(
   env?: EnvMap,
 ): Promise<{ jobs: ScheduledJob[] }> {
-  const base = resolveEventsApiBase(env ?? Bun.env);
-  return getJson<{ jobs: ScheduledJob[] }>(`${base}/jobs`, 'events list jobs');
+  const resolved = env ?? Bun.env;
+  const base = resolveEventsApiBase(resolved);
+  return jsonFetch<{ jobs: ScheduledJob[] }>(
+    `${base}/jobs`,
+    { method: 'GET', headers: eventsServiceHeaders(resolved) },
+    'events list jobs',
+  );
 }
 
 export async function deleteJob(
   id: string,
   env?: EnvMap,
 ): Promise<{ ok: true }> {
-  const base = resolveEventsApiBase(env ?? Bun.env);
+  const resolved = env ?? Bun.env;
+  const base = resolveEventsApiBase(resolved);
   return jsonFetch<{ ok: true }>(
     `${base}/jobs/${encodeURIComponent(id)}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', headers: eventsServiceHeaders(resolved) },
     'events delete job',
   );
 }

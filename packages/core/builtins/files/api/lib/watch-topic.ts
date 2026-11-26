@@ -1,3 +1,4 @@
+import { eventsServiceHeaders } from '@agentos/core/api/events';
 import { resolveExtApiBase } from '@agentos/core/api/http';
 
 export type WatchTopicOptions = {
@@ -26,7 +27,10 @@ export function watchTopic(
   const run = async (): Promise<void> => {
     while (!options.signal?.aborted) {
       try {
-        const res = await fetch(url, { signal: options.signal });
+        const res = await fetch(url, {
+          headers: eventsServiceHeaders(options.env ?? Bun.env),
+          signal: options.signal,
+        });
         if (res.ok && res.body) {
           const decoder = new TextDecoder();
           const reader = res.body.getReader();

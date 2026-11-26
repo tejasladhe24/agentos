@@ -8,7 +8,7 @@
  */
 
 import { appendEntry } from './audit';
-import { publish } from './events';
+import { eventsServiceHeaders, publish } from './events';
 import { resolveExtApiBase, type EnvMap } from './http';
 import { resolveSecretsApiBase } from './secrets';
 import { resolveDbStoreApiBase } from './store';
@@ -868,7 +868,10 @@ export function watchIntegrationChanges(
   const run = async (): Promise<void> => {
     while (!options.signal?.aborted) {
       try {
-        const res = await fetch(url, { signal: options.signal });
+        const res = await fetch(url, {
+          headers: eventsServiceHeaders(options.env ?? Bun.env),
+          signal: options.signal,
+        });
         if (res.ok && res.body) {
           const decoder = new TextDecoder();
           let buffer = '';

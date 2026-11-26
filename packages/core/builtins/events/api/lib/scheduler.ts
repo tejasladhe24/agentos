@@ -1,7 +1,9 @@
+import { PLATFORM_ORG_ID } from './constants';
 import type { EventBus } from './event-bus';
 import type { JobRecord } from './db-store-client';
 import type { JobsStore } from './jobs-store';
 import type { OutboxStore } from './outbox-store';
+import { jobUrlError } from './policy';
 
 export type SchedulerDeps = {
   jobs: JobsStore;
@@ -14,6 +16,9 @@ export type SchedulerDeps = {
 async function runHttp(job: JobRecord, fetchImpl: typeof fetch): Promise<void> {
   const url = job.url;
   if (!url) throw new Error('job missing url');
+  // Re-check at run time so jobs stored before validation existed stay safe.
+  const blocked = jobUrlError(url);
+  if (blocked) throw new Error(blocked);
   const res = await fetchImpl(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -42,8 +47,13 @@ export async function runSchedulerTick(deps: SchedulerDeps): Promise<number> {
       if (job.action === 'publish') {
         const topic = job.topic?.trim();
         if (!topic) throw new Error('job missing topic');
-        const record = await deps.outbox.publish(topic, job.payload ?? null);
-        deps.bus.publish(topic, record.payload);
+        const orgId = job.orgId ?? PLATFORM_ORG_ID;
+        const record = await deps.outbox.publish(
+          topic,
+          job.payload ?? null,
+          orgId,
+        );
+        deps.bus.publish(topic, record.payload, orgId);
       } else {
         await runHttp(job, fetchImpl);
       }

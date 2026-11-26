@@ -1,3 +1,4 @@
+import { eventsServiceHeaders } from '@agentos/core/api/events';
 import { DEFAULT_MOUNT_ALIAS, toFileRef } from '@agentos/core/api/files-ref';
 
 import type { EventsClient, FilesClient } from './types';
@@ -41,10 +42,15 @@ export function createFilesClient(baseUrl: string): FilesClient {
 export function createEventsClient(baseUrl: string): EventsClient {
   const root = baseUrl.replace(/\/+$/, '');
   return {
-    async publish(topic, payload) {
+    async publish(topic, payload, options) {
       const res = await fetch(`${root}/publish`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          // Service token authenticates us to events; the org header scopes
+          // the event so only that tenant's subscribers receive it.
+          ...eventsServiceHeaders(Bun.env, options?.orgId),
+        },
         body: JSON.stringify({ topic, payload }),
       });
       if (!res.ok) {

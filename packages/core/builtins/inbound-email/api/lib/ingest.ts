@@ -83,22 +83,26 @@ export async function ingestInboundEmail(
 
     await deps.messages.insertMessage(message);
 
-    const published = await deps.events.publish(EMAIL_RECEIVED_TOPIC, {
-      orgId,
-      messageId: message.id,
-      deliveryId: message.deliveryId,
-      provider: message.provider,
-      from: message.from,
-      to: message.to,
-      subject: message.subject,
-      attachmentKeys: attachments.map((a) => a.key),
-      attachmentRefs: attachments.map((a) => a.ref),
-      attachments,
-      receivedAt: message.receivedAt,
-      ...(message.authentication
-        ? { authentication: message.authentication }
-        : {}),
-    });
+    const published = await deps.events.publish(
+      EMAIL_RECEIVED_TOPIC,
+      {
+        orgId,
+        messageId: message.id,
+        deliveryId: message.deliveryId,
+        provider: message.provider,
+        from: message.from,
+        to: message.to,
+        subject: message.subject,
+        attachmentKeys: attachments.map((a) => a.key),
+        attachmentRefs: attachments.map((a) => a.ref),
+        attachments,
+        receivedAt: message.receivedAt,
+        ...(message.authentication
+          ? { authentication: message.authentication }
+          : {}),
+      },
+      { orgId },
+    );
 
     return {
       ok: true,

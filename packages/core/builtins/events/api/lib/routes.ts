@@ -1,7 +1,9 @@
+import { readScope, writeOrgId, type EventsPrincipal } from './auth';
 import { json, parseJobId, readJsonBody, unavailable } from './http';
 import type { CreateJobInput, JobsStore } from './jobs-store';
 import type { EventBus } from './event-bus';
 import type { OutboxStore } from './outbox-store';
+import { isServerOnlyTopic, jobUrlError, topicError } from './policy';
 import { runSchedulerTick } from './scheduler';
 
 /** Mirrors `EventsHandlerDeps` without importing handle-request (avoid cycles). */
@@ -15,12 +17,51 @@ export type EventsRouteDeps = {
   fetchImpl?: typeof fetch;
 };
 
+/**
+ * Who may call a route.
+ * - `public`: no credential (health only).
+ * - `any`: a browser session with an active org, or a service caller.
+ * - `service`: only a holder of the service token (workers, maintenance).
+ * - `admin`: a service caller, or a session with an admin role.
+ */
+export type RouteAccess = 'public' | 'any' | 'service' | 'admin';
+
+export type RouteContext = {
+  request: Request;
+  url: URL;
+  path: string;
+  /** Resolved caller; `null` only on `public` routes. */
+  principal: EventsPrincipal | null;
+};
+
 export type EventsRouteHandler = (
   deps: EventsRouteDeps,
-  request: Request,
-  url: URL,
-  path: string,
+  ctx: RouteContext,
 ) => Promise<Response>;
+
+function requirePrincipal(ctx: RouteContext): EventsPrincipal {
+  if (!ctx.principal) {
+    // Router guarantees a principal on non-public routes; fail closed anyway.
+    throw new Error('events route reached without a principal');
+  }
+  return ctx.principal;
+}
+
+/** Reject a topic that is malformed, or server-only for a browser session. */
+function topicRejection(
+  topic: string,
+  principal: EventsPrincipal,
+): Response | null {
+  const invalid = topicError(topic);
+  if (invalid) return json({ error: invalid }, { status: 400 });
+  if (principal.kind === 'session' && isServerOnlyTopic(topic)) {
+    return json(
+      { error: `topic "${topic}" is reserved for server-side publishers` },
+      { status: 403 },
+    );
+  }
+  return null;
+}
 
 export async function handleHealth(deps: EventsRouteDeps): Promise<Response> {
   return json({
@@ -32,16 +73,22 @@ export async function handleHealth(deps: EventsRouteDeps): Promise<Response> {
 
 export async function handlePublish(
   deps: EventsRouteDeps,
-  request: Request,
+  ctx: RouteContext,
 ): Promise<Response> {
-  const body = await readJsonBody(request);
+  const principal = requirePrincipal(ctx);
+  const body = await readJsonBody(ctx.request);
   const topic = typeof body?.topic === 'string' ? body.topic.trim() : '';
-  if (!topic) {
-    return json({ error: 'topic required' }, { status: 400 });
-  }
+  const rejection = topicRejection(topic, principal);
+  if (rejection) return rejection;
+
+  const orgId = writeOrgId(principal);
   try {
-    const record = await deps.outbox.publish(topic, body?.payload ?? null);
-    const msg = deps.bus.publish(topic, record.payload);
+    const record = await deps.outbox.publish(
+      topic,
+      body?.payload ?? null,
+      orgId,
+    );
+    const msg = deps.bus.publish(topic, record.payload, orgId);
     return json({
       ok: true,
       event: { ...msg, id: record.id },
@@ -53,14 +100,16 @@ export async function handlePublish(
 
 export async function handleSubscribe(
   deps: EventsRouteDeps,
-  _request: Request,
-  url: URL,
+  ctx: RouteContext,
 ): Promise<Response> {
-  const topicParam = url.searchParams.get('topic');
-  const topicsParam = url.searchParams.getAll('topics');
+  const principal = requirePrincipal(ctx);
+  const topicParam = ctx.url.searchParams.get('topic');
+  const topicsParam = ctx.url.searchParams.getAll('topics');
   const topics =
     topicsParam.length > 0 ? topicsParam : topicParam ? [topicParam] : null;
-  const { stream } = deps.bus.subscribe(topics);
+  // Sessions only ever see their own org; service callers see every org
+  // unless they name one with the org header.
+  const { stream } = deps.bus.subscribe(topics, readScope(principal));
   return new Response(stream, {
     headers: {
       'content-type': 'text/event-stream; charset=utf-8',
@@ -72,9 +121,9 @@ export async function handleSubscribe(
 
 export async function handleQueueClaim(
   deps: EventsRouteDeps,
-  request: Request,
+  ctx: RouteContext,
 ): Promise<Response> {
-  const body = await readJsonBody(request);
+  const body = await readJsonBody(ctx.request);
   const limitRaw = body?.limit;
   const limit =
     typeof limitRaw === 'number' && limitRaw > 0
@@ -94,9 +143,9 @@ export async function handleQueueClaim(
 
 export async function handleQueueAck(
   deps: EventsRouteDeps,
-  request: Request,
+  ctx: RouteContext,
 ): Promise<Response> {
-  const body = await readJsonBody(request);
+  const body = await readJsonBody(ctx.request);
   const id = typeof body?.id === 'string' ? body.id.trim() : '';
   if (!id) return json({ error: 'id required' }, { status: 400 });
   try {
@@ -110,9 +159,9 @@ export async function handleQueueAck(
 
 export async function handleQueueNack(
   deps: EventsRouteDeps,
-  request: Request,
+  ctx: RouteContext,
 ): Promise<Response> {
-  const body = await readJsonBody(request);
+  const body = await readJsonBody(ctx.request);
   const id = typeof body?.id === 'string' ? body.id.trim() : '';
   if (!id) return json({ error: 'id required' }, { status: 400 });
   const errorMsg = typeof body?.error === 'string' ? body.error : undefined;
@@ -128,9 +177,13 @@ export async function handleQueueNack(
   }
 }
 
-export async function handleListJobs(deps: EventsRouteDeps): Promise<Response> {
+export async function handleListJobs(
+  deps: EventsRouteDeps,
+  ctx: RouteContext,
+): Promise<Response> {
+  const principal = requirePrincipal(ctx);
   try {
-    return json({ jobs: await deps.jobs.list() });
+    return json({ jobs: await deps.jobs.list(readScope(principal)) });
   } catch (error) {
     return unavailable(error);
   }
@@ -138,9 +191,10 @@ export async function handleListJobs(deps: EventsRouteDeps): Promise<Response> {
 
 export async function handleCreateJob(
   deps: EventsRouteDeps,
-  request: Request,
+  ctx: RouteContext,
 ): Promise<Response> {
-  const body = await readJsonBody(request);
+  const principal = requirePrincipal(ctx);
+  const body = await readJsonBody(ctx.request);
   const kind = body?.kind;
   const action = body?.action;
   if (kind !== 'at' && kind !== 'cron') {
@@ -152,6 +206,25 @@ export async function handleCreateJob(
       { status: 400 },
     );
   }
+
+  if (action === 'http') {
+    // Outbound HTTP from the scheduler is a server-side capability; a browser
+    // session must not be able to make the platform fetch arbitrary URLs.
+    if (principal.kind !== 'service') {
+      return json(
+        { error: 'http jobs require a service credential' },
+        { status: 403 },
+      );
+    }
+    if (typeof body?.url === 'string' && body.url.trim()) {
+      const blocked = jobUrlError(body.url.trim());
+      if (blocked) return json({ error: blocked }, { status: 400 });
+    }
+  } else if (typeof body?.topic === 'string' && body.topic.trim()) {
+    const rejection = topicRejection(body.topic.trim(), principal);
+    if (rejection) return rejection;
+  }
+
   const input: CreateJobInput = {
     kind,
     action,
@@ -164,7 +237,7 @@ export async function handleCreateJob(
     ...(typeof body?.enabled === 'boolean' ? { enabled: body.enabled } : {}),
   };
   try {
-    const job = await deps.jobs.create(input);
+    const job = await deps.jobs.create(input, writeOrgId(principal));
     return json(job, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -177,16 +250,16 @@ export async function handleCreateJob(
 
 export async function handleDeleteJob(
   deps: EventsRouteDeps,
-  _request: Request,
-  _url: URL,
-  path: string,
+  ctx: RouteContext,
 ): Promise<Response> {
-  const jobId = parseJobId(path);
+  const principal = requirePrincipal(ctx);
+  const jobId = parseJobId(ctx.path);
   if (!jobId) {
     return json({ error: 'not found' }, { status: 404 });
   }
   try {
-    const ok = await deps.jobs.remove(jobId);
+    // Out-of-scope jobs read as missing so org membership is not leaked.
+    const ok = await deps.jobs.remove(jobId, readScope(principal));
     if (!ok) return json({ error: 'not found' }, { status: 404 });
     return json({ ok: true });
   } catch (error) {
@@ -211,39 +284,51 @@ export async function handleJobsTick(deps: EventsRouteDeps): Promise<Response> {
 export const EVENTS_EXACT_ROUTES: ReadonlyArray<{
   method: string;
   path: string;
+  access: RouteAccess;
   handle: EventsRouteHandler;
 }> = [
-  { method: 'GET', path: '/health', handle: (d) => handleHealth(d) },
+  {
+    method: 'GET',
+    path: '/health',
+    access: 'public',
+    handle: (d) => handleHealth(d),
+  },
   {
     method: 'POST',
     path: '/publish',
-    handle: (d, r) => handlePublish(d, r),
+    access: 'any',
+    handle: handlePublish,
   },
   {
     method: 'GET',
     path: '/subscribe',
-    handle: (d, r, u) => handleSubscribe(d, r, u),
+    access: 'any',
+    handle: handleSubscribe,
   },
   {
     method: 'POST',
     path: '/queue/claim',
-    handle: (d, r) => handleQueueClaim(d, r),
+    access: 'service',
+    handle: handleQueueClaim,
   },
   {
     method: 'POST',
     path: '/queue/ack',
-    handle: (d, r) => handleQueueAck(d, r),
+    access: 'service',
+    handle: handleQueueAck,
   },
   {
     method: 'POST',
     path: '/queue/nack',
-    handle: (d, r) => handleQueueNack(d, r),
+    access: 'service',
+    handle: handleQueueNack,
   },
-  { method: 'GET', path: '/jobs', handle: (d) => handleListJobs(d) },
-  { method: 'POST', path: '/jobs', handle: (d, r) => handleCreateJob(d, r) },
+  { method: 'GET', path: '/jobs', access: 'admin', handle: handleListJobs },
+  { method: 'POST', path: '/jobs', access: 'admin', handle: handleCreateJob },
   {
     method: 'POST',
     path: '/jobs/tick',
+    access: 'service',
     handle: (d) => handleJobsTick(d),
   },
 ];

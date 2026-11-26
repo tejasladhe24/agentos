@@ -1,4 +1,5 @@
 import { backoffMs } from './backoff';
+import { PLATFORM_ORG_ID } from './constants';
 import type {
   DbStoreClient,
   OutboxRecord,
@@ -8,7 +9,11 @@ import type {
 export type Clock = () => Date;
 
 export type OutboxStore = {
-  publish: (topic: string, payload: unknown) => Promise<OutboxRecord>;
+  publish: (
+    topic: string,
+    payload: unknown,
+    orgId?: string,
+  ) => Promise<OutboxRecord>;
   claim: (input: {
     limit: number;
     workerId: string;
@@ -39,10 +44,11 @@ export function createOutboxStore(
   clock: Clock,
 ): OutboxStore {
   return {
-    async publish(topic, payload) {
+    async publish(topic, payload, orgId = PLATFORM_ORG_ID) {
       const now = clock().toISOString();
       const record: OutboxRecord = {
         id: crypto.randomUUID(),
+        orgId,
         topic,
         payload: payload ?? null,
         status: 'pending',
