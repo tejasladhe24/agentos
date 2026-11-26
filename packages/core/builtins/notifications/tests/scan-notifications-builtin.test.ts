@@ -25,4 +25,25 @@ describe('scan builtin notifications', () => {
       port: 6117,
     });
   });
+
+  test('discovers the right-sheet inbox UI and its rightSheet meta', () => {
+    const model = scanExtensions({
+      extensionsDir: join(builtinsDir, '__no_customer_extensions__'),
+      builtinsDir,
+    });
+
+    const notifications = model.extensions.find(
+      (e) => e.id === 'notifications',
+    );
+    expect(notifications?.ui['right-sheet']).toMatch(
+      /ui[\\/]right-sheet\.tsx$/,
+    );
+    expect(notifications?.uiEntries['right-sheet']).toBe(
+      '/__agentos/ext/notifications/right-sheet.html',
+    );
+    expect(notifications?.meta.rightSheet).toEqual({
+      label: 'Notifications',
+      description: 'Recent in-app notifications and alerts',
+    });
+  });
 });
