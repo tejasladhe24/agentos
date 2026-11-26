@@ -64,8 +64,32 @@ export interface HostAPI {
   api: {
     fetch(path: string, init?: HostFetchInit): Promise<HostFetchResponse>;
   };
+  /**
+   * Shell-brokered event bus. Frames never talk to each other directly: the
+   * Shell fans events out to subscribed frames through `ExtensionAPI.onEvent`.
+   * The calling extension must declare the topic in `meta.json`
+   * (`events.publishes` / `events.subscribes`); undeclared calls reject.
+   */
   events: {
+    /**
+     * Durable publish through the `events` builtin. Delivery to UI
+     * subscribers comes back over the Shell's org-scoped SSE bridge, so it
+     * also reaches other tabs and server consumers.
+     */
     publish(topic: string, payload: EventPayload): Promise<void>;
+    /**
+     * UI-only publish: delivered in-process to this Shell's subscribed frames
+     * with no server round trip. Not durable, not seen by other tabs.
+     */
+    publishLocal(topic: string, payload: EventPayload): Promise<void>;
+    /**
+     * Subscribe the calling frame to `topics` (each must be declared in
+     * `events.subscribes`). Returns a subscription id for `unsubscribe`.
+     * Matching events arrive via `ExtensionAPI.onEvent(topic, payload)`.
+     */
+    subscribe(topics: string[]): Promise<string>;
+    /** Drop a subscription. Unknown ids are ignored. */
+    unsubscribe(subscriptionId: string): Promise<void>;
   };
   navigation: {
     /**

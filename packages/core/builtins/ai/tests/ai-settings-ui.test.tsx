@@ -22,7 +22,12 @@ function testHost(): HostAPIClient {
     api: {
       fetch: async () => ({ ok: true, status: 200, body: '{}' }),
     },
-    events: { publish: async () => {} },
+    events: {
+      publish: async () => {},
+      publishLocal: async () => {},
+      subscribe: async () => 'sub',
+      unsubscribe: async () => {},
+    },
     navigation: { openExternal: async () => {} },
     ui: {
       setRightSidebarOpen: async () => {},

@@ -6,6 +6,7 @@ import type { RegistryModel } from '@agentos/core/vite/lib/types';
 import {
   applyRegistry,
   mapRegistry,
+  shellEventBus,
   useShellStore,
 } from '@agentos/core/shell/lib';
 
@@ -145,5 +146,38 @@ describe('applyRegistry', () => {
     expect(
       mapped.extensions.find((e) => e.id === 'auth')?.activityBarSection,
     ).toBe('secondary');
+  });
+});
+
+describe('mapRegistry event declarations', () => {
+  test('carries meta.events into the extension entry and the Shell bus', () => {
+    const registry = fixtureRegistry();
+    registry.extensions[1]!.meta = {
+      events: {
+        publishes: ['crm.contact.selected'],
+        subscribes: ['email.received'],
+      },
+    };
+
+    const mapped = mapRegistry(registry);
+    expect(mapped.extensions.find((e) => e.id === 'crm')?.events).toEqual({
+      publishes: ['crm.contact.selected'],
+      subscribes: ['email.received'],
+    });
+    expect(
+      mapped.extensions.find((e) => e.id === 'auth')?.events,
+    ).toBeUndefined();
+
+    // The singleton bus reads declarations from the seeded store.
+    applyRegistry(registry);
+    expect(() =>
+      shellEventBus.assertCanPublish('crm', 'crm.contact.selected'),
+    ).not.toThrow();
+    expect(() => shellEventBus.assertCanPublish('crm', 'crm.other')).toThrow(
+      /not declared/,
+    );
+    expect(() => shellEventBus.assertCanPublish('auth', 'auth.x')).toThrow(
+      /not declared/,
+    );
   });
 });

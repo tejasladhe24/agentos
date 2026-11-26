@@ -1,6 +1,6 @@
 # 142 — Extension UI event bus (Shell-brokered pub/sub)
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -10,7 +10,7 @@ Today `HostAPI.events` has only `publish`, the SDK's `ExtensionAPI.onEvent` is n
 
 ## Depends on
 
-- Ticket **141** (Events builtin auth and org scope) — todo (required before the SSE bridge ships)
+- Ticket **141** (Events builtin auth and org scope) — merged (required before the SSE bridge ships)
 - Ticket **74** (Durable event queue + `hitl.resolved`) — done
 - Ticket **82** (SDK parity) — done
 - Ticket **134** (Right sidebar + Files migration) — done
@@ -21,6 +21,12 @@ Today `HostAPI.events` has only `publish`, the SDK's `ExtensionAPI.onEvent` is n
 - **Topics are namespaced** `<extId>.<event>` (for example `files.selection.changed`, `email.received`). Each `meta.json` declares `events.publishes` and `events.subscribes`. The Shell rejects undeclared publishes and subscribes.
 - **Payloads** stay JSON (`EventPayload` in `packages/core/src/sdk/lib/contracts.ts`).
 - Server events arrive over `GET /api/ext/events/subscribe` (org-scoped per ticket 141) and are re-emitted on the in-memory bus.
+
+- **Implementation notes (as built):**
+  - `HostAPI.events` is `publish` (durable, via the `events` builtin; UI subscribers get it back over the SSE bridge), `publishLocal` (in-process only), `subscribe(topics) → subscriptionId`, and `unsubscribe(id)`. Ids instead of a `{ unsubscribe() }` handle keep every value structured-clone safe over Comlink.
+  - Frames register their remote `onEvent` via `activateFrame({ onRemote })` (before `onActivate`, so early subscriptions cannot race); `useExtensionHost` drops the frame on dispose.
+  - The SSE connection is opened lazily (first subscription) and closed with the last one, rather than being held for the whole session.
+  - `meta.json` `events.publishes` must be in the extension's own `<extId>.` namespace (enforced in the scanner); this is the per-extension namespacing deferred from ticket 141.
 
 ## Scope
 
@@ -50,12 +56,12 @@ Today `HostAPI.events` has only `publish`, the SDK's `ExtensionAPI.onEvent` is n
 
 ## Done when
 
-- [ ] `HostAPI.events.subscribe` and `useHostEvent` are exported from `@agentos/core/sdk` and `@agentos/core/client`
-- [ ] Shell delivers events to subscribed frames through `onEvent` with no direct frame-to-frame channel
-- [ ] Server events from the `events` builtin are re-emitted on the Shell bus, org-scoped
-- [ ] Undeclared publish and subscribe are rejected and tested
-- [ ] `meta.json` declarations are documented and validated by the scanner
-- [ ] `bun run ci` passes
+- [x] `HostAPI.events.subscribe` and `useHostEvent` are exported from `@agentos/core/sdk` and `@agentos/core/client`
+- [x] Shell delivers events to subscribed frames through `onEvent` with no direct frame-to-frame channel
+- [x] Server events from the `events` builtin are re-emitted on the Shell bus, org-scoped
+- [x] Undeclared publish and subscribe are rejected and tested
+- [x] `meta.json` declarations are documented and validated by the scanner
+- [x] `bun run ci` passes
 
 ## Verify
 

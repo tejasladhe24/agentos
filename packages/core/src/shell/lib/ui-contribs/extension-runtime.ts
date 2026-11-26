@@ -21,6 +21,11 @@ export type ActivateFrameOptions = {
   rpcTimeoutMs?: number;
   /** Window that receives READY / PORT_READY (defaults to shell `window`). */
   messageTarget?: HandshakeMessageTarget;
+  /**
+   * Called as soon as the frame's remote exists — before `onActivate` — so
+   * the event bus can deliver to it without racing early subscriptions.
+   */
+  onRemote?: (remote: Remote<ExtensionAPI>) => void;
 };
 
 export type ActivatedFrame = {
@@ -95,6 +100,7 @@ export async function activateFrame(
     messageTarget = toHandshakeMessageTarget(
       globalThis as Window & typeof globalThis,
     ),
+    onRemote,
   } = options;
 
   await new Promise<void>((resolve, reject) => {
@@ -119,6 +125,8 @@ export async function activateFrame(
     handshakeTimeoutMs,
     messageTarget,
   });
+
+  onRemote?.(connection.remote);
 
   try {
     await withRpcTimeout(

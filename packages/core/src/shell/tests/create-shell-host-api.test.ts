@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import {
+  createShellEventBus,
   createShellHostApi,
   defaultEnabledById,
   defaultSkillsByExtension,
   resetShellHostApiStorage,
+  type EventDeclarations,
   STUB_EXTENSION_CATALOG,
   useShellStore,
 } from '@agentos/core/shell/lib';
@@ -210,7 +212,7 @@ describe('createShellHostApi notifications', () => {
     }
   });
 
-  test('events.publish posts to events builtin', async () => {
+  test('events.publish posts to events builtin for a declared topic', async () => {
     const originalFetch = globalThis.fetch;
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     globalThis.fetch = (async (
@@ -222,16 +224,59 @@ describe('createShellHostApi notifications', () => {
     }) as typeof fetch;
 
     try {
-      const host = createShellHostApi('crm');
-      await host.events.publish('demo', { n: 1 });
+      const bus = createShellEventBus((id) =>
+        id === 'crm' ? { publishes: ['crm.demo'] } : undefined,
+      );
+      const host = createShellHostApi('crm', { eventBus: bus });
+      await host.events.publish('crm.demo', { n: 1 });
       expect(calls).toHaveLength(1);
       expect(calls[0]?.url).toBe('/api/ext/events/publish');
       expect(calls[0]?.init?.body).toBe(
-        JSON.stringify({ topic: 'demo', payload: { n: 1 } }),
+        JSON.stringify({ topic: 'crm.demo', payload: { n: 1 } }),
       );
+
+      // Undeclared topics never reach the network.
+      await expect(host.events.publish('demo', { n: 2 })).rejects.toThrow(
+        /not declared/,
+      );
+      expect(calls).toHaveLength(1);
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  test('events bus: publishLocal / subscribe / unsubscribe through HostAPI', async () => {
+    const declarations: Record<string, EventDeclarations> = {
+      files: { publishes: ['files.selection.changed'] },
+      viewer: { subscribes: ['files.selection.changed'] },
+    };
+    const bus = createShellEventBus((id) => declarations[id]);
+    const delivered: unknown[] = [];
+    bus.attachFrame('viewer-frame', 'viewer', (topic, payload) => {
+      delivered.push([topic, payload]);
+    });
+
+    const files = createShellHostApi('files', { eventBus: bus });
+    const viewer = createShellHostApi('viewer', {
+      frameId: 'viewer-frame',
+      eventBus: bus,
+    });
+
+    // Undeclared on either side is rejected.
+    await expect(viewer.events.publishLocal('x.y', {})).rejects.toThrow(
+      /not declared/,
+    );
+    await expect(
+      files.events.subscribe(['files.selection.changed']),
+    ).rejects.toThrow(/not declared/);
+
+    const id = await viewer.events.subscribe(['files.selection.changed']);
+    await files.events.publishLocal('files.selection.changed', { n: 1 });
+    expect(delivered).toEqual([['files.selection.changed', { n: 1 }]]);
+
+    await viewer.events.unsubscribe(id);
+    await files.events.publishLocal('files.selection.changed', { n: 2 });
+    expect(delivered).toHaveLength(1);
   });
 
   test('hitl.requestApproval creates, opens inbox, and returns on resolve', async () => {

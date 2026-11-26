@@ -31,6 +31,7 @@ export function mapRegistry(registry: RegistryModel): AppliedRegistry {
       ...(activityBarSection !== 'primary' ? { activityBarSection } : {}),
       ...(ext.meta.settings?.length ? { settings: ext.meta.settings } : {}),
       ...(ext.meta.rightSheet ? { rightSheet: ext.meta.rightSheet } : {}),
+      ...(ext.meta.events ? { events: ext.meta.events } : {}),
     };
   });
 

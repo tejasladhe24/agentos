@@ -51,6 +51,16 @@ export function createStubHost(
       publish: async (topic, _payload: EventPayload) => {
         calls.push(`events.publish:${topic}`);
       },
+      publishLocal: async (topic, _payload: EventPayload) => {
+        calls.push(`events.publishLocal:${topic}`);
+      },
+      subscribe: async (topics) => {
+        calls.push(`events.subscribe:${topics.join(',')}`);
+        return `sub-${topics.join(',')}`;
+      },
+      unsubscribe: async (subscriptionId) => {
+        calls.push(`events.unsubscribe:${subscriptionId}`);
+      },
     },
     navigation: {
       openExternal: async (url, options) => {

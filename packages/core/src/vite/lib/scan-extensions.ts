@@ -8,6 +8,7 @@ import type {
   ExtensionKind,
   ExtensionMeta,
   ExtensionMetaApi,
+  ExtensionMetaEvents,
   ExtensionMetaPublic,
   ExtensionMetaRightSheet,
   ExtensionMetaService,
@@ -20,7 +21,7 @@ import type {
   ScanExtensionsOptions,
   UiViewName,
 } from './types';
-import { DEFAULT_SERVICE_MOUNT } from './types';
+import { DEFAULT_SERVICE_MOUNT, isValidEventTopic } from './types';
 
 /** Scan output before Shell-facing enrichment. */
 type RawScannedExtension = Omit<
@@ -308,7 +309,53 @@ function parseMetaRightSheet(
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function readMeta(metaPath: string): ExtensionMeta | undefined {
+/**
+ * Parse `meta.json` `events`. Invalid topics are dropped with a warning, and
+ * `publishes` outside `<extId>.` are rejected so one extension cannot forge
+ * another's namespace.
+ */
+function parseMetaEvents(
+  raw: unknown,
+  extensionId: string,
+  metaPath: string,
+): ExtensionMetaEvents | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  const collect = (value: unknown, kind: 'publishes' | 'subscribes') => {
+    if (!Array.isArray(value)) return [];
+    const topics: string[] = [];
+    for (const item of value) {
+      if (typeof item !== 'string') continue;
+      const topic = item.trim();
+      if (!isValidEventTopic(topic)) {
+        console.warn(
+          `[agentos] ignoring invalid event topic "${topic}" in ${metaPath} (events.${kind})`,
+        );
+        continue;
+      }
+      if (kind === 'publishes' && !topic.startsWith(`${extensionId}.`)) {
+        console.warn(
+          `[agentos] ignoring events.publishes "${topic}" in ${metaPath}: topics must start with "${extensionId}."`,
+        );
+        continue;
+      }
+      if (!topics.includes(topic)) topics.push(topic);
+    }
+    return topics;
+  };
+  const publishes = collect(obj.publishes, 'publishes');
+  const subscribes = collect(obj.subscribes, 'subscribes');
+  if (publishes.length === 0 && subscribes.length === 0) return undefined;
+  return {
+    ...(publishes.length > 0 ? { publishes } : {}),
+    ...(subscribes.length > 0 ? { subscribes } : {}),
+  };
+}
+
+function readMeta(
+  metaPath: string,
+  extensionId: string,
+): ExtensionMeta | undefined {
   try {
     const text = readFileSync(metaPath, 'utf8');
     const parsed = JSON.parse(text) as unknown;
@@ -338,6 +385,8 @@ function readMeta(metaPath: string): ExtensionMeta | undefined {
     if (settings) meta.settings = settings;
     const rightSheet = parseMetaRightSheet(obj.rightSheet);
     if (rightSheet) meta.rightSheet = rightSheet;
+    const events = parseMetaEvents(obj.events, extensionId, metaPath);
+    if (events) meta.events = events;
     return meta;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -353,7 +402,7 @@ function scanOneExtension(
 ): RawScannedExtension {
   const metaPath = join(rootDir, 'meta.json');
   const hasMeta = existsSync(metaPath) && !isDirectory(metaPath);
-  const meta = hasMeta ? (readMeta(metaPath) ?? {}) : {};
+  const meta = hasMeta ? (readMeta(metaPath, id) ?? {}) : {};
 
   const ui: ScannedExtension['ui'] = {};
   const uiDir = join(rootDir, 'ui');

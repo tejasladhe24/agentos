@@ -25,6 +25,16 @@ export { useHostApi } from './use-host-api';
 export { useHostNavigation } from './use-host-navigation';
 export { useHostUi } from './use-host-ui';
 export {
+  useHostEvent,
+  useHostPublish,
+  type HostPublish,
+} from './use-host-event';
+export {
+  dispatchHostEvent,
+  subscribeHostEvent,
+  type HostEventHandler,
+} from './host-events';
+export {
   parseSettingsTarget,
   useSettingsTarget,
   type SettingsTarget,

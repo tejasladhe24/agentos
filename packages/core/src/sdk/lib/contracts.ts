@@ -26,8 +26,9 @@ export type JsonValue = JsonPrimitive | JsonObject | readonly JsonValue[];
 export type StorageValue = JsonValue;
 
 /**
- * Cross-extension event payload (HostAPI.events / ExtensionAPI.onEvent).
- * Stub: free-form JSON until events builtin defines topic schemas.
+ * Event payload carried by the Shell event bus (HostAPI.events /
+ * ExtensionAPI.onEvent). Always JSON; topics are namespaced `<extId>.<event>`
+ * and declared per extension in `meta.json` `events`.
  */
 export type EventPayload = JsonValue;
 

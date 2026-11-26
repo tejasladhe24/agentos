@@ -6,6 +6,8 @@ import type {
   StorageValue,
 } from '@agentos/core/sdk';
 import { toast } from '@agentos/ui/components/toast';
+import type { ShellEventBus } from './event-bus';
+import { shellEventBus } from './shell-event-bus';
 import { useShellStore } from './store';
 
 /** In-memory storage shared across HostAPI instances (keyed by extension). */
@@ -121,12 +123,28 @@ export function externalUrl(raw: string): string {
   return url.toString();
 }
 
+export type CreateShellHostApiOptions = {
+  /**
+   * Identifies this frame on the event bus so subscriptions are dropped with
+   * it. Defaults to `extensionId` (one implicit frame).
+   */
+  frameId?: string;
+  /** Event bus (defaults to the Shell singleton; override in tests). */
+  eventBus?: ShellEventBus;
+};
+
 /**
  * HostAPI for shell iframe hosting. Notifications toast locally and fan out to
- * the notifications builtin; HITL / events hit supporting builtins.
+ * the notifications builtin; HITL hits its builtin; events go through the
+ * Shell-brokered bus (declarations enforced from `meta.json`).
  */
-export function createShellHostApi(extensionId: string): HostAPI {
+export function createShellHostApi(
+  extensionId: string,
+  options: CreateShellHostApiOptions = {},
+): HostAPI {
   const store = storageFor(extensionId);
+  const frameId = options.frameId ?? extensionId;
+  const bus = options.eventBus ?? shellEventBus;
 
   return {
     storage: {
@@ -197,6 +215,7 @@ export function createShellHostApi(extensionId: string): HostAPI {
     },
     events: {
       publish: async (topic, payload) => {
+        bus.assertCanPublish(extensionId, topic);
         const res = await fetch('/api/ext/events/publish', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -207,6 +226,13 @@ export function createShellHostApi(extensionId: string): HostAPI {
           const detail = await res.text();
           throw new Error(detail || `events.publish failed (${res.status})`);
         }
+      },
+      publishLocal: async (topic, payload) => {
+        bus.publishLocal(extensionId, topic, payload);
+      },
+      subscribe: async (topics) => bus.subscribe(frameId, extensionId, topics),
+      unsubscribe: async (subscriptionId) => {
+        bus.unsubscribe(frameId, subscriptionId);
       },
     },
     navigation: {

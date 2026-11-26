@@ -28,6 +28,12 @@ export type ExtensionSettingsSection = {
   adminOnly?: boolean;
 };
 
+/** Event-bus topics an extension declared in `meta.json` `events`. */
+export type ExtensionEventDeclarations = {
+  publishes?: string[];
+  subscribes?: string[];
+};
+
 /** One row in the Extension Manager list. */
 export type ExtensionEntry = {
   id: string;
@@ -50,6 +56,8 @@ export type ExtensionEntry = {
   settings?: ExtensionSettingsSection[];
   /** Optional global right sheet labels/icon (`meta.json` `rightSheet`). */
   rightSheet?: ExtensionRightSheetMeta;
+  /** Event-bus topics this extension's UI may publish / subscribe to. */
+  events?: ExtensionEventDeclarations;
 };
 
 /** Mirrors `ExtensionMetaRightSheet` from the registry (Shell-facing copy). */
