@@ -1,3 +1,4 @@
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useEffect, useState } from 'react';
 import {
   extensionPath,
@@ -47,10 +48,7 @@ export default function EmailSettings() {
   }, [api]);
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="settings-email"
-    >
+    <SettingsPage data-slot="settings-email">
       <FieldGroup className="gap-8">
         <UserEmailFromCard entryId="email-from" />
         {canManage ? (
@@ -66,6 +64,6 @@ export default function EmailSettings() {
           </>
         ) : null}
       </FieldGroup>
-    </div>
+    </SettingsPage>
   );
 }

@@ -1,3 +1,4 @@
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useEffect, useState } from 'react';
 import {
   useHostApi,
@@ -136,10 +137,7 @@ export default function FilesSettings() {
   }
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="settings-files"
-    >
+    <SettingsPage data-slot="settings-files">
       <FieldGroup className="gap-8">
         {mounts.loading || mounts.data.canManage ? (
           <>
@@ -194,6 +192,6 @@ export default function FilesSettings() {
           )}
         </FieldSet>
       </FieldGroup>
-    </div>
+    </SettingsPage>
   );
 }

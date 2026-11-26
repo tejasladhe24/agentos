@@ -1,10 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StatusBar } from '@agentos/core/shell/components';
-import {
-  defaultEnabledById,
-  STUB_EXTENSION_CATALOG,
-} from '@agentos/core/shell/lib';
+import { defaultEnabledById } from '@agentos/core/shell/lib';
+import { STUB_EXTENSION_CATALOG } from './fixtures/stub-extension-catalog';
 
 describe('StatusBar', () => {
   test('renders status text when provided', () => {
@@ -34,7 +32,7 @@ describe('StatusBar', () => {
     const html = renderToStaticMarkup(
       <StatusBar
         extensions={STUB_EXTENSION_CATALOG}
-        enabledById={defaultEnabledById()}
+        enabledById={defaultEnabledById(STUB_EXTENSION_CATALOG)}
       />,
     );
     expect(html).toContain('data-slot="status-enabled"');

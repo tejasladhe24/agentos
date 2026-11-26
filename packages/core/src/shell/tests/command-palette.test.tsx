@@ -8,9 +8,11 @@ import {
 import {
   collectEnabledSkills,
   defaultEnabledById,
+} from '@agentos/core/shell/lib';
+import {
   STUB_EXTENSION_CATALOG,
   STUB_SKILLS_BY_EXTENSION,
-} from '@agentos/core/shell/lib';
+} from './fixtures/stub-extension-catalog';
 
 describe('command palette helpers', () => {
   test('isCommandPaletteHotkey detects meta/ctrl+K', () => {
@@ -31,7 +33,7 @@ describe('command palette helpers', () => {
   test('collectEnabledSkills lists stub skills for enabled extensions', () => {
     const items = collectEnabledSkills(
       STUB_SKILLS_BY_EXTENSION,
-      defaultEnabledById(),
+      defaultEnabledById(STUB_EXTENSION_CATALOG),
       STUB_EXTENSION_CATALOG,
     );
     expect(items.map((i) => i.skill)).toContain('search-contacts');
@@ -42,7 +44,10 @@ describe('command palette helpers', () => {
   });
 
   test('collectEnabledSkills omits disabled extensions', () => {
-    const enabledById = { ...defaultEnabledById(), crm: false };
+    const enabledById = {
+      ...defaultEnabledById(STUB_EXTENSION_CATALOG),
+      crm: false,
+    };
     const items = collectEnabledSkills(
       STUB_SKILLS_BY_EXTENSION,
       enabledById,
@@ -57,7 +62,7 @@ describe('CommandPaletteSkills', () => {
   test('renders stub skills from props', () => {
     const skills = collectEnabledSkills(
       STUB_SKILLS_BY_EXTENSION,
-      defaultEnabledById(),
+      defaultEnabledById(STUB_EXTENSION_CATALOG),
       STUB_EXTENSION_CATALOG,
     );
     const html = renderToStaticMarkup(
@@ -73,7 +78,7 @@ describe('CommandPaletteSkills', () => {
   test('omits disabled extension skills when passed filtered list', () => {
     const skills = collectEnabledSkills(
       STUB_SKILLS_BY_EXTENSION,
-      { ...defaultEnabledById(), crm: false },
+      { ...defaultEnabledById(STUB_EXTENSION_CATALOG), crm: false },
       STUB_EXTENSION_CATALOG,
     );
     const html = renderToStaticMarkup(

@@ -1,3 +1,4 @@
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useCallback, useEffect, useState } from 'react';
 import { useHostApi, useSettingsTarget } from '@agentos/core/client';
 import { IntegrationSection } from '@agentos/core/client/components/integration-section';
@@ -53,10 +54,7 @@ export default function AiSettings() {
   }, [loadEmbeddingStatus]);
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="ai-settings"
-    >
+    <SettingsPage data-slot="ai-settings">
       <FieldGroup className="gap-8">
         {embedding?.locked ? (
           <Alert>
@@ -105,6 +103,6 @@ export default function AiSettings() {
           }}
         />
       </FieldGroup>
-    </div>
+    </SettingsPage>
   );
 }

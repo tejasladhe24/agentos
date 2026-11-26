@@ -1,3 +1,4 @@
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useCallback, useEffect, useState } from 'react';
 import {
   useHostApi,
@@ -375,11 +376,7 @@ export default function AuthSettings() {
   const isAdmin = session ? isAdminSessionRoles(session.roles) : false;
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="auth-settings"
-      data-account-section={section}
-    >
+    <SettingsPage data-slot="auth-settings" data-account-section={section}>
       {!session ? (
         <LoadingState size="sm">Loading session…</LoadingState>
       ) : !session.user ? (
@@ -451,6 +448,6 @@ export default function AuthSettings() {
           )}
         </FieldGroup>
       )}
-    </div>
+    </SettingsPage>
   );
 }

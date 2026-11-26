@@ -1,3 +1,4 @@
+import { SettingsPage } from '@agentos/core/client/components/settings-page';
 import { useEffect, useState } from 'react';
 import { useHostApi, useSettingsTarget } from '@agentos/core/client';
 import {
@@ -42,10 +43,7 @@ export default function NotificationsSettings() {
   }, [api]);
 
   return (
-    <div
-      className="fixed inset-0 overflow-y-auto bg-background px-6 py-6 text-foreground"
-      data-slot="settings-sms"
-    >
+    <SettingsPage data-slot="settings-sms">
       <FieldGroup className="gap-8">
         <UserSmsFromCard entryId="sms-from" numbers={numbers} />
         {canManage ? (
@@ -64,6 +62,6 @@ export default function NotificationsSettings() {
           </>
         ) : null}
       </FieldGroup>
-    </div>
+    </SettingsPage>
   );
 }
