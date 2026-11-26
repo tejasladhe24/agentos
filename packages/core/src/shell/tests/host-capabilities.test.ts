@@ -26,12 +26,16 @@ function stubFetch(
   }) as typeof fetch;
 }
 
+const originalRoles = useShellStore.getState().sessionRoles;
+
 beforeEach(() => {
   resetPermissionCache();
   useShellStore.setState({ sessionRoles: ['member'] });
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  useShellStore.setState({ sessionRoles: originalRoles });
+  resetPermissionCache();
 });
 
 describe('host.auth.can', () => {

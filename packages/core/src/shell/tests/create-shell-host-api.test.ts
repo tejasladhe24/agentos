@@ -164,6 +164,7 @@ describe('createShellHostApi notifications', () => {
 
     test('dependsOn defaults to the registry entry for the extension', () =>
       withFetch(async (calls) => {
+        const originalExtensions = useShellStore.getState().extensions;
         useShellStore.setState({
           extensions: [
             ...STUB_EXTENSION_CATALOG,
@@ -183,6 +184,7 @@ describe('createShellHostApi notifications', () => {
           403,
         );
         expect(calls).toEqual(['/api/ext/auth/session']);
+        useShellStore.setState({ extensions: originalExtensions });
       }));
 
     test('encoded ids cannot smuggle another extension past the check', () =>
