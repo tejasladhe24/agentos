@@ -45,13 +45,11 @@ export { type TopBarProps } from './ui-contribs/top-bar';
 export { EnsureMounted } from './ui-contribs/ensure-mounted';
 export { ExtensionFrame } from './ui-contribs/extension-frame';
 export {
-  ExtensionManagerDrawer,
   ExtensionManagerList,
-  ExtensionManagerPanel,
   type ExtensionManagerListProps,
-} from './chrome/extension-manager-drawer';
+} from './chrome/extension-manager-list';
+export { ExtensionManagerView } from './chrome/extension-manager-view';
 export { HiddenSlot } from './ui-contribs/hidden-slot';
-export { HitlInbox } from './chrome/hitl-inbox';
 export { KeepAlive, type KeepAliveProps } from './ui-contribs/keep-alive';
 export { HomeDashboard } from './home/home-dashboard';
 export { MainCanvas } from './chrome/main-canvas';

@@ -78,7 +78,6 @@ export function StatusBar(props: StatusBarProps = {}) {
     statusTone: statusToneProp,
   } = props;
   const activeView = useShellActiveView();
-  const sidebarPanel = useShellStore((s) => s.sidebarPanel);
   const chatOpen = useShellStore((s) => s.chatOpen);
   const toggleChat = useShellStore((s) => s.toggleChat);
   const storeStatusText = useShellStore((s) => s.statusText);
@@ -122,7 +121,6 @@ export function StatusBar(props: StatusBarProps = {}) {
           {agentosConfig.branding.appName}
         </span>
         <Badge variant="outline">view: {activeView}</Badge>
-        <Badge variant="secondary">panel: {sidebarPanel}</Badge>
         <Badge variant="outline" data-slot="status-enabled">
           enabled: {enabledCustomers}/{customerTotal}
         </Badge>

@@ -11,7 +11,6 @@ function resetStore() {
   useShellStore.setState({
     activeView: 'home',
     sidebarOpen: true,
-    sidebarPanel: 'contribution',
     chatOpen: false,
     chatMessages: [],
     chatBusy: false,
@@ -46,7 +45,6 @@ describe('useShellStore', () => {
     const state = useShellStore.getState();
     expect(state.activeView).toBe('home');
     expect(state.sidebarOpen).toBe(true);
-    expect(state.sidebarPanel).toBe('contribution');
     expect(state.contributions).toEqual([]);
     expect(state.runtimeStatus).toEqual({});
     expect(state.extensions.map((e) => e.id)).toContain('auth');
@@ -86,32 +84,35 @@ describe('useShellStore', () => {
     expect(state.runtimeStatus['b:page']).toBe('active');
   });
 
-  test('setActiveView updates active view and clears shell panels', () => {
-    useShellStore.getState().setSidebarPanel('extensions');
+  test('setActiveView switches the page and leaves the sidebar toggle alone', () => {
+    useShellStore.getState().toggleSidebar();
     useShellStore.getState().setActiveView('ext-placeholder');
     expect(useShellStore.getState().activeView).toBe('ext-placeholder');
-    expect(useShellStore.getState().sidebarPanel).toBe('contribution');
-  });
-
-  test('toggleSidebar and setSidebarPanel manage left sidebar host', () => {
-    useShellStore.getState().toggleSidebar();
     expect(useShellStore.getState().sidebarOpen).toBe(false);
-    useShellStore.getState().setSidebarPanel('extensions');
-    expect(useShellStore.getState().sidebarPanel).toBe('extensions');
-    expect(useShellStore.getState().sidebarOpen).toBe(true);
-    useShellStore.getState().setSidebarPanel('contribution');
-    expect(useShellStore.getState().sidebarPanel).toBe('contribution');
+    useShellStore.getState().toggleSidebar();
   });
 
-  test('extensions and HITL panels are mutually exclusive and force sidebar open', () => {
-    useShellStore.getState().setSidebarOpen(false);
-    useShellStore.getState().setSidebarPanel('extensions');
-    expect(useShellStore.getState().sidebarPanel).toBe('extensions');
-    expect(useShellStore.getState().sidebarOpen).toBe(true);
+  test('Extensions and Approvals are plain views, not sidebar overlays', () => {
+    useShellStore.getState().setActiveView('extensions');
+    expect(useShellStore.getState().activeView).toBe('extensions');
+    useShellStore.getState().setActiveView('hitl');
+    expect(useShellStore.getState().activeView).toBe('hitl');
+    expect('sidebarPanel' in useShellStore.getState()).toBe(false);
+    expect('setSidebarPanel' in useShellStore.getState()).toBe(false);
+  });
 
-    useShellStore.getState().setSidebarPanel('hitl');
-    expect(useShellStore.getState().sidebarPanel).toBe('hitl');
-    expect(useShellStore.getState().sidebarOpen).toBe(true);
+  test('non-admin session leaves the Extensions page for Home', () => {
+    useShellStore.setState({ activeView: 'extensions' });
+    useShellStore.getState().setSessionRoles(['viewer']);
+    expect(useShellStore.getState().activeView).toBe('home');
+    useShellStore.getState().setSessionRoles(null);
+  });
+
+  test('admin session keeps the Extensions page', () => {
+    useShellStore.setState({ activeView: 'extensions' });
+    useShellStore.getState().setSessionRoles(['admin']);
+    expect(useShellStore.getState().activeView).toBe('extensions');
+    useShellStore.getState().setSessionRoles(null);
   });
 
   test('customer disable unmounts contributions and clears skills', () => {

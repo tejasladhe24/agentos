@@ -17,11 +17,12 @@ const catalog: ExtensionEntry[] = [
   },
   {
     id: 'hitl',
-    name: 'HITL',
+    name: 'Approvals',
     kind: 'builtin',
     toggleable: false,
     driven: true,
     activityBarSection: 'secondary',
+    icon: 'HandWaving',
   },
   {
     id: 'demo',
@@ -39,6 +40,11 @@ const contributions: UiContribution[] = [
     src: '/__agentos/ext/auth/page.html',
   },
   {
+    extensionId: 'hitl',
+    view: 'page',
+    src: '/__agentos/ext/hitl/page.html',
+  },
+  {
     extensionId: 'demo',
     view: 'page',
     src: '/__agentos/ext/demo/page.html',
@@ -46,7 +52,7 @@ const contributions: UiContribution[] = [
 ];
 
 describe('buildActivityBarSections', () => {
-  test('puts customer pages in primary and auth/Approvals in secondary', () => {
+  test('puts customer pages in primary and auth/Approvals pages in secondary', () => {
     const { primary, secondary } = buildActivityBarSections({
       extensions: catalog,
       enabledById: { auth: true, hitl: true, demo: true },
@@ -56,11 +62,30 @@ describe('buildActivityBarSections', () => {
     expect(primary.map((i) => i.id)).toEqual(['home', 'demo']);
     // flex-col-reverse: Approvals last in array → top of secondary cluster.
     expect(secondary.map((i) => i.id)).toEqual(['extensions', 'auth', 'hitl']);
-    expect(secondary.find((i) => i.id === 'hitl')?.panel).toBe('hitl');
     expect(secondary.find((i) => i.id === 'hitl')?.label).toBe('Approvals');
-    expect(secondary.find((i) => i.id === 'extensions')?.panel).toBe(
-      'extensions',
+    expect(secondary.find((i) => i.id === 'extensions')?.label).toBe(
+      'Extensions',
     );
+  });
+
+  test('Approvals is a page item: no overlay chrome, activates like any view', () => {
+    const { secondary } = buildActivityBarSections({
+      extensions: catalog,
+      enabledById: { auth: true, hitl: true, demo: true },
+      contributions,
+    });
+    const approvals = secondary.find((i) => i.id === 'hitl');
+    expect(approvals).toBeDefined();
+    expect('panel' in (approvals ?? {})).toBe(false);
+  });
+
+  test('Approvals is hidden when its page is not contributed', () => {
+    const { secondary } = buildActivityBarSections({
+      extensions: catalog,
+      enabledById: { auth: true, hitl: true, demo: true },
+      contributions: contributions.filter((c) => c.extensionId !== 'hitl'),
+    });
+    expect(secondary.map((i) => i.id)).not.toContain('hitl');
   });
 
   test('omits disabled customer pages from primary', () => {
@@ -109,7 +134,7 @@ describe('buildActivityBarSections', () => {
     const fullCatalog: ExtensionEntry[] = [
       {
         id: 'hitl',
-        name: 'HITL',
+        name: 'Approvals',
         kind: 'builtin',
         toggleable: false,
         driven: true,
@@ -157,6 +182,7 @@ describe('buildActivityBarSections', () => {
       },
     ];
     const fullContribs: UiContribution[] = [
+      { extensionId: 'hitl', view: 'page', src: '/hitl' },
       { extensionId: 'inbound-email', view: 'page', src: '/email' },
       { extensionId: 'files', view: 'page', src: '/files' },
       { extensionId: 'audit', view: 'page', src: '/audit' },
@@ -177,12 +203,13 @@ describe('buildActivityBarSections', () => {
       contributions: fullContribs,
       isAdmin: false,
     });
+    // Builtin pages keep catalog order; Approvals is a normal page item now.
     expect(nonAdmin.secondary.map((i) => i.id)).toEqual([
+      'hitl',
       'inbound-email',
       'files',
       'audit',
       'settings',
-      'hitl',
     ]);
     expect(nonAdmin.secondary.some((i) => i.id === 'secrets')).toBe(false);
     expect(nonAdmin.secondary.some((i) => i.id === 'extensions')).toBe(false);
@@ -195,12 +222,12 @@ describe('buildActivityBarSections', () => {
     });
     expect(admin.secondary.map((i) => i.id)).toEqual([
       'extensions',
+      'hitl',
       'inbound-email',
       'files',
       'audit',
       'secrets',
       'settings',
-      'hitl',
     ]);
   });
 
@@ -213,11 +240,9 @@ describe('buildActivityBarSections', () => {
 
     useShellStore.setState({
       activeView: 'secrets',
-      sidebarPanel: 'extensions',
     });
     useShellStore.getState().setSessionRoles(['viewer']);
     expect(useShellStore.getState().activeView).toBe('home');
-    expect(useShellStore.getState().sidebarPanel).toBe('contribution');
     useShellStore.getState().setSessionRoles(null);
   });
 });

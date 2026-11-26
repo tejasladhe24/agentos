@@ -1,5 +1,6 @@
 {
-  "name": "HITL",
+  "name": "Approvals",
+  "icon": "HandWaving",
   "activityBarSection": "secondary",
   "api": {
     "language": "bun",

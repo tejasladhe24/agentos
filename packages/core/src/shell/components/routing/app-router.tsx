@@ -21,6 +21,7 @@ import {
   collectPublicExtensionRoutes,
   createRouteStoreSync,
   fetchAuthSession,
+  isAdminRoles,
   loginPathWithNext,
   matchPublicAuthRoute,
   matchPublicExtensionRoute,
@@ -267,14 +268,29 @@ export function createAppRouter(options: CreateAppRouterOptions = {}) {
     component: RenderNothing,
   });
 
+  // Extensions Manager (ticket 136): admin-only full page. Roles are loaded by
+  // the `_shell` guard above, so `sessionRoles` is set here.
+  const extensionsRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: 'extensions',
+    beforeLoad: () => {
+      if (!isAdminRoles(useShellStore.getState().sessionRoles)) {
+        throw redirect({ href: '/' });
+      }
+    },
+    pendingComponent: RenderNothing,
+    component: RenderNothing,
+  });
+
   const extensionRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: 'ext/$extensionId',
     beforeLoad: ({ params }) => {
       const id = params.extensionId;
-      // Home / Settings have canonical paths of their own.
+      // Home / Settings / Extensions have canonical paths of their own.
       if (id === 'home') throw redirect({ href: '/' });
       if (id === 'settings') throw redirect({ href: '/settings' });
+      if (id === 'extensions') throw redirect({ href: '/extensions' });
       const extension = registry.extensions.find((ext) => ext.id === id);
       if (!extension?.uiEntries.page) throw notFound();
     },
@@ -331,7 +347,12 @@ export function createAppRouter(options: CreateAppRouterOptions = {}) {
   });
 
   const routeTree = rootRoute.addChildren([
-    shellRoute.addChildren([homeRoute, settingsRoute, extensionRoute]),
+    shellRoute.addChildren([
+      homeRoute,
+      settingsRoute,
+      extensionsRoute,
+      extensionRoute,
+    ]),
     publicAuthRoute('login'),
     publicAuthRoute('register'),
     publicAuthRoute('forgot-password'),

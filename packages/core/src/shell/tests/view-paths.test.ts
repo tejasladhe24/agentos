@@ -13,6 +13,7 @@ describe('view ↔ path mapping', () => {
   test('viewToPath maps Home, Settings, and extension ids', () => {
     expect(viewToPath('home')).toBe('/');
     expect(viewToPath('settings')).toBe('/settings');
+    expect(viewToPath('extensions')).toBe('/extensions');
     expect(viewToPath('crm')).toBe('/ext/crm');
     expect(viewToPath('my ext')).toBe('/ext/my%20ext');
   });
@@ -22,7 +23,10 @@ describe('view ↔ path mapping', () => {
     expect(pathToView('')).toBe('home');
     expect(pathToView('/settings')).toBe('settings');
     expect(pathToView('/settings/')).toBe('settings');
+    expect(pathToView('/extensions')).toBe('extensions');
+    expect(pathToView('/extensions/')).toBe('extensions');
     expect(pathToView('/ext/crm')).toBe('crm');
+    expect(pathToView('/ext/hitl')).toBe('hitl');
     expect(pathToView('/ext/my%20ext')).toBe('my ext');
   });
 
@@ -32,6 +36,7 @@ describe('view ↔ path mapping', () => {
     expect(pathToView('/ext')).toBeNull();
     expect(pathToView('/ext/')).toBeNull();
     expect(pathToView('/ext/crm/deeper')).toBeNull();
+    expect(pathToView('/extensions/deeper')).toBeNull();
     expect(pathToView('/ext/%E0%A4%A')).toBeNull();
     expect(pathToView('/totally-missing')).toBeNull();
   });

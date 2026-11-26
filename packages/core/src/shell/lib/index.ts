@@ -63,7 +63,6 @@ export {
   buildActivityBarSections,
   type ActivityBarItem,
   type ActivityBarSections,
-  type ActivityBarShellPanel,
 } from './chrome/build-activity-bar-items';
 export {
   contributionKey,
@@ -147,6 +146,5 @@ export {
   type ChatMessage,
   type ShellUiState,
   type ShellView,
-  type SidebarPanel,
 } from './chrome/store';
 export { withThemeQuery } from './ui-contribs/with-theme-query';

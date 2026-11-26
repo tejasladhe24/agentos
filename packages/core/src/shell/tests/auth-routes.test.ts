@@ -42,6 +42,8 @@ describe('auth routes', () => {
     expect(isKnownAppPath('/')).toBe(true);
     expect(isKnownAppPath('')).toBe(true);
     expect(isKnownAppPath('/settings')).toBe(true);
+    expect(isKnownAppPath('/extensions')).toBe(true);
+    expect(isKnownAppPath('/ext/hitl')).toBe(true);
     expect(isKnownAppPath('/ext/crm')).toBe(true);
     expect(isKnownAppPath('/ext/crm/')).toBe(true);
     expect(isKnownAppPath('/ext')).toBe(false);

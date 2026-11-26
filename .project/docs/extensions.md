@@ -274,7 +274,7 @@ Optional `activityBarSection` is `"primary"` (default) or `"secondary"`:
 | **primary**   | Top of the Activity Bar, icons top → bottom | Customer extensions with a `ui/page` (and builtins that opt in) |
 | **secondary** | Bottom of the bar, stacked bottom → top     | **Builtins only**                                               |
 
-Customer `meta.json` that sets `"activityBarSection": "secondary"` is coerced to **primary** when the registry is applied to the Shell. Builtins such as **auth** (page iframe) and **hitl** (Approvals inbox chrome) register secondary; Extension Manager remains Shell chrome in the secondary cluster.
+Customer `meta.json` that sets `"activityBarSection": "secondary"` is coerced to **primary** when the registry is applied to the Shell. Builtins such as **auth** (page iframe) and **hitl** (Approvals page at `/ext/hitl`) register secondary; Extension Manager remains Shell chrome in the secondary cluster (page at `/extensions`).
 
 ### Home dashboard (app-level)
 
@@ -294,7 +294,7 @@ Shell UI contribution hosts are either **active-extension** or **global**:
 
 `ui/sidebar.tsx` mounts in the Shell’s left column and `ui/right-sidebar.tsx` mounts in the Shell’s right column. Only the **active** extension’s sidebar is visible (`activeView === extensionId`). Home without `dashboardSidebar`, or an extension without `ui/sidebar.tsx` / `ui/right-sidebar.tsx`, collapses that column.
 
-Opening **Extensions** or **Approvals** from the Activity Bar (secondary) swaps the left column to the Shell Extension Manager or HITL panel (mutually exclusive with contribution sidebars). These are left-sidebar panels, not right-edge sheets. Extensions can open, close, or toggle the right sidebar via `useHostUi()` (`@agentos/core/client`).
+Opening **Extensions** (admin only, `/extensions`) or **Approvals** (`/ext/hitl`) from the Activity Bar (secondary) navigates to a full page in the main canvas. Neither opens as a left-sidebar overlay. Extensions can open, close, or toggle the right sidebar via `useHostUi()` (`@agentos/core/client`).
 
 ## Extension enable-state (durable)
 

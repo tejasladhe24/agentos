@@ -137,7 +137,7 @@ Hard rules: only **auth**, **db-store**, and **vector-store** may hold SQL crede
 
 ## 5. Shell and security model (UI)
 
-- **Shell** = host chrome: Activity Bar, topbar, sidebar, command palette, Extension Manager, HITL panel, auth gate.
+- **Shell** = host chrome: Activity Bar, topbar, sidebar, command palette, Extension Manager page (`/extensions`), auth gate. Approvals is the `hitl` builtin page (`/ext/hitl`).
 - Extension **pages / sidebars / widgets** load in **sandboxed iframes**. Home (`dashboard`) stays in-process.
 - Host ↔ iframe uses **Comlink** over a dedicated MessageChannel (no shared global channel — avoids cross-talk).
 - Most of the app needs a login. Extensions can declare **public** UI/API paths (signed links, portals, webhooks) so outsiders can use a narrow surface without a full session (ticket **72**).

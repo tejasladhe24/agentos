@@ -84,7 +84,6 @@ describe('ExtensionFrame slot placement', () => {
       }),
     );
     expect(sidebar).toContain('data-view="sidebar"');
-    expect(sidebar).toContain('data-sidebar-panel="contribution"');
     expect(sidebar).toContain('data-sidebar-active="true"');
     expect(sidebar).toContain(
       'sandbox="allow-scripts allow-same-origin allow-forms"',
@@ -160,7 +159,6 @@ describe('ExtensionFrame slot placement', () => {
         dashboardSidebar={HomeSidebar}
         activeView="home"
         sidebarOpen
-        sidebarPanel="contribution"
       />,
     );
     expect(html).toContain('data-slot="sidebar"');

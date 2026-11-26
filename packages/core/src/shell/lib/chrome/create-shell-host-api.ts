@@ -79,8 +79,9 @@ async function requestHitlApproval(
   }
   const id = created.id;
 
-  // Surface pending work in the Shell inbox.
-  useShellStore.getState().setSidebarPanel('hitl');
+  // Tell the user work is waiting and open the Approvals page (`/ext/hitl`).
+  showNotification(`Approval needed: ${input.title}`, 'info');
+  useShellStore.getState().setActiveView('hitl');
 
   const deadline = Date.now() + HITL_POLL_MAX_MS;
   while (Date.now() < deadline) {

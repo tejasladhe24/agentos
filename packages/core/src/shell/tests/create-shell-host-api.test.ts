@@ -12,7 +12,6 @@ function resetStore() {
   useShellStore.setState({
     activeView: 'home',
     sidebarOpen: true,
-    sidebarPanel: 'contribution',
     rightSidebarOpen: false,
     chatOpen: false,
     chatMessages: [],
@@ -266,9 +265,9 @@ describe('createShellHostApi notifications', () => {
     try {
       const host = createShellHostApi('crm');
       const resultPromise = host.hitl.requestApproval({ title: 'Pay' });
-      // Allow create + setSidebarPanel('hitl') to settle before asserting.
+      // Allow create + navigation to `/ext/hitl` to settle before asserting.
       await new Promise((r) => setTimeout(r, 0));
-      expect(useShellStore.getState().sidebarPanel).toBe('hitl');
+      expect(useShellStore.getState().activeView).toBe('hitl');
       const result = await resultPromise;
       expect(result).toEqual({ approved: true, id: 'a1' });
     } finally {

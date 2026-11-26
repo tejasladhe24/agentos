@@ -15,7 +15,7 @@ Shipped in `packages/core/builtins/`. Registry flags: `kind: "builtin"`, `driven
 
 | Id                | Role                                                                                                                                                                                                                 |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **hitl**          | Approvals API (durable via db-store); Activity Bar **secondary** opens HITL panel in left sidebar (no `ui/`)                                                                                                         |
+| **hitl**          | Approvals API (durable via db-store) and the **Approvals** full page at `/ext/hitl` (`ui/page.tsx`); Activity Bar **secondary** navigates to it                                                                      |
 | **settings**      | Activity Bar **secondary** (`GearSix`) opens the full-screen Shell **Settings** host; it has no UI of its own — sections are **registered by extensions** (`ui/settings.tsx` + `meta.json` `settings[]`, ticket 101) |
 | **events**        | Cross-extension pub/sub                                                                                                                                                                                              |
 | **files**         | Blob/object API + Drive-style Activity Bar UI (local FS default; optional S3-compatible; org-scoped)                                                                                                                 |

@@ -28,12 +28,7 @@ describe('mountShell / ShellRoot', () => {
 
   test('home without dashboardSidebar collapses empty sidebar column', () => {
     const html = renderToStaticMarkup(
-      <ShellRoot
-        activeView="home"
-        sidebarOpen
-        sidebarPanel="contribution"
-        contributions={[crmSidebar]}
-      />,
+      <ShellRoot activeView="home" sidebarOpen contributions={[crmSidebar]} />,
     );
     expect(html).toContain('data-slot="resizable-panel-group"');
     expect(html).toContain('data-sidebar-expanded="false"');
@@ -45,7 +40,6 @@ describe('mountShell / ShellRoot', () => {
       <ShellRoot
         activeView="home"
         sidebarOpen
-        sidebarPanel="contribution"
         dashboardSidebar={HomeSidebar}
       />,
     );
@@ -56,48 +50,30 @@ describe('mountShell / ShellRoot', () => {
 
   test('extension without sidebar collapses column; CRM with sidebar expands it', () => {
     const demoHtml = renderToStaticMarkup(
-      <ShellRoot
-        activeView="demo"
-        sidebarOpen
-        sidebarPanel="contribution"
-        contributions={[crmSidebar]}
-      />,
+      <ShellRoot activeView="demo" sidebarOpen contributions={[crmSidebar]} />,
     );
     expect(demoHtml).toContain('data-sidebar-expanded="false"');
 
     const crmHtml = renderToStaticMarkup(
-      <ShellRoot
-        activeView="crm"
-        sidebarOpen
-        sidebarPanel="contribution"
-        contributions={[crmSidebar]}
-      />,
+      <ShellRoot activeView="crm" sidebarOpen contributions={[crmSidebar]} />,
     );
     expect(crmHtml).toContain('data-sidebar-expanded="true"');
     expect(crmHtml).toContain('data-extension-id="crm"');
   });
 
-  test('extensions panel still allocates sidebar column', () => {
+  test('Extensions full page mounts in the main workspace, not the left sidebar', () => {
     const html = renderToStaticMarkup(
-      <ShellRoot
-        activeView="home"
-        sidebarOpen
-        sidebarPanel="extensions"
-        contributions={[]}
-      />,
+      <ShellRoot activeView="extensions" sidebarOpen contributions={[]} />,
     );
-    expect(html).toContain('data-slot="sidebar"');
-    expect(html).toContain('data-sidebar-panel="extensions"');
+    expect(html).toContain('data-slot="extensions-view-host"');
+    expect(html).toContain('data-slot="extension-manager-view"');
+    expect(html).toContain('data-sidebar-expanded="false"');
+    expect(html).not.toContain('data-sidebar-panel');
   });
 
   test('closing sidebar keeps column + main mounted (no layout tear-down)', () => {
     const open = renderToStaticMarkup(
-      <ShellRoot
-        activeView="crm"
-        sidebarOpen
-        sidebarPanel="contribution"
-        contributions={[crmSidebar]}
-      />,
+      <ShellRoot activeView="crm" sidebarOpen contributions={[crmSidebar]} />,
     );
     expect(open).toContain('data-slot="sidebar"');
     expect(open).toContain('data-slot="main"');
@@ -107,7 +83,6 @@ describe('mountShell / ShellRoot', () => {
       <ShellRoot
         activeView="crm"
         sidebarOpen={false}
-        sidebarPanel="contribution"
         contributions={[crmSidebar]}
       />,
     );

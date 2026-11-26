@@ -12,29 +12,26 @@ const crmSidebar: UiContribution = {
 };
 
 describe('sidebarColumnHasContent', () => {
-  test('shell panels always have content', () => {
+  test('full-page Shell views have no left sidebar content', () => {
     expect(
       sidebarColumnHasContent({
-        sidebarPanel: 'extensions',
-        activeView: 'home',
+        activeView: 'extensions',
+        sidebars: [crmSidebar],
+        hasDashboardSidebar: true,
+      }),
+    ).toBe(false);
+    expect(
+      sidebarColumnHasContent({
+        activeView: 'hitl',
         sidebars: [],
         hasDashboardSidebar: false,
       }),
-    ).toBe(true);
-    expect(
-      sidebarColumnHasContent({
-        sidebarPanel: 'hitl',
-        activeView: 'demo',
-        sidebars: [],
-        hasDashboardSidebar: false,
-      }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   test('home without dashboardSidebar has no contribution content', () => {
     expect(
       sidebarColumnHasContent({
-        sidebarPanel: 'contribution',
         activeView: 'home',
         sidebars: [crmSidebar],
         hasDashboardSidebar: false,
@@ -45,7 +42,6 @@ describe('sidebarColumnHasContent', () => {
   test('home with dashboardSidebar has content', () => {
     expect(
       sidebarColumnHasContent({
-        sidebarPanel: 'contribution',
         activeView: 'home',
         sidebars: [],
         hasDashboardSidebar: true,
@@ -53,10 +49,9 @@ describe('sidebarColumnHasContent', () => {
     ).toBe(true);
   });
 
-  test('settings view always has the Shell-hosted settings sidebar', () => {
+  test('settings always has content (Shell settings nav)', () => {
     expect(
       sidebarColumnHasContent({
-        sidebarPanel: 'contribution',
         activeView: 'settings',
         sidebars: [],
         hasDashboardSidebar: false,
@@ -64,45 +59,49 @@ describe('sidebarColumnHasContent', () => {
     ).toBe(true);
   });
 
-  test('extension without sidebar hides; CRM with sidebar shows', () => {
+  test('extension page has content only when it contributes ui/sidebar', () => {
     expect(
       sidebarColumnHasContent({
-        sidebarPanel: 'contribution',
-        activeView: 'demo',
-        sidebars: [crmSidebar],
-        hasDashboardSidebar: false,
-      }),
-    ).toBe(false);
-    expect(
-      sidebarColumnHasContent({
-        sidebarPanel: 'contribution',
         activeView: 'crm',
         sidebars: [crmSidebar],
         hasDashboardSidebar: false,
       }),
     ).toBe(true);
+    expect(
+      sidebarColumnHasContent({
+        activeView: 'demo',
+        sidebars: [crmSidebar],
+        hasDashboardSidebar: false,
+      }),
+    ).toBe(false);
   });
 });
 
 describe('sidebarColumnVisible', () => {
-  test('requires sidebarOpen even when content exists', () => {
+  test('requires open state and content', () => {
+    expect(
+      sidebarColumnVisible({
+        sidebarOpen: true,
+        activeView: 'crm',
+        sidebars: [crmSidebar],
+        hasDashboardSidebar: false,
+      }),
+    ).toBe(true);
     expect(
       sidebarColumnVisible({
         sidebarOpen: false,
-        sidebarPanel: 'extensions',
-        activeView: 'home',
+        activeView: 'crm',
         sidebars: [crmSidebar],
-        hasDashboardSidebar: true,
+        hasDashboardSidebar: false,
       }),
     ).toBe(false);
     expect(
       sidebarColumnVisible({
         sidebarOpen: true,
-        sidebarPanel: 'extensions',
-        activeView: 'home',
+        activeView: 'extensions',
         sidebars: [],
         hasDashboardSidebar: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

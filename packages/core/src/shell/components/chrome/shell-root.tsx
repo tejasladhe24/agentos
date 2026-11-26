@@ -4,13 +4,11 @@ import {
   useShellContributions,
   useShellRightSidebarOpen,
   useShellSidebarOpen,
-  useShellSidebarPanel,
 } from '@agentos/core/shell/hooks';
 import {
   rightSidebarColumnHasContent,
   sidebarColumnHasContent,
   type ShellView,
-  type SidebarPanel,
   type UiContribution,
 } from '@agentos/core/shell/lib';
 import {
@@ -27,6 +25,7 @@ import { Toaster, toast } from '@agentos/ui/components/toast';
 import { cn } from '@agentos/ui/lib/utils';
 import { HomeDashboard } from '../home/home-dashboard';
 import { SettingsView } from '../settings/settings-view';
+import { ExtensionManagerView } from './extension-manager-view';
 import { HiddenSlot } from '../ui-contribs/hidden-slot';
 import { KeepAlive } from '../ui-contribs/keep-alive';
 import { RightSheetSlot } from '../ui-contribs/right-sheet-slot';
@@ -57,7 +56,6 @@ export type ShellRootProps = {
   /** Override store values (SSR / tests). */
   activeView?: ShellView;
   sidebarOpen?: boolean;
-  sidebarPanel?: SidebarPanel;
   rightSidebarOpen?: boolean;
   contributions?: UiContribution[];
 };
@@ -71,7 +69,8 @@ function MainWorkspace({
 }) {
   const isHome = activeView === 'home';
   const isSettings = activeView === 'settings';
-  const isMainCanvas = !isHome && !isSettings;
+  const isExtensions = activeView === 'extensions';
+  const isMainCanvas = !isHome && !isSettings && !isExtensions;
 
   return (
     <div className="relative h-full min-h-0 min-w-0 overflow-hidden bg-background">
@@ -84,6 +83,13 @@ function MainWorkspace({
       </div>
       <KeepAlive active={isSettings} className="h-full w-full overflow-hidden">
         <SettingsView />
+      </KeepAlive>
+      <KeepAlive
+        active={isExtensions}
+        className="h-full w-full overflow-hidden"
+        data-slot="extensions-view-host"
+      >
+        <ExtensionManagerView />
       </KeepAlive>
       <div
         className="h-full w-full overflow-auto"
@@ -101,15 +107,12 @@ export function ShellRoot({
   dashboardSidebar,
   activeView: activeViewProp,
   sidebarOpen: sidebarOpenProp,
-  sidebarPanel: sidebarPanelProp,
   rightSidebarOpen: rightSidebarOpenProp,
   contributions: contributionsProp,
 }: ShellRootProps = {}) {
   const activeView = useShellActiveView(activeViewProp);
   const sidebarOpen = useShellSidebarOpen(sidebarOpenProp);
   const rightSidebarOpen = useShellRightSidebarOpen(rightSidebarOpenProp);
-  const storePanel = useShellSidebarPanel();
-  const sidebarPanel = sidebarPanelProp ?? storePanel;
   const sidebars = useShellContributions({
     contributions: contributionsProp,
     view: 'sidebar',
@@ -121,7 +124,6 @@ export function ShellRoot({
   // The panel group is always rendered (collapsed when empty) so swapping the
   // layout tree never remounts MainWorkspace / extension pages.
   const hasSidebarContent = sidebarColumnHasContent({
-    sidebarPanel,
     activeView,
     sidebars,
     hasDashboardSidebar: dashboardSidebar != null,
@@ -219,7 +221,6 @@ export function ShellRoot({
                   dashboardSidebar={dashboardSidebar}
                   activeView={activeViewProp}
                   sidebarOpen={sidebarOpenProp}
-                  sidebarPanel={sidebarPanelProp}
                   contributions={contributionsProp}
                 />
               </ResizablePanel>
