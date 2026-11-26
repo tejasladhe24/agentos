@@ -7,6 +7,7 @@ import {
   EVENTS_OUTBOX_COLLECTION,
   EVENTS_PORT,
 } from './lib/constants';
+import { createEventsAuthenticator, resolveAuthApiBase } from './lib/auth';
 import { createDbStoreClient } from './lib/db-store-client';
 import { createEventBus } from './lib/event-bus';
 import { handleEventsRequest } from './lib/handle-request';
@@ -35,6 +36,19 @@ const outbox = createOutboxStore(db, clock);
 const jobs = createJobsStore(db, clock);
 const workerId = `events-${crypto.randomUUID().slice(0, 8)}`;
 
+// Browser sessions resolve through builtin auth; in-stack callers (workers,
+// hitl, inbound-email, Python services) present the shared service token.
+const serviceToken = Bun.env.AGENT_OS_EVENTS_SERVICE_TOKEN;
+const authenticate = createEventsAuthenticator({
+  serviceToken,
+  authApiBase: resolveAuthApiBase(),
+});
+if (!serviceToken?.trim()) {
+  console.warn(
+    '[agentos events] AGENT_OS_EVENTS_SERVICE_TOKEN is not set: service callers (queue, scheduled http jobs, server-side publish) are rejected; only browser sessions are accepted. `agentos dev` / `agentos start` set it automatically.',
+  );
+}
+
 const deps = {
   bus,
   outbox,
@@ -42,6 +56,7 @@ const deps = {
   workerId,
   leaseMs,
   maxAttempts,
+  authenticate,
 };
 
 const server = Bun.serve({

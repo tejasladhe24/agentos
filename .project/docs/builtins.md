@@ -72,6 +72,21 @@ Builtin **`events`** writes every `POST /publish` to platform collection `events
 | `AGENT_OS_EXT_EVENTS_LEASE_MS`                | Claim visibility timeout (default 30000)  |
 | `AGENT_OS_EXT_EVENTS_MAX_ATTEMPTS`            | Nacks before `dead` (default 5)           |
 | `AGENT_OS_EXT_EVENTS_TICK_MS`                 | Scheduler poll interval (default 1000)    |
+| `AGENT_OS_EVENTS_SERVICE_TOKEN`               | Server-to-server credential (see below)   |
+
+### Events auth and org scope
+
+Every route except `GET /health` authenticates the caller; an unauthenticated request gets `401`, and a server started without an authenticator fails closed with `503`. Two principals exist:
+
+| Principal   | How                                                                                                                          | Org scope                                                               | Can do                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Session** | Better Auth cookie, resolved through `GET {auth}/session`. Needs an active org (`403` otherwise).                            | Always the session's `orgId`. `X-AgentOS-Org-Id` is **ignored**.        | `publish` (non-server-only topics), `subscribe`, and — with an `admin` / `owner` role — `jobs` (no `http`). |
+| **Service** | `Authorization: Bearer $AGENT_OS_EVENTS_SERVICE_TOKEN` (constant-time compare). A wrong bearer is `401`; no cookie fallback. | The optional `X-AgentOS-Org-Id` header; none means platform / all orgs. | Everything, including `queue/*`, `jobs/tick`, `http` jobs, and server-only topics.                          |
+
+- **Where the token comes from:** the CLI generates a random per-stack token in `builtinApiEnv` unless `AGENT_OS_EVENTS_SERVICE_TOKEN` is already set (set it explicitly when builtins run as separate deployments). Browsers never see it. The shared TS client (`@agentos/core/api/events`) and the Python client (`agentos.events`) attach it automatically, so builtins call `publish`, `claim`, `ack`, `nack` and the job helpers unchanged.
+- **Org scope:** each outbox record, job, and SSE subscriber carries an `orgId` (`__platform__` for platform signals such as `hitl.resolved`). A session subscriber only receives events published in its org; platform-scoped events never reach sessions. A service subscriber with no org header sees every org. Jobs are listed and deleted only within the caller's org; an out-of-scope job id reads as `404`.
+- **Topics:** must match `^[a-z0-9][a-z0-9._-]*$` (max 128). Server-only topics (`hitl.resolved`, `email.received`, `secrets.user_purged`, `integration.changed`) can be published only by the service principal, so an extension UI cannot forge platform signals.
+- **HTTP jobs:** `action: "http"` is service-only. Targets must be `http(s)` without embedded credentials and may not point at cloud metadata or link-local addresses (`169.254.*`, `fe80:`, `metadata.google.internal`, `fd00:ec2::254`). The scheduler re-validates the URL at run time. Loopback stays allowed because builtins are loopback peers.
 
 ## Notifications delivery env
 

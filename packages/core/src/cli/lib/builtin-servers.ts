@@ -37,7 +37,18 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
   },
 ] as const;
 
-/** Direct builtin bases so child APIs and Python kits skip the Vite hop. */
+/** 256-bit random hex secret for service-to-service auth within one stack. */
+function randomServiceToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Direct builtin bases so child APIs and Python kits skip the Vite hop, plus a
+ * per-stack service token every child shares. The token authenticates in-stack
+ * callers to builtin `events`; it never reaches a browser. Set
+ * `AGENT_OS_EVENTS_SERVICE_TOKEN` yourself to pin it across restarts.
+ */
 export function builtinApiEnv(
   gatewayUrl = Bun.env.AGENT_OS_GLOBAL_GATEWAY_URL ?? 'http://127.0.0.1:5173',
 ): Record<string, string> {
@@ -52,5 +63,7 @@ export function builtinApiEnv(
   env.AGENT_OS_AI_API_BASE = 'http://127.0.0.1:6113';
   env.AGENT_OS_HITL_API_BASE = 'http://127.0.0.1:6114';
   env.AGENT_OS_GLOBAL_GATEWAY_URL = gatewayUrl;
+  env.AGENT_OS_EVENTS_SERVICE_TOKEN =
+    Bun.env.AGENT_OS_EVENTS_SERVICE_TOKEN?.trim() || randomServiceToken();
   return env;
 }

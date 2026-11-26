@@ -84,6 +84,7 @@ export type EventsClient = {
   publish: (
     topic: string,
     payload: unknown,
+    options?: { orgId?: string },
   ) => Promise<{ ok: true; event: { id?: string } }>;
 };
 

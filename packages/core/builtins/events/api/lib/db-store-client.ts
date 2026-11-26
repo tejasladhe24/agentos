@@ -2,6 +2,8 @@ export type OutboxStatus = 'pending' | 'leased' | 'acked' | 'dead';
 
 export type OutboxRecord = {
   id: string;
+  /** Tenant the event belongs to; legacy rows without one are platform-scoped. */
+  orgId?: string;
   topic: string;
   payload: unknown;
   status: OutboxStatus;
@@ -19,6 +21,8 @@ export type JobAction = 'publish' | 'http';
 
 export type JobRecord = {
   id: string;
+  /** Tenant the job belongs to; legacy rows without one are platform-scoped. */
+  orgId?: string;
   kind: JobKind;
   action: JobAction;
   enabled: boolean;
@@ -78,6 +82,7 @@ function parseOutbox(
         ? data.createdAt
         : new Date(0).toISOString(),
   };
+  if (typeof data.orgId === 'string') record.orgId = data.orgId;
   if (typeof data.leaseOwner === 'string') record.leaseOwner = data.leaseOwner;
   if (typeof data.leaseUntil === 'string') record.leaseUntil = data.leaseUntil;
   if (typeof data.lastError === 'string') record.lastError = data.lastError;
@@ -108,6 +113,7 @@ function parseJob(id: string, data: Record<string, unknown>): JobRecord | null {
         ? data.createdAt
         : new Date(0).toISOString(),
   };
+  if (typeof data.orgId === 'string') record.orgId = data.orgId;
   if (typeof data.runAt === 'string') record.runAt = data.runAt;
   if (typeof data.cron === 'string') record.cron = data.cron;
   if (typeof data.topic === 'string') record.topic = data.topic;

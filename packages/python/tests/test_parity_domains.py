@@ -530,3 +530,13 @@ async def test_inbound_email_client(monkeypatch: pytest.MonkeyPatch) -> None:
         org_id="org_1",
     )
     assert provisioned.orgId == "org_1"
+
+
+def test_events_service_headers() -> None:
+    env = {"AGENT_OS_EVENTS_SERVICE_TOKEN": " tok-123 "}
+    assert events.events_service_headers(env) == {"authorization": "Bearer tok-123"}
+    assert events.events_service_headers(env, "org-a") == {
+        "authorization": "Bearer tok-123",
+        "x-agentos-org-id": "org-a",
+    }
+    assert events.events_service_headers({}) == {}
