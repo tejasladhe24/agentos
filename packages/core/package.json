@@ -82,6 +82,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "@t3-oss/env-core": "^0.13.11",
     "@tanstack/react-form": "^1.33.5",
+    "@tanstack/react-router": "^1.170.46",
     "ai": "^7.0.181",
     "better-auth": "^1.7.27",
     "comlink": "^4.4.2",
