@@ -73,6 +73,12 @@ export interface ShellEventBus {
    * the events builtin). No publisher declaration check.
    */
   emit(topic: string, payload: EventPayload): number;
+  /**
+   * Shell-internal subscription (no extension frame, no declaration check):
+   * for Shell code that reacts to server events, e.g. waiting on an approval.
+   * Returns an unsubscribe function.
+   */
+  listen(topics: readonly string[], deliver: EventDeliver): () => void;
   /** True while at least one frame subscription exists. */
   readonly active: boolean;
   /** Called when the bus goes from 0 → ≥1 (true) or back to 0 (false). */
@@ -192,6 +198,16 @@ export function createShellEventBus(
       const frame = frames.get(frameId);
       if (!frame?.subscriptions.delete(subscriptionId)) return;
       setCount(subscriptionCount - 1);
+    },
+
+    listen(topics, deliver) {
+      nextSubscriptionId += 1;
+      const frameId = `shell:${nextSubscriptionId}`;
+      const frame = frameFor(frameId, 'shell');
+      frame.deliver = deliver;
+      frame.subscriptions.set(`sub-${nextSubscriptionId}`, new Set(topics));
+      setCount(subscriptionCount + 1);
+      return () => this.dropFrame(frameId);
     },
 
     assertCanPublish(extensionId, topic) {

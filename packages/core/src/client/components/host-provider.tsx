@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   createExtensionClient,
+  HOST_THEME_TOPIC,
   type ExtensionAPI,
   type HostAPIClient,
 } from '@agentos/core/sdk';
 import { HostContext } from '@agentos/core/client/lib/host-context';
+import { applyThemeEvent } from '@agentos/core/client/lib/document-theme';
 import { dispatchHostEvent } from '@agentos/core/client/lib/host-events';
 import { LoadingState } from '@agentos/ui/components/loading-state';
 
@@ -52,6 +54,8 @@ export function HostProvider({
           await apiRef.current?.onDeactivate?.();
         },
         onEvent: async (topic, payload) => {
+          // Host-originated: follow Shell theme changes without a reload.
+          if (topic === HOST_THEME_TOPIC) applyThemeEvent(payload);
           dispatchHostEvent(topic, payload);
           await apiRef.current?.onEvent?.(topic, payload);
         },

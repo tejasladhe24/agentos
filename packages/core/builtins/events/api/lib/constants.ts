@@ -37,6 +37,7 @@ export const MAX_TOPIC_LENGTH = 128;
  */
 export const SERVER_ONLY_TOPICS: ReadonlySet<string> = new Set([
   'hitl.resolved',
+  'hitl.requested',
   'email.received',
   'secrets.user_purged',
   'integration.changed',

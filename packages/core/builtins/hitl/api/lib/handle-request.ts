@@ -4,16 +4,34 @@ import type {
   ApprovalsStore,
 } from './approvals-store';
 
-export type HitlResolvePublisher = (payload: {
-  approvalId: string;
-  decision: 'approved' | 'rejected';
-  title: string;
-  resolvedAt?: string;
-}) => Promise<void>;
+/**
+ * `orgId` is the signed-in actor's org when it could be resolved. Only
+ * org-scoped events reach browser sessions; without one the event stays
+ * platform-scoped (service subscribers only).
+ */
+export type HitlResolvePublisher = (
+  payload: {
+    approvalId: string;
+    decision: 'approved' | 'rejected';
+    title: string;
+    resolvedAt?: string;
+  },
+  orgId?: string,
+) => Promise<void>;
+
+/** Published when an approval is created so open Approvals pages refresh. */
+export type HitlRequestPublisher = (
+  payload: { approvalId: string; title: string },
+  orgId?: string,
+) => Promise<void>;
 
 export type HitlHandlerOptions = {
   /** Publish `hitl.resolved` after a successful approve/reject (ticket 74). */
   publishResolved?: HitlResolvePublisher;
+  /** Publish `hitl.requested` after an approval is created (ticket 145). */
+  publishRequested?: HitlRequestPublisher;
+  /** Resolve the caller's active org from the request (session cookie). */
+  resolveOrgId?: (request: Request) => Promise<string | undefined>;
 };
 
 type HitlDeps = {
@@ -49,14 +67,21 @@ async function readJsonBody(
   }
 }
 
-function parseResolvePath(path: string): string | null {
-  const match = path.match(/^\/approvals\/([^/]+)\/resolve$/);
-  if (!match?.[1]) return null;
+function decodeSegment(segment: string | undefined): string | null {
+  if (!segment) return null;
   try {
-    return decodeURIComponent(match[1]);
+    return decodeURIComponent(segment);
   } catch {
     return null;
   }
+}
+
+function parseResolvePath(path: string): string | null {
+  return decodeSegment(path.match(/^\/approvals\/([^/]+)\/resolve$/)?.[1]);
+}
+
+function parseApprovalPath(path: string): string | null {
+  return decodeSegment(path.match(/^\/approvals\/([^/]+)$/)?.[1]);
 }
 
 function unavailable(error: unknown): Response {
@@ -67,21 +92,54 @@ function unavailable(error: unknown): Response {
   );
 }
 
+async function orgIdOf(
+  options: HitlHandlerOptions,
+  request: Request,
+): Promise<string | undefined> {
+  try {
+    return (await options.resolveOrgId?.(request)) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function emitResolved(
-  publishResolved: HitlResolvePublisher | undefined,
+  options: HitlHandlerOptions,
+  request: Request,
   approval: Approval,
 ): Promise<void> {
+  const publishResolved = options.publishResolved;
   if (!publishResolved) return;
   if (approval.status !== 'approved' && approval.status !== 'rejected') return;
   try {
-    await publishResolved({
-      approvalId: approval.id,
-      decision: approval.status,
-      title: approval.title,
-      ...(approval.resolvedAt ? { resolvedAt: approval.resolvedAt } : {}),
-    });
+    await publishResolved(
+      {
+        approvalId: approval.id,
+        decision: approval.status,
+        title: approval.title,
+        ...(approval.resolvedAt ? { resolvedAt: approval.resolvedAt } : {}),
+      },
+      await orgIdOf(options, request),
+    );
   } catch (error) {
     console.error('[agentos hitl] hitl.resolved publish failed', error);
+  }
+}
+
+async function emitRequested(
+  options: HitlHandlerOptions,
+  request: Request,
+  approval: Approval,
+): Promise<void> {
+  const publishRequested = options.publishRequested;
+  if (!publishRequested) return;
+  try {
+    await publishRequested(
+      { approvalId: approval.id, title: approval.title },
+      await orgIdOf(options, request),
+    );
+  } catch (error) {
+    console.error('[agentos hitl] hitl.requested publish failed', error);
   }
 }
 
@@ -128,7 +186,21 @@ async function handleCreateApproval(
           ? (body.metadata as Record<string, unknown>)
           : undefined,
     });
+    await emitRequested(deps.options, request, approval);
     return json(approval, { status: 201 });
+  } catch (error) {
+    return unavailable(error);
+  }
+}
+
+async function handleGetApproval(
+  deps: HitlDeps,
+  approvalId: string,
+): Promise<Response> {
+  try {
+    const approval = await deps.store.get(approvalId);
+    if (!approval) return json({ error: 'not found' }, { status: 404 });
+    return json(approval);
   } catch (error) {
     return unavailable(error);
   }
@@ -159,7 +231,7 @@ async function handleResolveApproval(
       );
     }
     const approval = (await deps.store.resolve(resolveId, decision))!;
-    await emitResolved(deps.options.publishResolved, approval);
+    await emitResolved(deps.options, request, approval);
     return json(approval);
   } catch (error) {
     return unavailable(error);
@@ -207,6 +279,11 @@ export async function handleHitlRequest(
   const resolveId = parseResolvePath(path);
   if (method === 'POST' && resolveId) {
     return handleResolveApproval(deps, request, resolveId);
+  }
+
+  const approvalId = parseApprovalPath(path);
+  if (method === 'GET' && approvalId) {
+    return handleGetApproval(deps, approvalId);
   }
 
   return json({ error: 'not found' }, { status: 404 });

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useHostApi, useHostNotifications } from '@agentos/core/client';
+import {
+  useHostApi,
+  useHostEvent,
+  useHostNotifications,
+} from '@agentos/core/client';
 import type { Approval, ApprovalDecision, ApprovalFilter } from './approvals';
 import { fetchApprovals, resolveApproval } from './approvals-api';
 
-/** Pending requests arrive from agents while the page is open. */
-export const APPROVALS_POLL_MS = 3000;
+import { startFallbackRefresh } from './approvals-refresh';
 
 export type UseApprovalsResult = {
   approvals: Approval[];
@@ -16,7 +19,8 @@ export type UseApprovalsResult = {
 };
 
 /**
- * Loads approvals for a status filter, polls while mounted, and resolves
+ * Loads approvals for a status filter, refreshes on `hitl.*` bus events (plus a
+ * slow visible-only fallback poll), and resolves
  * pending requests. The HITL API owns all state; this hook only mirrors it.
  */
 export function useApprovals(filter: ApprovalFilter): UseApprovalsResult {
@@ -52,14 +56,17 @@ export function useApprovals(filter: ApprovalFilter): UseApprovalsResult {
     }
   }, [filter]);
 
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
   useEffect(() => {
     setLoading(true);
     void load();
-    const timer = setInterval(() => {
-      void load();
-    }, APPROVALS_POLL_MS);
-    return () => clearInterval(timer);
+    return startFallbackRefresh(() => void load());
   }, [load]);
+
+  useHostEvent('hitl.requested', () => void loadRef.current());
+  useHostEvent('hitl.resolved', () => void loadRef.current());
 
   const resolve = useCallback(
     async (approval: Approval, decision: ApprovalDecision) => {

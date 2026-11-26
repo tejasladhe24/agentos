@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import {
+  filterContributions,
   useShellStore,
   type ExtensionView,
   type UiContribution,
@@ -20,6 +22,9 @@ export function useShellContributions(
 ): UiContribution[] {
   const storeContributions = useShellStore((s) => s.contributions);
   const contributions = options.contributions ?? storeContributions;
-  if (!options.view) return contributions;
-  return contributions.filter((c) => c.view === options.view);
+  const { view } = options;
+  return useMemo(
+    () => filterContributions(contributions, view),
+    [contributions, view],
+  );
 }

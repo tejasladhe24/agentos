@@ -99,9 +99,9 @@ describe('RightSidebarSlot', () => {
     expect(onFiles).toMatch(
       /data-right-sidebar-active="true"[\s\S]*data-extension-id="files"/,
     );
-    expect(onFiles).toMatch(
-      /data-right-sidebar-active="false"[\s\S]*data-extension-id="crm"/,
-    );
+    // Frames are lazy (ticket 145): a never-visible extension has no iframe.
+    expect(onFiles).toContain('data-right-sidebar-active="false"');
+    expect(onFiles).not.toContain('data-extension-id="crm"');
   });
 
   test('keeps frames mounted when closed', () => {
@@ -114,7 +114,8 @@ describe('RightSidebarSlot', () => {
     );
     expect(closed).toContain('data-slot="right-sidebar"');
     expect(closed).toContain('data-open="false"');
-    expect(closed).toContain('data-extension-id="files"');
-    expect(closed).toContain('data-visible="false"');
+    // Closed and never opened: lazy frames have not mounted yet.
+    expect(closed).not.toContain('<iframe');
+    expect(closed).not.toContain('data-extension-id=');
   });
 });

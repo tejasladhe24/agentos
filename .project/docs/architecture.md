@@ -79,7 +79,7 @@ __root            Not Found (notFoundComponent), no chrome
 └─ $              public extension portals (matchPublicExtensionRoute) or Not Found
 ```
 
-- **The router owns the URL and the layout, not extension content.** `_shell` children render `null`; extension iframes stay mounted in `MainCanvas` / `KeepAlive`, driven by the Zustand store (`activeView`, `settingsKey`), so navigating between views never reloads an iframe.
+- **The router owns the URL and the layout, not extension content.** `_shell` children render `null`; extension iframes mount lazily (the first time they are visible) and then stay mounted in `MainCanvas` / `KeepAlive`, driven by the Zustand store (`activeView`, `settingsKey`), so navigating between views never reloads an iframe. Theme changes are pushed to live frames as `shell.theme.changed`; `?theme=` only seeds the first load.
 - **URL ↔ store sync** (`createRouteStoreSync`): history changes → `setActiveView` / `setSettingsKey`; store changes → `history.push` (view change) or `replace` (settings selection). A deep link wins on first load; a bare `/` on first load resumes the last Activity Bar selection (`restoreStoredActivity`, only applied when the URL is `/`). Non-workspace paths (auth, portals, Not Found) are never rewritten.
 - **Transient chrome state is not in the URL** (sidebar open/closed, right sidebar, chat). Extension Manager and Approvals are full pages, so their location is in the URL (`/extensions`, `/ext/hitl`).
 - **Routing inside an extension iframe is the extension's own.** The Shell only forwards the Settings hash into the settings iframe (`ExtensionFrame` `hash`).

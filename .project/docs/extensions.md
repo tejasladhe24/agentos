@@ -37,7 +37,7 @@ Both are optional iframe entrypoints, but they live in different Shell hosts:
 
 - Optional `meta.json` `rightSheet: { label?, description?, icon? }` sets the TopBar tooltip and icon and the Sheet header. Missing fields fall back to the extension `name` and `icon`.
 - Use `right-sidebar` for context tied to the page you are on (for example Files details). Use `right-sheet` for a workspace-wide panel (for example notifications) that should stay reachable from Home, Settings, and other extensions.
-- Only one right sheet is open at a time. Disabling the extension that owns the open sheet closes it. Frames stay mounted while the sheet is closed, so reopening does not re-run the extension handshake.
+- Only one right sheet is open at a time. Disabling the extension that owns the open sheet closes it. A sheet frame mounts the first time its sheet opens and stays mounted while the sheet is closed, so reopening does not re-run the extension handshake.
 - `openRightSheet(extensionId?)`, `toggleRightSheet(extensionId?)`, and `getActiveRightSheet()` default to the calling extension. A missing or disabled `right-sheet` contribution is a no-op.
 
 ## Env (`api/env.ts`)
@@ -358,7 +358,9 @@ await publishLocal('files.selection.changed', { keys }); // in-process
 | `events.publish` / `publish`           | Durable: `POST /api/ext/events/publish` (org-scoped, ticket 141). It reaches UI subscribers (this and other tabs) through the SSE bridge below. |
 | `events.subscribe` / `useHostEvent`    | Registers the calling frame for declared topics; returns a subscription id. Frame disposal drops its subscriptions automatically.               |
 
-**Shared state across an extension's frames** (page + sidebar + right sidebar, …): use `useHostSharedState(key, initial, { topic, parse })`. It persists the value in host storage, announces each change on `topic`, and updates every other frame live — the replacement for per-feature `BroadcastChannel` hooks (a guard test fails the build if `BroadcastChannel` reappears under an extension's `ui/`). Declare `topic` under both `events.publishes` and `events.subscribes`.
+**`host.storage` is session-only.** It is shared by all frames of one extension and cleared on reload or sign-out (the Shell has no org/user scope to key browser storage by). `useHostSharedState` therefore syncs frames within a session; it does not remember values across reloads. Persist durable data through the extension's API (db-store).
+
+**Shared state across an extension's frames** (page + sidebar + right sidebar, …): use `useHostSharedState(key, initial, { topic, parse })`. It keeps the value in (session-only) host storage, announces each change on `topic`, and updates every other frame live — the replacement for per-feature `BroadcastChannel` hooks (a guard test fails the build if `BroadcastChannel` reappears under an extension's `ui/`). Declare `topic` under both `events.publishes` and `events.subscribes`.
 
 ```tsx
 const [section, setSection] = useHostSharedState('email.section', 'inbox', {
@@ -370,6 +372,12 @@ const [section, setSection] = useHostSharedState('email.section', 'inbox', {
 Local publishes skip the publishing frame (the SDK notifies that frame's own subscribers directly), and subscribers read the stored value only after their subscription is registered, so no update is lost in between.
 
 **Server events:** the Shell keeps **one** `GET /api/ext/events/subscribe` SSE connection per session, opened only while some frame is subscribed and closed when the last one leaves. The `events` builtin scopes it to the signed-in org, and the Shell re-emits each message on the in-memory bus to frames that declared the topic. Host implementation: `packages/core/src/shell/lib/chrome/event-bus.ts` and `events-bridge.ts`.
+
+## Frame lifecycle and theme
+
+- **Lazy mount.** `ExtensionFrame` renders nothing (no iframe, no `src` request, no handshake) until the frame is first visible. After that it stays mounted when parked, so switching views never remounts it. A hidden extension's frame therefore has no live `onEvent` subscription: read durable state on mount (`useHostSharedState` does) instead of relying on having seen every past event.
+- **Theme without reload.** `?theme=` seeds the first load only. When the app theme changes the Shell sends every live frame the host event `shell.theme.changed` (`HOST_THEME_TOPIC`, payload `{ theme }`); `HostProvider` re-applies the `<html>` theme class. The iframe `src` never changes, so nothing reloads or re-handshakes.
+- **Approval waits.** `host.hitl.requestApproval` waits for `hitl.resolved` from the bus, with one immediate lookup and a 5 s single-record `GET /api/ext/hitl/approvals/:id` fallback (never the list endpoint). The Approvals page refreshes on `hitl.requested` / `hitl.resolved` and keeps only a 30 s visible-tab fallback poll. The `hitl` builtin scopes these events to the actor's org from the session cookie; callers without a session (agents, scripts) publish platform-scoped events that browsers do not receive, which is why the fallback poll exists.
 
 ## Extension enable-state (durable)
 

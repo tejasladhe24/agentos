@@ -5,5 +5,8 @@
   "api": {
     "language": "bun",
     "port": 6114
+  },
+  "events": {
+    "subscribes": ["hitl.resolved", "hitl.requested"]
   }
 }

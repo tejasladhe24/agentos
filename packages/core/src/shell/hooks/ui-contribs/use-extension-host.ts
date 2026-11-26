@@ -4,6 +4,7 @@ import {
   createShellHostApi,
   deactivateFrame,
   ensureEventsBridge,
+  pushThemeToFrame,
   shellEventBus,
   useShellStore,
   type ActivatedFrame,
@@ -15,6 +16,12 @@ let frameSeq = 0;
 export type UseExtensionHostOptions = {
   handshakeTimeoutMs?: number;
   rpcTimeoutMs?: number;
+  /**
+   * Current resolved theme. Frames load with the theme from their first
+   * mount and then follow changes through `shell.theme.changed`, so a theme
+   * switch never reloads an iframe.
+   */
+  theme?: string;
 };
 
 /**
@@ -26,7 +33,9 @@ export function useExtensionHost(
   options: UseExtensionHostOptions = {},
 ): RefObject<HTMLIFrameElement | null> {
   const { extensionId, view, src } = contribution;
-  const { handshakeTimeoutMs, rpcTimeoutMs } = options;
+  const { handshakeTimeoutMs, rpcTimeoutMs, theme } = options;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const setRuntimeStatus = useShellStore((s) => s.setRuntimeStatus);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const activatedRef = useRef<ActivatedFrame | null>(null);
@@ -67,6 +76,8 @@ export function useExtensionHost(
         }
         activatedRef.current = activated;
         setRuntimeStatus(extensionId, view, 'active');
+        // The theme may have changed while the handshake was in flight.
+        pushThemeToFrame(activated.remote, themeRef.current);
       } catch {
         if (!cancelled) {
           setRuntimeStatus(extensionId, view, 'crashed');
@@ -96,6 +107,10 @@ export function useExtensionHost(
     rpcTimeoutMs,
     setRuntimeStatus,
   ]);
+
+  useEffect(() => {
+    pushThemeToFrame(activatedRef.current?.remote ?? null, theme);
+  }, [theme]);
 
   return iframeRef;
 }

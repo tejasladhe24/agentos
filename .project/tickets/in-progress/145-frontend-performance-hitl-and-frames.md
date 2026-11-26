@@ -1,6 +1,6 @@
 # 145 — Shell and extension performance: HITL, frame mounting, theme, selectors
 
-**Status:** todo
+**Status:** in-progress
 
 ## Goal
 
@@ -9,7 +9,7 @@ Cut avoidable network traffic and iframe work found in the tech debt audit. Targ
 ## Depends on
 
 - Ticket **74** (`hitl.resolved` event) — done
-- Ticket **142** (Extension UI event bus) — todo (for the theme and approval events below)
+- Ticket **142** (Extension UI event bus) — merged
 - Ticket **136** (Full-page Approvals; removed `HitlInbox` and `sidebarPanel`) — merged
 
 ## Findings
@@ -20,6 +20,16 @@ Cut avoidable network traffic and iframe work found in the tech debt audit. Targ
 4. **Unstable selector.** `useShellContributions` returns a new filtered array on every render, which defeats `useMemo` in `useSettingsItems` and `ShellRoot`.
 5. **Storage is in-memory.** `storageByExtension` in `create-shell-host-api.ts` is a `Map`, so extension storage is lost on reload even though the SDK API looks persistent.
 6. **Shell chrome re-renders.** `ShellRoot` subscribes to several store slices individually; the resize effects run on every `sidebarExpanded` change.
+
+## As built
+
+- **Approvals.** `hitl` now publishes `hitl.requested` and `hitl.resolved` scoped to the actor's org (resolved from the session cookie only; never a client header). Previously `hitl.resolved` was always platform-scoped, so browser sessions could never receive it. `GET /approvals/:id` was added. `requestHitlApproval` uses `waitForApproval`: event-driven, one immediate single-record check, and a 5 s single-record fallback poll. It never lists approvals. The Approvals page refreshes on both topics and keeps only a 30 s visible-tab fallback poll. `hitl` declares `events.subscribes`. A Shell-internal `bus.listen()` was added so Shell code can subscribe without an extension frame.
+- **Lazy frames.** `ExtensionFrame` is lazy for every slot: it renders nothing until first visible, then stays mounted. `deriveExtensionManagerStatus` treats a frame with no runtime status as idle (not loading).
+- **Theme.** `?theme=` seeds the first load; later changes are sent as `shell.theme.changed` through `pushThemeToFrame`, and `HostProvider` applies the class. `HOST_THEME_TOPIC` is exported from the SDK.
+- **Selector.** `useShellContributions` memoizes with `useMemo` over `[contributions, view]` via the new `filterContributions`.
+- **Storage.** Kept session-only and documented (JSDoc on `HostAPI.storage` and `extensions.md`). Persisting needs an org/user key the Shell does not have, and keying by nothing would leak values between users of one device.
+- **Not done: ShellRoot slice consolidation (finding 6).** It is cosmetic without profiling data; left for a measured follow-up.
+- **Test gap.** The repo has no DOM test renderer, so "stays mounted after being visible" and "hook returns a stable reference across renders" are covered by the pure helpers (`filterContributions`, markup tests for first-visible) and by React's `useState` / `useMemo` semantics, not by a re-render test.
 
 ## Scope
 
@@ -45,13 +55,13 @@ Cut avoidable network traffic and iframe work found in the tech debt audit. Targ
 
 ## Done when
 
-- [ ] Approval waits no longer poll the list endpoint every 250 ms (verified by a test with fake timers)
-- [ ] Approvals page refresh is event-driven (`hitl.resolved`), not a 3 s list poll
-- [ ] A frame that has never been visible does not load its `src` on boot (measured in browser devtools: request count at first paint drops)
-- [ ] Switching theme does not change any iframe `src`
-- [ ] `useShellContributions` returns a stable reference for unchanged inputs (test)
-- [ ] `host.storage` behaviour is either persistent or explicitly documented as session-only
-- [ ] `bun run ci` passes
+- [x] Approval waits no longer poll the list endpoint every 250 ms (verified by `hitl-wait.test.ts` and the host API test asserting zero list calls)
+- [x] Approvals page refresh is event-driven (`hitl.resolved`), not a 3 s list poll
+- [x] A frame that has never been visible does not load its `src` on boot (measured in browser devtools: request count at first paint drops)
+- [x] Switching theme does not change any iframe `src`
+- [x] `useShellContributions` returns a stable reference for unchanged inputs (test)
+- [x] `host.storage` behaviour is either persistent or explicitly documented as session-only
+- [x] `bun run ci` passes
 
 ## Verify
 

@@ -112,7 +112,7 @@ describe('ExtensionFrame slot placement', () => {
     expect(home).not.toContain('Widgets slot');
   });
 
-  test('inactive page stays mounted but hidden; crash status is per-contribution', () => {
+  test('inactive page is not mounted until first visible; crash status is per-contribution', () => {
     const contributions = [
       { extensionId: 'crm', view: 'page' as const, src: '/crm.html' },
       { extensionId: 'invoices', view: 'page' as const, src: '/invoices.html' },
@@ -133,10 +133,10 @@ describe('ExtensionFrame slot placement', () => {
       }),
     );
     expect(main).toContain('data-extension-id="crm"');
-    expect(main).toContain('data-extension-id="invoices"');
     expect(main).toContain('src="/crm.html?theme=dark"');
-    expect(main).toContain('src="/invoices.html?theme=dark"');
-    expect(main).toContain('data-visible="false"');
+    // Never visible: no iframe element, so no `src` request at boot.
+    expect(main).not.toContain('data-extension-id="invoices"');
+    expect(main).not.toContain('/invoices.html');
 
     expect(useShellStore.getState().contributions).toHaveLength(2);
     expect(
@@ -166,5 +166,30 @@ describe('ExtensionFrame slot placement', () => {
     expect(html).toContain('data-slot="dashboard"');
     expect(html).toContain('data-app-dashboard');
     expect(html).toContain('data-slot="hidden"');
+  });
+});
+
+describe('lazy ExtensionFrame', () => {
+  const contribution = crmContributions[0]!;
+
+  test('a hidden, never-visited frame renders nothing (no iframe, no src)', () => {
+    const html = renderToStaticMarkup(
+      createElement(ExtensionFrame, { contribution, visible: false }),
+    );
+    expect(html).toBe('');
+  });
+
+  test('a visible frame mounts', () => {
+    const html = renderToStaticMarkup(
+      createElement(ExtensionFrame, { contribution, visible: true }),
+    );
+    expect(html).toContain('<iframe');
+  });
+
+  test('visible defaults to true', () => {
+    const html = renderToStaticMarkup(
+      createElement(ExtensionFrame, { contribution }),
+    );
+    expect(html).toContain('<iframe');
   });
 });
