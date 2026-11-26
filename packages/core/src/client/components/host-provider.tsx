@@ -5,6 +5,7 @@ import {
   type HostAPIClient,
 } from '@agentos/core/sdk';
 import { HostContext } from '@agentos/core/client/lib/host-context';
+import { dispatchHostEvent } from '@agentos/core/client/lib/host-events';
 import { LoadingState } from '@agentos/ui/components/loading-state';
 
 export type HostProviderProps = {
@@ -51,6 +52,7 @@ export function HostProvider({
           await apiRef.current?.onDeactivate?.();
         },
         onEvent: async (topic, payload) => {
+          dispatchHostEvent(topic, payload);
           await apiRef.current?.onEvent?.(topic, payload);
         },
       },

@@ -64,7 +64,12 @@ function createTestHost(
       requestApproval: async () => ({ approved: true, id: '1' }),
     },
     api: { fetch: fetchImpl },
-    events: { publish: async () => {} },
+    events: {
+      publish: async () => {},
+      publishLocal: async () => {},
+      subscribe: async () => 'sub',
+      unsubscribe: async () => {},
+    },
     navigation: { openExternal: async () => {} },
     ui: {
       setRightSidebarOpen: async () => {},

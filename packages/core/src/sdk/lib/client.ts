@@ -69,6 +69,11 @@ export function hostApiFromRemote(
     events: {
       publish: async (topic, payload) =>
         (await ns('events')).publish(topic, payload),
+      publishLocal: async (topic, payload) =>
+        (await ns('events')).publishLocal(topic, payload),
+      subscribe: async (topics) => (await ns('events')).subscribe(topics),
+      unsubscribe: async (subscriptionId) =>
+        (await ns('events')).unsubscribe(subscriptionId),
     },
     navigation: {
       openExternal: async (url, options) =>
@@ -134,6 +139,11 @@ function createLazyHostProxy(
     events: {
       publish: async (topic, payload) =>
         (await hostPromise).events.publish(topic, payload),
+      publishLocal: async (topic, payload) =>
+        (await hostPromise).events.publishLocal(topic, payload),
+      subscribe: async (topics) => (await hostPromise).events.subscribe(topics),
+      unsubscribe: async (subscriptionId) =>
+        (await hostPromise).events.unsubscribe(subscriptionId),
     },
     navigation: {
       openExternal: async (url, options) =>

@@ -85,7 +85,27 @@ export {
 export {
   createShellHostApi,
   resetShellHostApiStorage,
+  type CreateShellHostApiOptions,
 } from './chrome/create-shell-host-api';
+export {
+  createShellEventBus,
+  EventDeclarationError,
+  type EventDeclarations,
+  type EventDeliver,
+  type ShellEventBus,
+} from './chrome/event-bus';
+export {
+  createEventsBridge,
+  EVENTS_SUBSCRIBE_URL,
+  type EventSourceLike,
+  type EventsBridge,
+  type EventsBridgeOptions,
+} from './chrome/events-bridge';
+export {
+  disposeEventsBridge,
+  ensureEventsBridge,
+  shellEventBus,
+} from './chrome/shell-event-bus';
 export {
   collectEnabledSkills,
   defaultEnabledById,
@@ -95,6 +115,7 @@ export {
   STUB_SKILLS_BY_EXTENSION,
   type ActivityBarSection,
   type ExtensionEntry,
+  type ExtensionEventDeclarations,
   type ExtensionKind,
   type ExtensionManagerStatus,
   type ExtensionSettingsEntry,

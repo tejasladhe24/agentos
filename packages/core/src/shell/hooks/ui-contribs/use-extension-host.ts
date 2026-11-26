@@ -3,10 +3,14 @@ import {
   activateFrame,
   createShellHostApi,
   deactivateFrame,
+  ensureEventsBridge,
+  shellEventBus,
   useShellStore,
   type ActivatedFrame,
   type UiContribution,
 } from '@agentos/core/shell/lib';
+
+let frameSeq = 0;
 
 export type UseExtensionHostOptions = {
   handshakeTimeoutMs?: number;
@@ -34,14 +38,23 @@ export function useExtensionHost(
     let cancelled = false;
     setRuntimeStatus(extensionId, view, 'loading');
 
+    // One bus identity per mounted frame; dropping it removes its subscriptions.
+    const frameId = `${extensionId}:${view}:${(frameSeq += 1)}`;
+    ensureEventsBridge();
+
     void (async () => {
       try {
         const activated = await activateFrame({
           extensionId,
           contentWindow,
-          hostApi: createShellHostApi(extensionId),
+          hostApi: createShellHostApi(extensionId, { frameId }),
           handshakeTimeoutMs,
           rpcTimeoutMs,
+          onRemote: (remote) => {
+            shellEventBus.attachFrame(frameId, extensionId, (topic, payload) =>
+              remote.onEvent(topic, payload),
+            );
+          },
         });
         if (cancelled) {
           await deactivateFrame(
@@ -63,6 +76,7 @@ export function useExtensionHost(
 
     return () => {
       cancelled = true;
+      shellEventBus.dropFrame(frameId);
       const current = activatedRef.current;
       activatedRef.current = null;
       // Intentional unmount (disable, remount, theme src change) often tears

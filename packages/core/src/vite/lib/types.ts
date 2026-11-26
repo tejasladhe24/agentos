@@ -134,6 +134,30 @@ export type ExtensionMetaRightSheet = {
   icon?: string;
 };
 
+/**
+ * Event-bus declarations from `meta.json` `events`. The Shell rejects
+ * `HostAPI.events` publishes/subscribes for topics an extension did not
+ * declare. Topics are namespaced `<extId>.<event>`; `publishes` must live in
+ * the extension's own namespace, `subscribes` may name any topic (including
+ * platform topics such as `email.received`).
+ */
+export type ExtensionMetaEvents = {
+  publishes?: string[];
+  subscribes?: string[];
+};
+
+/** Same shape the events builtin enforces (`^[a-z0-9][a-z0-9._-]*$`, ≤128). */
+export const EVENT_TOPIC_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
+export const MAX_EVENT_TOPIC_LENGTH = 128;
+
+export function isValidEventTopic(topic: string): boolean {
+  return (
+    topic.length > 0 &&
+    topic.length <= MAX_EVENT_TOPIC_LENGTH &&
+    EVENT_TOPIC_PATTERN.test(topic)
+  );
+}
+
 /** Parsed `meta.json` (tolerant subset). */
 export type ExtensionMeta = {
   name?: string;
@@ -159,6 +183,8 @@ export type ExtensionMeta = {
   settings?: ExtensionSettingsSectionMeta[];
   /** Optional global right sheet metadata (`ui/right-sheet.tsx`). */
   rightSheet?: ExtensionMetaRightSheet;
+  /** Event-bus topics this extension's UI may publish / subscribe to. */
+  events?: ExtensionMetaEvents;
 };
 
 /**

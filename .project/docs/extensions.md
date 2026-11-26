@@ -296,6 +296,43 @@ Shell UI contribution hosts are either **active-extension** or **global**:
 
 Opening **Extensions** (admin only, `/extensions`) or **Approvals** (`/ext/hitl`) from the Activity Bar (secondary) navigates to a full page in the main canvas. Neither opens as a left-sidebar overlay. Extensions can open, close, or toggle the right sidebar via `useHostUi()` (`@agentos/core/client`).
 
+## Event bus (extension UI ↔ extension UI)
+
+Extension UIs never talk to each other directly: no `BroadcastChannel`, no `window.postMessage` between frames, no cross-extension `api.fetch`. The **Shell is the broker** — frames register subscriptions with it and it fans events out through each frame's `ExtensionAPI.onEvent` (ADR 005 channels; frames never see each other's ports).
+
+**Declare topics in `meta.json`** — the Shell rejects undeclared publishes and subscribes:
+
+```json
+{
+  "events": {
+    "publishes": ["files.selection.changed"],
+    "subscribes": ["email.received", "hitl.resolved"]
+  }
+}
+```
+
+- Topics are namespaced `<extId>.<event>` and match `^[a-z0-9][a-z0-9._-]*$` (max 128).
+- `publishes` must start with the extension's own id (`files.…` for `files`); the scanner drops anything else with a warning. `subscribes` may name any topic, including platform topics (`email.received`, `hitl.resolved`).
+- Payloads are JSON (`EventPayload`).
+
+**From UI code** (`@agentos/core/client`):
+
+```tsx
+const { publishLocal } = useHostPublish();
+useHostEvent('email.received', (payload) => {
+  /* … */
+});
+await publishLocal('files.selection.changed', { keys }); // in-process
+```
+
+| API                                    | Path                                                                                                                                            |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `events.publishLocal` / `publishLocal` | UI-only: the Shell delivers in-process to subscribed frames. No server round trip, not durable, not seen by other tabs.                         |
+| `events.publish` / `publish`           | Durable: `POST /api/ext/events/publish` (org-scoped, ticket 141). It reaches UI subscribers (this and other tabs) through the SSE bridge below. |
+| `events.subscribe` / `useHostEvent`    | Registers the calling frame for declared topics; returns a subscription id. Frame disposal drops its subscriptions automatically.               |
+
+**Server events:** the Shell keeps **one** `GET /api/ext/events/subscribe` SSE connection per session, opened only while some frame is subscribed and closed when the last one leaves. The `events` builtin scopes it to the signed-in org, and the Shell re-emits each message on the in-memory bus to frames that declared the topic. Host implementation: `packages/core/src/shell/lib/chrome/event-bus.ts` and `events-bridge.ts`.
+
 ## Extension enable-state (durable)
 
 Customer enable/disable toggles are stored in builtin **db-store** (collection `agentos_gateway`, doc `extension-enable`) — not Cloudflare KV. Vite (`agentos()`) and `agentos start` share the same load/save path; builtins stay locked.
@@ -345,7 +382,7 @@ export const POST: RouteHandlers['POST'] = async (c) => {
 
 ## UI
 
-Import `@agentos/core/client` for host SDK hooks (`HostProvider`, `useHostStorage`, `useHostAI`, `useHostHITL`, `useHostNotifications`, `useHostApi`, `useHostNavigation`). Iframes are sandboxed without popups or top navigation, so open external pages (OAuth consent, "Open in Google") with `useHostNavigation().openExternal(url, { sameTab? })`; the Shell accepts only absolute `http(s)` URLs. **`@agentos/core/client` is for `ui/*.tsx` only** — never import it from `api/routes/**` or Python services (use `@agentos/core/api/*` / `agentos.*` there). For base controls (buttons, inputs, checkboxes, selects, dropdowns, …) import from **`@agentos/ui/components/*`** (shadcn) — do not use native HTML controls unless specifically required. Views are wrapped by framework iframe bootstrap — no Comlink / handshake boilerplate in FDE code.
+Import `@agentos/core/client` for host SDK hooks (`HostProvider`, `useHostStorage`, `useHostAI`, `useHostHITL`, `useHostNotifications`, `useHostApi`, `useHostNavigation`, `useHostEvent`, `useHostPublish`). Iframes are sandboxed without popups or top navigation, so open external pages (OAuth consent, "Open in Google") with `useHostNavigation().openExternal(url, { sameTab? })`; the Shell accepts only absolute `http(s)` URLs. **`@agentos/core/client` is for `ui/*.tsx` only** — never import it from `api/routes/**` or Python services (use `@agentos/core/api/*` / `agentos.*` there). For base controls (buttons, inputs, checkboxes, selects, dropdowns, …) import from **`@agentos/ui/components/*`** (shadcn) — do not use native HTML controls unless specifically required. Views are wrapped by framework iframe bootstrap — no Comlink / handshake boilerplate in FDE code.
 
 ## Builtins
 
