@@ -38,6 +38,8 @@ const registry = {
   scannedAt: 1,
   extensions: [
     extension('crm', { page: '/__agentos/ext/crm/page.html' }),
+    // Builtin Approvals page (ticket 136) at `/ext/hitl`.
+    extension('hitl', { page: '/__agentos/ext/hitl/page.html' }),
     // No `ui/page` → not a valid `/ext/<id>` target.
     extension('sidebar-only', {
       sidebar: '/__agentos/ext/sidebar-only/sidebar.html',
@@ -46,6 +48,7 @@ const registry = {
 } as unknown as RegistryModel;
 
 const signedIn: SessionFetcher = async () => ({ roles: ['admin'] });
+const signedInViewer: SessionFetcher = async () => ({ roles: ['viewer'] });
 const signedOut: SessionFetcher = async () => null;
 const sessionError: SessionFetcher = async () => {
   throw new Error('network down');
@@ -91,7 +94,6 @@ describe('AppRouter route table', () => {
   beforeEach(() => {
     useShellStore.setState({
       activeView: 'home',
-      sidebarPanel: 'contribution',
       settingsKey: null,
       settingsEntryId: null,
       enabledById: {},
@@ -223,6 +225,12 @@ describe('AppRouter route table', () => {
       expect(router.state.location.searchStr).toBe('?next=%2Fext%2Fcrm');
     });
 
+    test('/extensions requires sign-in and returns there after', async () => {
+      const { router } = await renderAt('/extensions');
+      expect(router.state.location.pathname).toBe('/login');
+      expect(router.state.location.searchStr).toBe('?next=%2Fextensions');
+    });
+
     test('settings deep link keeps its search in ?next=', async () => {
       const { router } = await renderAt('/settings?section=files%3Astorage');
       expect(router.state.location.pathname).toBe('/login');
@@ -290,6 +298,40 @@ describe('AppRouter route table', () => {
         fetchSession: signedIn,
       });
       expect(settings.router.state.location.pathname).toBe('/settings');
+    });
+
+    test('/ext/hitl renders the Approvals page as a workspace view', async () => {
+      const { html, router } = await renderAt('/ext/hitl', {
+        fetchSession: signedIn,
+      });
+      expect(router.state.location.pathname).toBe('/ext/hitl');
+      expect(html).toContain('data-agentos-shell');
+      expect(useShellStore.getState().activeView).toBe('hitl');
+    });
+
+    test('/extensions renders the Extensions Manager for an admin', async () => {
+      const { html, router } = await renderAt('/extensions', {
+        fetchSession: signedIn,
+      });
+      expect(router.state.location.pathname).toBe('/extensions');
+      expect(html).toContain('data-agentos-shell');
+      // SSR reads zustand's initial state, so the view is asserted on the store.
+      expect(useShellStore.getState().activeView).toBe('extensions');
+    });
+
+    test('/extensions redirects a non-admin to Home', async () => {
+      const { router } = await renderAt('/extensions', {
+        fetchSession: signedInViewer,
+      });
+      expect(router.state.location.pathname).toBe('/');
+      expect(useShellStore.getState().activeView).toBe('home');
+    });
+
+    test('/ext/extensions redirects to the canonical /extensions path', async () => {
+      const { router } = await renderAt('/ext/extensions', {
+        fetchSession: signedIn,
+      });
+      expect(router.state.location.pathname).toBe('/extensions');
     });
 
     test('a trailing slash still matches the workspace route', async () => {

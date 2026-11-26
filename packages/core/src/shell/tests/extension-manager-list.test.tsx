@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import {
   ActivityBar,
   ExtensionManagerList,
+  ExtensionManagerView,
 } from '@agentos/core/shell/components';
 import {
   defaultEnabledById,
@@ -15,7 +16,6 @@ function resetStore() {
   useShellStore.setState({
     activeView: 'home',
     sidebarOpen: true,
-    sidebarPanel: 'contribution',
     extensions: STUB_EXTENSION_CATALOG,
     enabledById: defaultEnabledById(),
     desiredContributions: [],
@@ -30,7 +30,7 @@ function resetStore() {
 
 const originalFetch = globalThis.fetch;
 
-describe('ExtensionManagerDrawer', () => {
+describe('ExtensionManagerList', () => {
   beforeEach(() => {
     resetStore();
     mock.restore();
@@ -75,13 +75,46 @@ describe('ExtensionManagerDrawer', () => {
     expect(html).toContain('Enable CRM');
   });
 
-  test('ActivityBar Extensions control opens sidebar panel without changing view', () => {
+  test('ActivityBar Extensions control is a page item (no sidebar overlay)', () => {
     const html = renderToStaticMarkup(<ActivityBar />);
     expect(html).toContain('aria-label="Extensions"');
+    expect(html).not.toContain('data-sidebar-panel');
 
-    useShellStore.getState().setSidebarPanel('extensions');
-    expect(useShellStore.getState().sidebarPanel).toBe('extensions');
-    expect(useShellStore.getState().activeView).toBe('home');
+    useShellStore.getState().setActiveView('extensions');
+    expect(useShellStore.getState().activeView).toBe('extensions');
+  });
+
+  test('list renders as a table with status and enable controls', () => {
+    const html = renderToStaticMarkup(
+      <ExtensionManagerList
+        extensions={STUB_EXTENSION_CATALOG}
+        enabledById={defaultEnabledById()}
+      />,
+    );
+    expect(html).toContain('aria-label="Extension list"');
+    expect(html).toContain('data-slot="extension-manager-list"');
+    expect(html).toContain('data-slot="extension-manager-filter"');
+    expect(html).toContain('>Status<');
+    expect(html).toContain('Enabled');
+  });
+
+  test('builtins are hidden by default in the list', () => {
+    const html = renderToStaticMarkup(
+      <ExtensionManagerList
+        extensions={STUB_EXTENSION_CATALOG}
+        enabledById={defaultEnabledById()}
+      />,
+    );
+    expect(html).not.toContain('data-extension-id="auth"');
+  });
+
+  test('full-page manager view renders a heading and the list', () => {
+    const html = renderToStaticMarkup(<ExtensionManagerView />);
+    expect(html).toContain('data-slot="extension-manager-view"');
+    expect(html).toContain('<h1');
+    expect(html).toContain('Extensions');
+    expect(html).toContain('data-slot="extension-manager-list"');
+    expect(html).not.toContain('data-sidebar-panel');
   });
 
   test('manager row exposes data-icon from meta (Cube fallback)', () => {

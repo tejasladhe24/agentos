@@ -3,6 +3,7 @@ import {
   LockSimpleIcon,
   MagnifyingGlassIcon,
 } from '@phosphor-icons/react';
+import { useMemo, useState } from 'react';
 import { useShellExtensions } from '@agentos/core/shell/hooks';
 import {
   deriveExtensionManagerStatus,
@@ -10,8 +11,10 @@ import {
   useShellStore,
   type ContributionRuntimeStatus,
   type ExtensionEntry,
+  type ExtensionManagerStatus,
   type UiContribution,
 } from '@agentos/core/shell/lib';
+import { Badge } from '@agentos/ui/components/badge';
 import { Button } from '@agentos/ui/components/button';
 import {
   DropdownMenu,
@@ -28,7 +31,14 @@ import {
 } from '@agentos/ui/components/input-group';
 import { ScrollArea } from '@agentos/ui/components/scroll-area';
 import { Switch } from '@agentos/ui/components/switch';
-import { useMemo, useState } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@agentos/ui/components/table';
 
 export type ExtensionManagerListProps = {
   /** Override catalog (tests / controlled hosts). */
@@ -37,6 +47,23 @@ export type ExtensionManagerListProps = {
   contributions?: UiContribution[];
   runtimeStatus?: Record<string, ContributionRuntimeStatus>;
   onSetEnabled?: (extensionId: string, enabled: boolean) => void;
+};
+
+const STATUS_LABEL: Record<ExtensionManagerStatus, string> = {
+  active: 'Active',
+  disabled: 'Disabled',
+  loading: 'Loading',
+  crashed: 'Crashed',
+};
+
+const STATUS_VARIANT: Record<
+  ExtensionManagerStatus,
+  'secondary' | 'outline' | 'destructive'
+> = {
+  active: 'secondary',
+  disabled: 'outline',
+  loading: 'outline',
+  crashed: 'destructive',
 };
 
 function ExtensionRow({
@@ -62,50 +89,62 @@ function ExtensionRow({
   const ExtIcon = resolveExtensionIcon(entry.icon);
 
   return (
-    <li
-      className="flex items-center gap-3 border-b border-border px-3 py-3 last:border-b-0"
+    <TableRow
       data-extension-id={entry.id}
       data-kind={entry.kind}
       data-status={status}
       data-icon={entry.icon ?? 'Cube'}
     >
-      <ExtIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium text-foreground">
-            {entry.name}
-          </span>
-          {locked ? (
-            <LockSimpleIcon
-              className="size-3.5 shrink-0 text-muted-foreground"
-              aria-label="Locked"
-            />
-          ) : null}
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <ExtIcon
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-medium text-foreground">
+                {entry.name}
+              </span>
+              {locked ? (
+                <LockSimpleIcon
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                  aria-label="Locked"
+                />
+              ) : null}
+            </div>
+            <p className="truncate text-xs text-muted-foreground">{entry.id}</p>
+          </div>
         </div>
-        <p className="truncate text-xs text-muted-foreground">
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className="capitalize">
           {entry.kind}
-          <span className="mx-1 text-border">·</span>
-          {entry.id}
-        </p>
-      </div>
-      <Switch
-        size="sm"
-        checked={enabled}
-        disabled={locked}
-        aria-label={
-          locked
-            ? `${entry.name} is always on`
-            : `${enabled ? 'Disable' : 'Enable'} ${entry.name}`
-        }
-        onCheckedChange={(checked) => {
-          onSetEnabled(entry.id, checked);
-        }}
-      />
-    </li>
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>
+      </TableCell>
+      <TableCell className="text-right">
+        <Switch
+          size="sm"
+          checked={enabled}
+          disabled={locked}
+          aria-label={
+            locked
+              ? `${entry.name} is always on`
+              : `${enabled ? 'Disable' : 'Enable'} ${entry.name}`
+          }
+          onCheckedChange={(checked) => {
+            onSetEnabled(entry.id, checked);
+          }}
+        />
+      </TableCell>
+    </TableRow>
   );
 }
 
-/** Presentational list (accepts overrides for SSR-friendly tests). */
+/** Extensions catalog table with search + builtin filter (full-page Shell view). */
 export function ExtensionManagerList(props: ExtensionManagerListProps = {}) {
   const storeExtensions = useShellExtensions();
   const storeEnabledById = useShellStore((s) => s.enabledById);
@@ -137,10 +176,10 @@ export function ExtensionManagerList(props: ExtensionManagerListProps = {}) {
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col"
+      className="flex h-full min-h-0 flex-col gap-3"
       data-slot="extension-manager-list"
     >
-      <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-2">
+      <div className="flex shrink-0 items-center gap-2">
         <InputGroup className="min-w-0 flex-1">
           <InputGroupInput
             placeholder="Search extensions…"
@@ -186,37 +225,35 @@ export function ExtensionManagerList(props: ExtensionManagerListProps = {}) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <ul className="list-none p-0" aria-label="Extension list">
-          {filteredExtensions.map((entry) => (
-            <ExtensionRow
-              key={entry.id}
-              entry={entry}
-              enabled={enabledById[entry.id] !== false}
-              contributions={contributions}
-              runtimeStatus={runtimeStatus}
-              onSetEnabled={onSetEnabled}
-            />
-          ))}
-        </ul>
+      <ScrollArea className="min-h-0 flex-1 rounded-lg border border-border">
+        <Table aria-label="Extension list">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Enabled</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredExtensions.map((entry) => (
+              <ExtensionRow
+                key={entry.id}
+                entry={entry}
+                enabled={enabledById[entry.id] !== false}
+                contributions={contributions}
+                runtimeStatus={runtimeStatus}
+                onSetEnabled={onSetEnabled}
+              />
+            ))}
+          </TableBody>
+        </Table>
+        {filteredExtensions.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            No extensions match these filters.
+          </p>
+        ) : null}
       </ScrollArea>
     </div>
   );
 }
-
-/** Left-sidebar Extension Manager panel (no Sheet overlay). */
-export function ExtensionManagerPanel() {
-  return (
-    <div className="flex h-full min-h-0 flex-col" data-slot="extension-manager">
-      <p className="shrink-0 px-2 pt-2 text-xs text-muted-foreground">
-        Extensions
-      </p>
-      <div className="min-h-0 flex-1">
-        <ExtensionManagerList />
-      </div>
-    </div>
-  );
-}
-
-/** @deprecated Prefer ExtensionManagerPanel — kept for export stability. */
-export const ExtensionManagerDrawer = ExtensionManagerPanel;

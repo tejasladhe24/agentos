@@ -5,7 +5,6 @@ import { createRouteStoreSync, useShellStore } from '@agentos/core/shell/lib';
 function resetStore() {
   useShellStore.setState({
     activeView: 'home',
-    sidebarPanel: 'contribution',
     settingsKey: null,
     settingsEntryId: null,
     enabledById: {},
@@ -119,17 +118,43 @@ describe('route ↔ store sync', () => {
       expect(useShellStore.getState().activeView).toBe('crm');
     });
 
-    test('push to a workspace URL updates the store and resets the sidebar panel', () => {
+    test('push to a workspace URL updates the store', () => {
       const { history, sync } = setup('/');
       sync.bootstrap();
       stop = sync.start();
-      useShellStore.setState({ sidebarPanel: 'extensions' });
 
       history.push('/ext/crm');
 
-      const state = useShellStore.getState();
-      expect(state.activeView).toBe('crm');
-      expect(state.sidebarPanel).toBe('contribution');
+      expect(useShellStore.getState().activeView).toBe('crm');
+    });
+
+    test('/extensions follows the store both ways (Shell view, not an extension)', () => {
+      const { history, sync } = setup('/');
+      sync.bootstrap();
+      stop = sync.start();
+
+      useShellStore.getState().setActiveView('extensions');
+      expect(history.location.pathname).toBe('/extensions');
+
+      history.push('/');
+      expect(useShellStore.getState().activeView).toBe('home');
+
+      history.push('/extensions');
+      expect(useShellStore.getState().activeView).toBe('extensions');
+    });
+
+    test('deep link to /extensions keeps the Extensions view', () => {
+      const { history, sync } = setup('/extensions');
+      sync.bootstrap();
+      expect(useShellStore.getState().activeView).toBe('extensions');
+      expect(history.location.pathname).toBe('/extensions');
+    });
+
+    test('deep link to /ext/hitl opens the Approvals page', () => {
+      const { history, sync } = setup('/ext/hitl');
+      sync.bootstrap();
+      expect(useShellStore.getState().activeView).toBe('hitl');
+      expect(history.location.pathname).toBe('/ext/hitl');
     });
 
     test('settings selection change replaces (does not grow history)', () => {

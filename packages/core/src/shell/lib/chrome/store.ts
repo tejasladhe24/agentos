@@ -10,9 +10,6 @@ import { requestExtensionEnable } from './extension-enable';
 
 export type ShellView = 'home' | (string & {});
 
-/** What the left SidebarSlot hosts (ticket 39 — no right Sheets). */
-export type SidebarPanel = 'contribution' | 'extensions' | 'hitl';
-
 /** Roles considered workspace admins for Shell chrome gating (ticket 128). */
 const ADMIN_ROLE_NAMES = new Set(['admin', 'owner']);
 
@@ -72,8 +69,6 @@ export type ChatMessage = {
 export type ShellUiState = {
   activeView: ShellView;
   sidebarOpen: boolean;
-  /** Left sidebar host mode — Shell panels or active extension contribution. */
-  sidebarPanel: SidebarPanel;
   /** Right sidebar open state (active-extension `ui/right-sidebar.tsx`). */
   rightSidebarOpen: boolean;
   /**
@@ -117,7 +112,6 @@ export type ShellUiState = {
   sessionRoles: string[] | null;
   setActiveView: (view: ShellView) => void;
   setSidebarOpen: (open: boolean) => void;
-  setSidebarPanel: (panel: SidebarPanel) => void;
   setRightSidebarOpen: (open: boolean) => void;
   toggleRightSidebar: () => void;
   /** No-op unless `extensionId` has an enabled `ui/right-sheet` contribution. */
@@ -153,7 +147,6 @@ export type ShellUiState = {
 export const useShellStore = create<ShellUiState>((set, get) => ({
   activeView: 'home',
   sidebarOpen: true,
-  sidebarPanel: 'contribution',
   rightSidebarOpen: false,
   activeRightSheet: null,
   chatOpen: false,
@@ -171,18 +164,8 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
   statusText: null,
   statusTone: null,
   sessionRoles: null,
-  setActiveView: (view) =>
-    set({
-      activeView: view,
-      sidebarPanel: 'contribution',
-    }),
+  setActiveView: (view) => set({ activeView: view }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  setSidebarPanel: (panel) =>
-    set(
-      panel === 'contribution'
-        ? { sidebarPanel: 'contribution' }
-        : { sidebarPanel: panel, sidebarOpen: true },
-    ),
   setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),
   toggleRightSidebar: () =>
     set((s) => ({ rightSidebarOpen: !s.rightSidebarOpen })),
@@ -281,9 +264,9 @@ export const useShellStore = create<ShellUiState>((set, get) => ({
       const admin = isAdminRoles(roles);
       return {
         sessionRoles: roles,
-        ...(!admin && s.activeView === 'secrets' ? { activeView: 'home' } : {}),
-        ...(!admin && s.sidebarPanel === 'extensions'
-          ? { sidebarPanel: 'contribution' as const }
+        ...(!admin &&
+        (s.activeView === 'secrets' || s.activeView === 'extensions')
+          ? { activeView: 'home' }
           : {}),
       };
     }),

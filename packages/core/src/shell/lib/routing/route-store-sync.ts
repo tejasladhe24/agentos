@@ -3,6 +3,7 @@ import { writeStoredActivity } from '../chrome/activity-bar-persistence';
 import { useShellStore } from '../chrome/store';
 import { writeStoredSettingsKey } from '../settings/settings-selection';
 import {
+  isShellPathView,
   targetFromLocation,
   targetHref,
   targetsEqual,
@@ -72,11 +73,7 @@ export function createRouteStoreSync(history: RouteHistory): RouteStoreSync {
     if (!url) return;
 
     const initial = useShellStore.getState();
-    if (
-      url.view !== 'home' &&
-      url.view !== 'settings' &&
-      initial.enabledById[url.view] === false
-    ) {
+    if (!isShellPathView(url.view) && initial.enabledById[url.view] === false) {
       // Disabled extension: fall back to Home instead of a blank canvas.
       history.replace('/');
       // `bootstrap()` runs before `start()` subscribes, so re-apply explicitly
@@ -89,7 +86,7 @@ export function createRouteStoreSync(history: RouteHistory): RouteStoreSync {
       const state = useShellStore.getState();
       if (state.activeView !== url.view) {
         state.setActiveView(url.view);
-        writeStoredActivity({ view: url.view, panel: 'contribution' });
+        writeStoredActivity({ view: url.view });
       }
       // A URL without `section` means "unspecified" — keep the store's choice.
       if (url.view === 'settings' && url.section) {

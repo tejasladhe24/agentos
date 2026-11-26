@@ -1,29 +1,17 @@
-import {
-  HandWavingIcon,
-  HouseIcon,
-  SquaresFourIcon,
-  type Icon,
-} from '@phosphor-icons/react';
+import { HouseIcon, SquaresFourIcon, type Icon } from '@phosphor-icons/react';
 import type { UiContribution } from '../ui-contribs/contribution';
 import {
   resolveActivityBarSection,
   type ExtensionEntry,
 } from './extension-catalog';
 import { resolveExtensionIcon } from './resolve-extension-icon';
-import type { ShellView, SidebarPanel } from './store';
+import type { ShellView } from './store';
 
-/** Shell chrome that swaps `sidebarPanel` instead of `activeView`. */
-export type ActivityBarShellPanel = Exclude<SidebarPanel, 'contribution'>;
-
+/** Every Activity Bar item switches `activeView`; the URL follows (`/`, `/extensions`, `/ext/<id>`). */
 export type ActivityBarItem = {
-  id: ShellView | 'extensions' | 'hitl';
+  id: ShellView;
   label: string;
   Icon: Icon;
-  /**
-   * When set, activate toggles this left SidebarSlot panel.
-   * When unset, activate switches `activeView` (main canvas + contribution sidebar).
-   */
-  panel?: ActivityBarShellPanel;
 };
 
 const HOME_ITEM: ActivityBarItem = {
@@ -32,20 +20,11 @@ const HOME_ITEM: ActivityBarItem = {
   Icon: HouseIcon,
 };
 
+/** Shell-hosted Extensions Manager page at `/extensions` (admin only). */
 const MANAGER_ITEM: ActivityBarItem = {
   id: 'extensions',
   label: 'Extensions',
   Icon: SquaresFourIcon,
-  panel: 'extensions',
-};
-
-/** Non-page secondary builtins → Shell chrome actions (HITL inbox, etc.). */
-const BUILTIN_ACTIVITY_CHROME: Record<string, Omit<ActivityBarItem, 'id'>> = {
-  hitl: {
-    label: 'Approvals',
-    Icon: HandWavingIcon,
-    panel: 'hitl',
-  },
 };
 
 /** Secondary Activity Bar items restricted to admin / owner roles (ticket 128). */
@@ -63,9 +42,9 @@ export type ActivityBarSections = {
   primary: ActivityBarItem[];
   /**
    * Bottom cluster for `flex-col-reverse`: index 0 is nearest the bottom edge.
-   * Array order (bottom → top): Extensions manager (admin only), secondary page
-   * builtins (e.g. settings, files, email, activity; secrets is admin only),
-   * Approvals (HITL chrome) at the top of the cluster.
+   * Array order (bottom → top): Extensions manager (admin only), then secondary
+   * page builtins (e.g. settings, files, email, activity, approvals; secrets is
+   * admin only).
    */
   secondary: ActivityBarItem[];
 };
@@ -97,16 +76,10 @@ export function buildActivityBarSections(input: {
       Icon: resolveExtensionIcon(ext.icon),
     }));
 
-  const secondaryChrome: ActivityBarItem[] = [];
   const secondaryPages: ActivityBarItem[] = [];
   for (const ext of extensions) {
     if (enabledById[ext.id] === false || !isSecondary(ext)) continue;
     if (!isAdmin && ADMIN_ONLY_SECONDARY_IDS.has(ext.id)) continue;
-    const chrome = BUILTIN_ACTIVITY_CHROME[ext.id];
-    if (chrome) {
-      secondaryChrome.push({ id: ext.id, ...chrome });
-      continue;
-    }
     if (pageExtensionIds.has(ext.id) || ext.id === 'settings') {
       secondaryPages.push({
         id: ext.id,
@@ -121,6 +94,6 @@ export function buildActivityBarSections(input: {
   return {
     primary: [HOME_ITEM, ...primaryPages],
     // flex-col-reverse: last item renders at the top of the secondary cluster.
-    secondary: [...managerItems, ...secondaryPages, ...secondaryChrome],
+    secondary: [...managerItems, ...secondaryPages],
   };
 }

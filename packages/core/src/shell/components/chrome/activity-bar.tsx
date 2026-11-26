@@ -53,9 +53,7 @@ function ActivityIconButton({
 
 export function ActivityBar() {
   const activeView = useShellActiveView();
-  const sidebarPanel = useShellStore((s) => s.sidebarPanel);
   const setActiveView = useShellStore((s) => s.setActiveView);
-  const setSidebarPanel = useShellStore((s) => s.setSidebarPanel);
   const toggleSidebar = useShellStore((s) => s.toggleSidebar);
   const extensions = useShellStore((s) => s.extensions);
   const enabledById = useShellStore((s) => s.enabledById);
@@ -72,25 +70,16 @@ export function ActivityBar() {
     });
 
   function currentFor(item: ActivityBarItem): boolean {
-    if (item.panel) return sidebarPanel === item.panel;
     return activeView === item.id;
   }
 
   function activate(item: ActivityBarItem) {
-    // Shell chrome (manager / HITL): same path — toggle left sidebar panel only.
-    if (item.panel) {
-      const nextPanel =
-        sidebarPanel === item.panel ? 'contribution' : item.panel;
-      setSidebarPanel(nextPanel);
-      writeStoredActivity({ view: activeView, panel: nextPanel });
-      return;
-    }
     if (activeView === item.id) {
       toggleSidebar();
       return;
     }
     setActiveView(item.id);
-    writeStoredActivity({ view: item.id, panel: 'contribution' });
+    writeStoredActivity({ view: item.id });
   }
 
   return (

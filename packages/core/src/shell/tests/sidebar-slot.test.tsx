@@ -16,26 +16,19 @@ const sidebars: UiContribution[] = [
   },
 ];
 
-describe('SidebarSlot contextual + shell panels', () => {
+describe('SidebarSlot contextual sidebar', () => {
   beforeEach(() => {
     useShellStore.setState({
       activeView: 'home',
       sidebarOpen: true,
-      sidebarPanel: 'contribution',
       contributions: sidebars,
     });
   });
 
-  test('shows only the active extension sidebar in contribution mode', () => {
+  test('shows only the active extension sidebar', () => {
     const onCrm = renderToStaticMarkup(
-      <SidebarSlot
-        sidebarOpen
-        activeView="crm"
-        contributions={sidebars}
-        sidebarPanel="contribution"
-      />,
+      <SidebarSlot sidebarOpen activeView="crm" contributions={sidebars} />,
     );
-    expect(onCrm).toContain('data-sidebar-panel="contribution"');
     expect(onCrm).toContain('data-extension-id="crm"');
     expect(onCrm).toContain('data-extension-id="demo"');
     expect(onCrm).toMatch(
@@ -46,12 +39,7 @@ describe('SidebarSlot contextual + shell panels', () => {
     );
 
     const onDemo = renderToStaticMarkup(
-      <SidebarSlot
-        sidebarOpen
-        activeView="demo"
-        contributions={sidebars}
-        sidebarPanel="contribution"
-      />,
+      <SidebarSlot sidebarOpen activeView="demo" contributions={sidebars} />,
     );
     expect(onDemo).toMatch(
       /data-sidebar-active="true"[\s\S]*data-extension-id="demo"/,
@@ -63,14 +51,9 @@ describe('SidebarSlot contextual + shell panels', () => {
 
   test('home with sidebars present shows no active contribution', () => {
     const html = renderToStaticMarkup(
-      <SidebarSlot
-        sidebarOpen
-        activeView="home"
-        contributions={sidebars}
-        sidebarPanel="contribution"
-      />,
+      <SidebarSlot sidebarOpen activeView="home" contributions={sidebars} />,
     );
-    expect(html).toContain('data-sidebar-panel="contribution"');
+    expect(html).toContain('data-slot="sidebar"');
     expect(html).not.toContain('data-sidebar-active="true"');
   });
 
@@ -83,7 +66,6 @@ describe('SidebarSlot contextual + shell panels', () => {
         sidebarOpen
         activeView="home"
         contributions={sidebars}
-        sidebarPanel="contribution"
         dashboardSidebar={HomeSidebar}
       />,
     );
@@ -100,7 +82,6 @@ describe('SidebarSlot contextual + shell panels', () => {
         sidebarOpen
         activeView="settings"
         contributions={sidebars}
-        sidebarPanel="contribution"
       />,
     );
     expect(html).toContain('data-slot="settings-sidebar-host"');
@@ -108,52 +89,33 @@ describe('SidebarSlot contextual + shell panels', () => {
     expect(html).toContain('data-slot="settings-sidebar-nav"');
   });
 
-  test('extensions panel renders Extension Manager inside sidebar (no sheet)', () => {
-    const html = renderToStaticMarkup(
-      <SidebarSlot
-        sidebarOpen
-        activeView="home"
-        contributions={sidebars}
-        sidebarPanel="extensions"
-      />,
-    );
-    expect(html).toContain('data-sidebar-panel="extensions"');
-    expect(html).toContain('data-slot="extension-manager"');
-    expect(html).toContain('Extensions');
-    expect(html).not.toContain('data-sidebar-active="true"');
-    expect(html).not.toContain('role="dialog"');
+  test('full-page Shell views do not mount overlay panels in the left column', () => {
+    for (const activeView of ['extensions', 'hitl']) {
+      const html = renderToStaticMarkup(
+        <SidebarSlot
+          sidebarOpen
+          activeView={activeView}
+          contributions={sidebars}
+        />,
+      );
+      expect(html).not.toContain('data-sidebar-panel');
+      expect(html).not.toContain('data-slot="extension-manager-host"');
+      expect(html).not.toContain('data-slot="hitl-inbox-host"');
+      expect(html).not.toContain('data-slot="extension-manager"');
+      expect(html).not.toContain('data-slot="hitl-inbox"');
+    }
   });
 
-  test('hitl panel renders Approvals inside sidebar (no sheet)', () => {
+  test('extension sidebars stay mounted (hidden) on a full-page Shell view', () => {
     const html = renderToStaticMarkup(
       <SidebarSlot
         sidebarOpen
-        activeView="home"
+        activeView="extensions"
         contributions={sidebars}
-        sidebarPanel="hitl"
       />,
     );
-    expect(html).toContain('data-sidebar-panel="hitl"');
-    expect(html).toContain('data-slot="hitl-inbox"');
-    expect(html).toContain('data-slot="hitl-inbox-loading"');
-    expect(html).toContain('data-loading="true"');
-    expect(html).not.toContain('No pending approvals.');
-    expect(html).not.toContain('data-sidebar-active="true"');
-    expect(html).not.toContain('role="dialog"');
-  });
-
-  test('extension sidebars stay mounted (hidden) while a Shell panel is open', () => {
-    const html = renderToStaticMarkup(
-      <SidebarSlot
-        sidebarOpen
-        activeView="crm"
-        contributions={sidebars}
-        sidebarPanel="extensions"
-      />,
-    );
-    expect(html).toContain('data-slot="extension-manager-host"');
     expect(html).toContain('data-extension-id="crm"');
     expect(html).toContain('data-extension-id="demo"');
-    expect(html).not.toContain('data-slot="hitl-inbox-host"');
+    expect(html).not.toContain('data-sidebar-active="true"');
   });
 });

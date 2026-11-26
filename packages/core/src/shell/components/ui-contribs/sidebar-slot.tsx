@@ -3,17 +3,13 @@ import {
   useShellActiveView,
   useShellContributions,
   useShellSidebarOpen,
-  useShellSidebarPanel,
 } from '@agentos/core/shell/hooks';
 import {
   contributionKey,
   type ShellView,
-  type SidebarPanel,
   type UiContribution,
 } from '@agentos/core/shell/lib';
 import { cn } from '@agentos/ui/lib/utils';
-import { ExtensionManagerPanel } from '../chrome/extension-manager-drawer';
-import { HitlInbox } from '../chrome/hitl-inbox';
 import { SettingsSidebar } from '../settings/settings-sidebar';
 import { ExtensionFrame } from './extension-frame';
 import { KeepAlive } from './keep-alive';
@@ -23,33 +19,31 @@ export type SidebarSlotProps = {
   sidebarOpen?: boolean;
   /** Override store active view (tests / controlled hosts). */
   activeView?: ShellView;
-  /** Override store sidebar panel mode (tests / controlled hosts). */
-  sidebarPanel?: SidebarPanel;
   /** App Home sidebar (`ui/dashboard-sidebar.tsx`), in-process. */
   dashboardSidebar?: ComponentType;
 };
 
-/** Left sidebar host: active extension `ui/sidebar.tsx`, Home sidebar, Settings nav, or Shell manager/HITL. */
+/**
+ * Left sidebar host. It only shows context for the active view: the Home
+ * sidebar, Settings navigation, or the active extension's `ui/sidebar.tsx`.
+ * Full-page Shell views (Extensions) and pages without a sidebar render no
+ * content, and the column collapses via `sidebarColumnHasContent`.
+ */
 export function SidebarSlot({
   contributions: contributionsProp,
   sidebarOpen: sidebarOpenProp,
   activeView: activeViewProp,
-  sidebarPanel: sidebarPanelProp,
   dashboardSidebar: DashboardSidebar,
 }: SidebarSlotProps) {
   const sidebarOpen = useShellSidebarOpen(sidebarOpenProp);
   const activeView = useShellActiveView(activeViewProp);
-  const storePanel = useShellSidebarPanel();
-  const mode = sidebarPanelProp ?? storePanel;
   const sidebars = useShellContributions({
     contributions: contributionsProp,
     view: 'sidebar',
   });
 
-  const contributionMode = mode === 'contribution';
-  const homeSidebarActive =
-    contributionMode && activeView === 'home' && DashboardSidebar != null;
-  const settingsSidebarActive = contributionMode && activeView === 'settings';
+  const homeSidebarActive = activeView === 'home' && DashboardSidebar != null;
+  const settingsSidebarActive = activeView === 'settings';
 
   return (
     <aside
@@ -58,32 +52,11 @@ export function SidebarSlot({
         !sidebarOpen && 'hidden',
       )}
       data-slot="sidebar"
-      data-sidebar-panel={mode}
       data-open={sidebarOpen ? 'true' : 'false'}
       aria-label="Sidebar"
       hidden={!sidebarOpen}
     >
-      <KeepAlive
-        active={mode === 'extensions'}
-        className="min-h-0 flex-1 overflow-hidden"
-        data-slot="extension-manager-host"
-      >
-        <ExtensionManagerPanel />
-      </KeepAlive>
-      <KeepAlive
-        active={mode === 'hitl'}
-        className="min-h-0 flex-1 overflow-hidden"
-        data-slot="hitl-inbox-host"
-      >
-        <HitlInbox />
-      </KeepAlive>
-      <div
-        className={cn(
-          'min-h-0 flex-1 overflow-hidden',
-          !contributionMode && 'hidden',
-        )}
-        hidden={!contributionMode}
-      >
+      <div className="min-h-0 flex-1 overflow-hidden">
         {DashboardSidebar != null ? (
           <KeepAlive
             active={homeSidebarActive}
@@ -103,8 +76,7 @@ export function SidebarSlot({
           <SettingsSidebar />
         </KeepAlive>
         {sidebars.map((contribution) => {
-          const active =
-            contributionMode && contribution.extensionId === activeView;
+          const active = contribution.extensionId === activeView;
           return (
             <div
               key={contributionKey(contribution.extensionId, contribution.view)}
