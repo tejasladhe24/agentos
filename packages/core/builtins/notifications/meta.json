@@ -1,5 +1,6 @@
 {
   "name": "Notifications",
+  "icon": "Bell",
   "api": {
     "language": "bun",
     "port": 6117
