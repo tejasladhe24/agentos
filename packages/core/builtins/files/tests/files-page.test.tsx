@@ -11,10 +11,8 @@ import FilesSettings from '../ui/settings';
 import { FilesBrowser } from '../ui/components/files-browser';
 import type { FilesMount } from '../ui/lib/files-types';
 import { FilesSidebarNav } from '../ui/sidebar';
-import {
-  ConnectedDrives,
-  StorageBackends,
-} from '../ui/components/storage-backends';
+import { ConnectedDrives } from '../ui/components/connected-drives';
+import { StorageBackends } from '../ui/components/storage-backends';
 
 const CAPS = {
   serverSideCopy: true,
@@ -567,7 +565,7 @@ describe('FilesSidebarNav', () => {
 describe('AddStorageDialog fields', () => {
   test('preset fields filter non-secret inputs; secrets always shown', async () => {
     const { visibleFields } =
-      await import('../ui/components/add-storage-dialog');
+      await import('../ui/lib/add-storage-form');
     const provider = {
       id: 's3',
       label: 'S3',
