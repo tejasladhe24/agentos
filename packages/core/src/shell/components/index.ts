@@ -1,10 +1,14 @@
 export { ActivityBar } from './chrome/activity-bar';
 export {
-  AuthGate,
-  type AuthGateBranding,
-  type AuthGateConfig,
-  type AuthGateProps,
-} from './auth/auth-gate';
+  AppRouter,
+  createAppRouter,
+  type AppRouterBranding,
+  type AppRouterConfig,
+  type AppRouterInstance,
+  type AppRouterProps,
+  type CreateAppRouterOptions,
+  type SessionFetcher,
+} from './routing/app-router';
 export {
   AuthFormCard,
   AuthFormPanel,
