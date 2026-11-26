@@ -32,6 +32,7 @@ export {
   ExtensionRpcTimeoutError,
   HandshakeTimeoutError,
   type AiGenerateResult,
+  type EmailPreferences,
   type ExtensionAPI,
   type HostAPI,
   type HostAPIClient,
@@ -39,6 +40,8 @@ export {
   type HostFetchResponse,
   type HitlApprovalRequest,
   type HitlApprovalResult,
+  type NotificationDelivery,
+  type NotificationSendInput,
   type NotificationType,
   type OpenExternalOptions,
 } from './lib/types';

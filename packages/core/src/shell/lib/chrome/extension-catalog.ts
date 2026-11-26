@@ -58,6 +58,11 @@ export type ExtensionEntry = {
   rightSheet?: ExtensionRightSheetMeta;
   /** Event-bus topics this extension's UI may publish / subscribe to. */
   events?: ExtensionEventDeclarations;
+  /**
+   * Other extensions this one's UI may call by absolute `/api/ext/<id>/…`
+   * path (`meta.json` `dependsOn`). Anything else is rejected with 403.
+   */
+  dependsOn?: string[];
 };
 
 /** Mirrors `ExtensionMetaRightSheet` from the registry (Shell-facing copy). */

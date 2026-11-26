@@ -4,7 +4,6 @@ import { z } from 'zod';
 import {
   isFieldInvalid,
   toFieldErrors,
-  useHostApi,
   useHostNotifications,
 } from '@agentos/core/client';
 import { Button } from '@agentos/ui/components/button';
@@ -20,8 +19,6 @@ import {
 } from '@agentos/ui/components/field';
 import { Input } from '@agentos/ui/components/input';
 import { LoadingState } from '@agentos/ui/components/loading-state';
-
-export const USER_EMAIL_PREFS_PATH = '/api/ext/notifications/preferences/email';
 
 export type UserEmailFromData = {
   from: string | null;
@@ -46,16 +43,6 @@ const userEmailFromSchema = z.object({
       'Enter a valid email or "Name <email@domain.com>"',
     ),
 });
-
-function parseError(body: string, fallback: string): string {
-  try {
-    const parsed = JSON.parse(body) as { error?: unknown };
-    if (typeof parsed.error === 'string' && parsed.error) return parsed.error;
-  } catch {
-    // non-JSON body
-  }
-  return fallback;
-}
 
 export type UserEmailFromCardViewProps = {
   savedFrom: string | null;
@@ -190,7 +177,6 @@ export function UserEmailFromCardView({
 
 /** Self-loading per-user email sender address section for Settings → Email. */
 export function UserEmailFromCard({ entryId }: { entryId?: string }) {
-  const api = useHostApi();
   const notifications = useHostNotifications();
   const [data, setData] = useState<UserEmailFromData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,22 +184,19 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await api.fetch(USER_EMAIL_PREFS_PATH);
-    setLoading(false);
-    if (!res.ok) {
-      const message = parseError(res.body, 'Could not load sender address.');
+    try {
+      setData(await notifications.getEmailPreferences());
+      setError(null);
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'Could not load sender address.';
       setError(message);
       void notifications.show(message, 'error');
-      return;
     }
-    try {
-      const parsed = JSON.parse(res.body) as UserEmailFromData;
-      setData(parsed);
-      setError(null);
-    } catch {
-      setError('Invalid sender preference response.');
-    }
-  }, [api, notifications]);
+    setLoading(false);
+  }, [notifications]);
 
   useEffect(() => {
     void load();
@@ -222,24 +205,19 @@ export function UserEmailFromCard({ entryId }: { entryId?: string }) {
   async function save(nextFrom: string | null) {
     setBusy(true);
     setError(null);
-    const res = await api.fetch(USER_EMAIL_PREFS_PATH, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ from: nextFrom }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      const message = parseError(res.body, 'Could not save sender address.');
+    try {
+      setData(await notifications.setEmailPreferences(nextFrom));
+    } catch (reason) {
+      setBusy(false);
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : 'Could not save sender address.';
       setError(message);
       await notifications.show(message, 'error');
       return;
     }
-    try {
-      const parsed = JSON.parse(res.body) as UserEmailFromData;
-      setData(parsed);
-    } catch {
-      await load();
-    }
+    setBusy(false);
     await notifications.show(
       nextFrom ? 'Sender address saved' : 'Reset to organization default',
       'info',

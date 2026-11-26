@@ -185,6 +185,11 @@ export type ExtensionMeta = {
   rightSheet?: ExtensionMetaRightSheet;
   /** Event-bus topics this extension's UI may publish / subscribe to. */
   events?: ExtensionMetaEvents;
+  /**
+   * Other extension ids this UI may call by absolute `/api/ext/<id>/…` path
+   * through `host.api.fetch`. Everything else is rejected by the Shell.
+   */
+  dependsOn?: string[];
 };
 
 /**

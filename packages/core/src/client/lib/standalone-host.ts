@@ -28,6 +28,15 @@ export function createStandaloneHost(): HostAPIClient {
     },
     notifications: {
       show: async () => {},
+      send: async () => ({ id: 'standalone', status: 'skipped' }),
+      getEmailPreferences: async () => ({ from: null, orgFrom: null }),
+      setEmailPreferences: async (from) => ({ from, orgFrom: null }),
+    },
+    auth: {
+      can: async () => false,
+    },
+    files: {
+      blobUrl: async (key) => `#standalone:${key}`,
     },
     ai: {
       generateText: async (prompt) => ({ text: `standalone:${prompt}` }),

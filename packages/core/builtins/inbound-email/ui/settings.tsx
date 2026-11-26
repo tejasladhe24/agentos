@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useHostApi, useSettingsTarget } from '@agentos/core/client';
+import {
+  extensionPath,
+  useHostApi,
+  useSettingsTarget,
+} from '@agentos/core/client';
 import {
   IntegrationSection,
   type IntegrationSectionData,
@@ -9,8 +13,10 @@ import { FieldGroup, FieldSeparator } from '@agentos/ui/components/field';
 import { ReceivingCard } from './receiving-card';
 import { UserEmailFromCard } from './user-email-from-card';
 
-const EMAIL_SEND_INTEGRATION_PATH =
-  '/api/ext/notifications/integrations/email.send';
+const EMAIL_SEND_INTEGRATION_PATH = extensionPath(
+  'notifications',
+  '/integrations/email.send',
+);
 
 /**
  * Email Settings — personal sender address for all users; org provider / API
@@ -52,7 +58,7 @@ export default function EmailSettings() {
             <FieldSeparator />
             <IntegrationSection
               integration="email.send"
-              basePath="/api/ext/notifications/integrations"
+              basePath={extensionPath('notifications', '/integrations')}
               entryId="email-sending"
             />
             <FieldSeparator />

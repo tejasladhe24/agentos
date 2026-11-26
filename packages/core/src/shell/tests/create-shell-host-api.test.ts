@@ -109,26 +109,96 @@ describe('createShellHostApi notifications', () => {
     }
   });
 
-  test('api.fetch keeps absolute /api/ext/* paths', async () => {
-    const originalFetch = globalThis.fetch;
-    const calls: string[] = [];
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      calls.push(String(input));
-      return new Response('{"ok":true}', { status: 200 });
-    }) as typeof fetch;
-
-    try {
-      const host = createShellHostApi('inbound-email');
-      const res = await host.api.fetch('/api/ext/notifications/notify', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ channel: 'email', to: 'a@b.c', message: 'hi' }),
+  describe('api.fetch absolute /api/ext/* allowlist', () => {
+    function withFetch<T>(run: (calls: string[]) => Promise<T>): Promise<T> {
+      const originalFetch = globalThis.fetch;
+      const calls: string[] = [];
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        calls.push(String(input));
+        return new Response('{"ok":true}', { status: 200 });
+      }) as typeof fetch;
+      return run(calls).finally(() => {
+        globalThis.fetch = originalFetch;
       });
-      expect(calls).toEqual(['/api/ext/notifications/notify']);
-      expect(res.ok).toBe(true);
-    } finally {
-      globalThis.fetch = originalFetch;
     }
+
+    test('declared dependsOn extensions are reachable', () =>
+      withFetch(async (calls) => {
+        const host = createShellHostApi('inbound-email', {
+          dependsOn: ['notifications'],
+        });
+        const res = await host.api.fetch('/api/ext/notifications/deliveries');
+        expect(res.ok).toBe(true);
+        expect(calls).toEqual(['/api/ext/notifications/deliveries']);
+      }));
+
+    test('the extension may always call its own absolute path', () =>
+      withFetch(async (calls) => {
+        const host = createShellHostApi('inbound-email', { dependsOn: [] });
+        const res = await host.api.fetch('/api/ext/inbound-email/messages');
+        expect(res.ok).toBe(true);
+        expect(calls).toEqual(['/api/ext/inbound-email/messages']);
+      }));
+
+    test('undeclared extensions are rejected with 403 and never hit the network', () =>
+      withFetch(async (calls) => {
+        const host = createShellHostApi('inbound-email', {
+          dependsOn: ['notifications'],
+        });
+        for (const path of [
+          '/api/ext/auth/permissions/check',
+          '/api/ext/files/blobs/x',
+          '/api/ext/notifications-evil/x',
+          '/api/ext/',
+        ]) {
+          const res = await host.api.fetch(path);
+          expect({ path, status: res.status, ok: res.ok }).toEqual({
+            path,
+            status: 403,
+            ok: false,
+          });
+          expect(res.body).toContain('dependsOn');
+        }
+        expect(calls).toEqual([]);
+      }));
+
+    test('dependsOn defaults to the registry entry for the extension', () =>
+      withFetch(async (calls) => {
+        useShellStore.setState({
+          extensions: [
+            ...STUB_EXTENSION_CATALOG,
+            {
+              id: 'mailer',
+              name: 'Mailer',
+              kind: 'customer',
+              toggleable: true,
+              driven: false,
+              dependsOn: ['auth'],
+            },
+          ],
+        });
+        const host = createShellHostApi('mailer');
+        expect((await host.api.fetch('/api/ext/auth/session')).ok).toBe(true);
+        expect((await host.api.fetch('/api/ext/files/blobs/x')).status).toBe(
+          403,
+        );
+        expect(calls).toEqual(['/api/ext/auth/session']);
+      }));
+
+    test('encoded ids cannot smuggle another extension past the check', () =>
+      withFetch(async (calls) => {
+        const host = createShellHostApi('crm', { dependsOn: [] });
+        const res = await host.api.fetch('/api/ext/%61uth/session');
+        expect(res.status).toBe(403);
+        expect(calls).toEqual([]);
+      }));
+
+    test('relative paths always target the extension itself', () =>
+      withFetch(async (calls) => {
+        const host = createShellHostApi('crm', { dependsOn: [] });
+        await host.api.fetch('contacts');
+        expect(calls).toEqual(['/api/ext/crm/contacts']);
+      }));
   });
 
   test('ai.generateText posts to /api/ext/ai/generate-text', async () => {

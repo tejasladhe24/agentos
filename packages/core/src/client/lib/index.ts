@@ -24,6 +24,9 @@ export { useHostNotifications } from './use-host-notifications';
 export { useHostApi } from './use-host-api';
 export { useHostNavigation } from './use-host-navigation';
 export { useHostUi } from './use-host-ui';
+export { useHostAuth } from './use-host-auth';
+export { useFilesBlobUrl, useHostFiles } from './use-host-files';
+export { extensionPath } from './ext-path';
 export {
   useHostEvent,
   useHostPublish,
@@ -59,12 +62,15 @@ export {
 export type {
   AiGenerateOptions,
   AiGenerateResult,
+  EmailPreferences,
   EventPayload,
   HostAPIClient,
   HostFetchInit,
   HostFetchResponse,
   HitlApprovalRequest,
   HitlApprovalResult,
+  NotificationDelivery,
+  NotificationSendInput,
   NotificationType,
   OpenExternalOptions,
   StorageValue,

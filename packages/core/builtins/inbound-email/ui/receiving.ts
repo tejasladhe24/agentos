@@ -1,9 +1,16 @@
+import { extensionPath } from '@agentos/core/client';
+
 /** Helpers for the Email settings → Receiving card (`email.receive`, ticket 106). */
 
 export const RECEIVE_INTEGRATION_PATH = '/integrations/email.receive';
-export const SEND_INTEGRATION_PATH =
-  '/api/ext/notifications/integrations/email.send';
-export const RESEND_WEBHOOK_PATH = '/api/ext/inbound-email/webhooks/resend';
+export const SEND_INTEGRATION_PATH = extensionPath(
+  'notifications',
+  '/integrations/email.send',
+);
+export const RESEND_WEBHOOK_PATH = extensionPath(
+  'inbound-email',
+  '/webhooks/resend',
+);
 
 export type WebhookStatus = 'registered' | 'manual' | 'failing';
 

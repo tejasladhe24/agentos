@@ -10,6 +10,7 @@
     "publishes": ["inbound-email.section.changed"],
     "subscribes": ["inbound-email.section.changed"]
   },
+  "dependsOn": ["notifications"],
   "public": {
     "openApiPrefixes": ["/webhooks/"]
   },

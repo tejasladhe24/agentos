@@ -60,7 +60,17 @@ describe('email receiving settings helpers', () => {
         set: async () => {},
         remove: async () => {},
       },
-      notifications: { show: async () => {} },
+      notifications: {
+        show: async () => {},
+        send: async () => ({ id: 'n1', status: 'sent' }),
+        getEmailPreferences: async () => ({ from: null, orgFrom: null }),
+        setEmailPreferences: async (from: string | null) => ({
+          from,
+          orgFrom: null,
+        }),
+      },
+      auth: { can: async () => true },
+      files: { blobUrl: async (key: string) => `/b/${key}` },
       ai: { generateText: async () => ({ text: '' }) },
       hitl: { requestApproval: async () => ({ approved: true, id: '1' }) },
       api: { fetch: async () => ({ ok: true, status: 200, body: '{}' }) },

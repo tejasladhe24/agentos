@@ -54,6 +54,17 @@ export function hostApiFromRemote(
     notifications: {
       show: async (message, type) =>
         (await ns('notifications')).show(message, type),
+      send: async (input) => (await ns('notifications')).send(input),
+      getEmailPreferences: async () =>
+        (await ns('notifications')).getEmailPreferences(),
+      setEmailPreferences: async (from) =>
+        (await ns('notifications')).setEmailPreferences(from),
+    },
+    auth: {
+      can: async (permission) => (await ns('auth')).can(permission),
+    },
+    files: {
+      blobUrl: async (key) => (await ns('files')).blobUrl(key),
     },
     ai: {
       generateText: async (prompt, options) =>
@@ -124,6 +135,17 @@ function createLazyHostProxy(
     notifications: {
       show: async (message, type) =>
         (await hostPromise).notifications.show(message, type),
+      send: async (input) => (await hostPromise).notifications.send(input),
+      getEmailPreferences: async () =>
+        (await hostPromise).notifications.getEmailPreferences(),
+      setEmailPreferences: async (from) =>
+        (await hostPromise).notifications.setEmailPreferences(from),
+    },
+    auth: {
+      can: async (permission) => (await hostPromise).auth.can(permission),
+    },
+    files: {
+      blobUrl: async (key) => (await hostPromise).files.blobUrl(key),
     },
     ai: {
       generateText: async (prompt, options) =>

@@ -296,6 +296,33 @@ Shell UI contribution hosts are either **active-extension** or **global**:
 
 Opening **Extensions** (admin only, `/extensions`) or **Approvals** (`/ext/hitl`) from the Activity Bar (secondary) navigates to a full page in the main canvas. Neither opens as a left-sidebar overlay. Extensions can open, close, or toggle the right sidebar via `useHostUi()` (`@agentos/core/client`).
 
+## Cross-extension access (`dependsOn` and host capabilities)
+
+An extension UI talks to its **own** API through `useHostApi().fetch('/path')`. It must not reach into other extensions' routes. Two sanctioned ways exist:
+
+1. **Host capabilities** for shared platform needs — the Shell calls the builtin on the UI's behalf, so UI code carries no `/api/ext/<other>/…` strings:
+
+   | Capability                                                                   | Replaces                                                                                                              |
+   | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+   | `useHostAuth().can(permission)`                                              | `POST /api/ext/auth/permissions/check`. Cached per session; `false` when signed out; rejects when auth is unreachable |
+   | `useHostNotifications().send(input)`                                         | `POST /api/ext/notifications/notify`                                                                                  |
+   | `useHostNotifications().getEmailPreferences()` / `setEmailPreferences(from)` | `/api/ext/notifications/preferences/email`                                                                            |
+   | `useHostFiles().blobUrl(key)` / `useFilesBlobUrl(key)`                       | `/api/ext/files/blobs/<key>`                                                                                          |
+
+2. **Declared dependency** for anything without a capability: list the other extension in `meta.json` and build the path with `extensionPath(id, path)` from `@agentos/core/client`.
+
+   ```json
+   { "dependsOn": ["notifications"] }
+   ```
+
+   ```tsx
+   const res = await api.fetch(
+     extensionPath('notifications', '/deliveries?limit=50'),
+   );
+   ```
+
+**Enforcement.** `host.api.fetch` forwards an absolute `/api/ext/<id>/…` path only when `<id>` is the calling extension or is listed in its `dependsOn`; anything else resolves with status **403** and never reaches the network. Reactions to another extension's activity should use a declared bus event (see below) rather than polling its routes. A guard test fails the build if a builtin UI hardcodes `/api/ext/<other>/…` without declaring it.
+
 ## Event bus (extension UI ↔ extension UI)
 
 Extension UIs never talk to each other directly: no `BroadcastChannel`, no `window.postMessage` between frames, no cross-extension `api.fetch`. The **Shell is the broker** — frames register subscriptions with it and it fans events out through each frame's `ExtensionAPI.onEvent` (ADR 005 channels; frames never see each other's ports).
@@ -393,7 +420,7 @@ export const POST: RouteHandlers['POST'] = async (c) => {
 
 ## UI
 
-Import `@agentos/core/client` for host SDK hooks (`HostProvider`, `useHostStorage`, `useHostAI`, `useHostHITL`, `useHostNotifications`, `useHostApi`, `useHostNavigation`, `useHostEvent`, `useHostPublish`, `useHostSharedState`). Iframes are sandboxed without popups or top navigation, so open external pages (OAuth consent, "Open in Google") with `useHostNavigation().openExternal(url, { sameTab? })`; the Shell accepts only absolute `http(s)` URLs. **`@agentos/core/client` is for `ui/*.tsx` only** — never import it from `api/routes/**` or Python services (use `@agentos/core/api/*` / `agentos.*` there). For base controls (buttons, inputs, checkboxes, selects, dropdowns, …) import from **`@agentos/ui/components/*`** (shadcn) — do not use native HTML controls unless specifically required. Views are wrapped by framework iframe bootstrap — no Comlink / handshake boilerplate in FDE code.
+Import `@agentos/core/client` for host SDK hooks (`HostProvider`, `useHostStorage`, `useHostAI`, `useHostHITL`, `useHostNotifications`, `useHostApi`, `useHostNavigation`, `useHostEvent`, `useHostPublish`, `useHostSharedState`, `useHostAuth`, `useHostFiles`). Iframes are sandboxed without popups or top navigation, so open external pages (OAuth consent, "Open in Google") with `useHostNavigation().openExternal(url, { sameTab? })`; the Shell accepts only absolute `http(s)` URLs. **`@agentos/core/client` is for `ui/*.tsx` only** — never import it from `api/routes/**` or Python services (use `@agentos/core/api/*` / `agentos.*` there). For base controls (buttons, inputs, checkboxes, selects, dropdowns, …) import from **`@agentos/ui/components/*`** (shadcn) — do not use native HTML controls unless specifically required. Views are wrapped by framework iframe bootstrap — no Comlink / handshake boilerplate in FDE code.
 
 ## Builtins
 

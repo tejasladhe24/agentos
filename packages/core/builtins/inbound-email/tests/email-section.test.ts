@@ -6,11 +6,7 @@ import {
   isEmailSection,
   parseEmailSection,
 } from '../ui/email-section';
-import {
-  authenticationSummary,
-  filesBlobUrl,
-  parseErrorBody,
-} from '../ui/email-types';
+import { authenticationSummary, parseErrorBody } from '../ui/email-types';
 
 describe('email manager UI helpers', () => {
   test('parses email sections', () => {
@@ -21,12 +17,9 @@ describe('email manager UI helpers', () => {
     expect(parseEmailSection(null)).toBe(DEFAULT_EMAIL_SECTION);
   });
 
-  test('parseErrorBody + filesBlobUrl', () => {
+  test('parseErrorBody', () => {
     expect(parseErrorBody('{"error":"forbidden"}', 'x')).toBe('forbidden');
     expect(parseErrorBody('plain', 'fallback')).toBe('plain');
-    expect(filesBlobUrl('orgs/a/inbound/1.pdf')).toBe(
-      '/api/ext/files/blobs/orgs%2Fa%2Finbound%2F1.pdf',
-    );
   });
 
   test('authentication summary', () => {

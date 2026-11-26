@@ -352,6 +352,22 @@ function parseMetaEvents(
   };
 }
 
+/** `meta.json` `dependsOn`: unique, non-empty ids, never the extension itself. */
+function parseDependsOn(
+  raw: unknown,
+  extensionId: string,
+): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const ids: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const id = item.trim();
+    if (!id || id === extensionId || ids.includes(id)) continue;
+    ids.push(id);
+  }
+  return ids.length > 0 ? ids : undefined;
+}
+
 function readMeta(
   metaPath: string,
   extensionId: string,
@@ -387,6 +403,8 @@ function readMeta(
     if (rightSheet) meta.rightSheet = rightSheet;
     const events = parseMetaEvents(obj.events, extensionId, metaPath);
     if (events) meta.events = events;
+    const dependsOn = parseDependsOn(obj.dependsOn, extensionId);
+    if (dependsOn) meta.dependsOn = dependsOn;
     return meta;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
