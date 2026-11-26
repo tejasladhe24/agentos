@@ -151,10 +151,23 @@ Agents must never promote tickets to `done/` themselves.
 131. Docker builder runs pnpm on Node 24 — **superseded** by 132
 132. Upgrade to pnpm 12 and drop Node from the Docker builder — **done**
 133. Ticket reconciliation: promote covered in-progress → done — **done** (127–130, 132 → `done/`)
-134. Right sidebar UI contribution entrypoint (`ui/right-sidebar`) and Files details migration
-135. Shell routing with TanStack Router (URL-addressable views, nested shell layout)
+134. Right sidebar UI contribution entrypoint (`ui/right-sidebar`) and Files details migration — **done**
+135. Shell routing with TanStack Router (URL-addressable views, nested shell layout) — **done**
+136. Full-page views for Approvals and Extensions Manager
+137. Right-side sheet panel UI contribution entrypoint (`ui/right-sheet`)
+138. Notifications extension right-sheet UI (`/recent` inbox)
+139. Extension error & warning reporting to Notifications API (`/recent`)
+140. Durable functions runtime (approval-gated, event-driven) on db-store
+141. Events builtin: auth, org scope, and hardened routes (security prerequisite for 142)
+142. Extension UI event bus (Shell-brokered pub/sub; replaces direct cross-extension wiring)
+143. Replace `BroadcastChannel` hooks with bus-backed shared state
+144. Remove direct cross-extension calls from extension UIs (`host.auth` / `host.notifications` / `host.files`)
+145. Shell and extension performance: HITL events, lazy frames, theme without reload
+146. UI and code consistency cleanup (tech debt audit)
 
-**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**. `in-progress/` — **134**, **135**.
+**Open:** `todo/` — **29**, **30**, **65**, **70**, **88**–**92**, **115**–**121**, **123**–**126**, **140**–**146**. `in-progress/` — **136**–**139** (merged to `dev`; unchecked "Done when" boxes pending reconciliation).
+
+**Event bus / tech debt (audit):** **141** first (events auth), then **142** (Shell-brokered bus) → **143** (drop `BroadcastChannel`) and **144** (drop direct cross-extension calls). **145** (performance) can start after **142**. **146** (consistency) after **143** and **144** to avoid file-move conflicts.
 
 **BYOK + storage mounts:** **103**–**114** done (reconciled in **122**). Later: **115**–**118**. Follow-ups: **119** (streaming uploads), **120** (UploadThing index listing).
 
